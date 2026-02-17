@@ -8,16 +8,11 @@ class LostFormPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Objet Perdu'),
-      ),
+      appBar: AppBar(title: const Text('Objet Perdu')),
       body: const Center(
         child: Text(
-          'LostFormPage',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          'Lost Form Page',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
       ),
     );

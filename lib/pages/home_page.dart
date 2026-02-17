@@ -10,28 +10,21 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('HomePage'),
-      ),
+      appBar: AppBar(title: const Text('HomePage')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              'HomePage',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              'Home Page',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const LostFormPage(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const LostFormPage()),
                 );
               },
               child: const Text('Formulaire Objet Perdu'),
