@@ -41,10 +41,9 @@ class AppTheme {
         onPrimary: Colors.white,
         secondary: primaryVioletLight,
         onSecondary: textPrimary,
-        surface: backgroundWhite,
+        // surface: backgroundWhite,
         onSurface: textPrimary,
-        background: backgroundGray,
-        onBackground: textPrimary,
+        surface:backgroundGray,
         error: errorRed,
         onError: Colors.white,
       ),
@@ -155,7 +154,7 @@ class AppTheme {
       ),
       
       // Configuration des ombres
-      shadowColor: Colors.black.withOpacity(0.1),
+      shadowColor: Colors.black.withValues(alpha:0.1),
     );
   }
   
