@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'found_form_page.dart';
 import 'lost_form_page.dart';
+import '../widgets/top_nav_bar.dart';
 
 /// Home page with action cards, search bar, and recent publications grid.
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   void _openLost(BuildContext context) {
     Navigator.of(context).push(
@@ -34,7 +37,7 @@ class HomePage extends StatelessWidget {
       smallIcon: Icons.heart_broken,
       smallIconColor: const Color(0xFFE53935),
       bigIcon: Icons.search,
-      bigIconColor: const Color(0xFFE53935).withOpacity(0.08),
+      bigIconColor: const Color(0xFFE53935).withValues(alpha: 0.08),
       onTap: () => _openLost(context),
     );
 
@@ -48,7 +51,7 @@ class HomePage extends StatelessWidget {
       smallIcon: Icons.handshake,
       smallIconColor: const Color(0xFFF9A825),
       bigIcon: Icons.check_circle,
-      bigIconColor: const Color(0xFF2E7D32).withOpacity(0.08),
+      bigIconColor: const Color(0xFF2E7D32).withValues(alpha: 0.08),
       onTap: () => _openFound(context),
     );
 
@@ -71,6 +74,7 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FB),
+      appBar: showAppBar ? const TopNavBar() : null,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -124,8 +128,8 @@ class HomeActionCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
-        splashColor: Colors.black.withOpacity(0.05),
-        highlightColor: Colors.black.withOpacity(0.02),
+        splashColor: Colors.black.withValues(alpha: 0.05),
+        highlightColor: Colors.black.withValues(alpha: 0.02),
         child: Container(
           width: double.infinity,
           height: height,
@@ -135,7 +139,7 @@ class HomeActionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -225,13 +229,13 @@ class SearchBarWithFilter extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
         ],
         border: Border.all(
-          color: Colors.black.withOpacity(0.04),
+          color: Colors.black.withValues(alpha: 0.04),
           width: 1,
         ),
       ),
@@ -460,7 +464,7 @@ class FilterSegmentedControl extends StatelessWidget {
     const textInactive = Color(0xFF6B7280); // plus contrasté
     const textActive = Color(0xFF0F172A);
     final shadow = BoxShadow(
-      color: Colors.black.withOpacity(0.08),
+      color: Colors.black.withValues(alpha: 0.08),
       blurRadius: 6,
       offset: const Offset(0, 2),
     );
@@ -635,11 +639,11 @@ class _PublicationCardState extends State<PublicationCard>
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
+                            color: Colors.black.withValues(alpha: 0.08),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
