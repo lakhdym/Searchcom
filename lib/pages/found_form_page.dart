@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../widgets/top_nav_bar.dart';
 import 'lost_form_page.dart';
 
 /// Page de formulaire "Objet trouvé" - Signalement Objet Trouvé
@@ -43,19 +44,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F8F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.arrow_back_ios, size: 18),
-              Text('Retour', style: TextStyle(fontSize: 16)),
-            ],
-          ),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+      appBar: TopNavBar(
+        showBack: true,
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
@@ -69,7 +60,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -123,7 +114,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                                   borderRadius: BorderRadius.circular(10),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.03),
+                                      color: Colors.black.withValues(alpha: 0.03),
                                       blurRadius: 4,
                                     ),
                                   ],

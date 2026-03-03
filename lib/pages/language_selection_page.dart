@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/language_service.dart';
 import '../theme/app_theme.dart';
 import 'home_page.dart';
+import '../widgets/top_nav_bar.dart';
 
 /// Page de sélection de langue.
 class LanguageSelectionPage extends StatefulWidget {
@@ -65,6 +66,7 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundWhite,
+      appBar: const TopNavBar(),
       body: SafeArea(
         child: Center(
           child: FadeTransition(
