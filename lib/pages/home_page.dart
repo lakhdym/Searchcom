@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'found_form_page.dart';
 import 'lost_form_page.dart';
 import '../widgets/top_nav_bar.dart';
+import '../services/api_service.dart';
 
-/// Home page with action cards, search bar, and recent publications grid.
+/// Home page with action cards, search bar, and recent publications list.
 class HomePage extends StatelessWidget {
   const HomePage({super.key, this.showAppBar = true});
 
   final bool showAppBar;
 
   void _openLost(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LostFormPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const LostFormPage()));
   }
 
   void _openFound(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FoundFormPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const FoundFormPage()));
   }
 
   @override
@@ -43,8 +45,7 @@ class HomePage extends StatelessWidget {
 
     final foundCard = HomeActionCard(
       title: "J'ai trouvé",
-      subtitle:
-          "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
+      subtitle: "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
       height: 150,
       backgroundColor: const Color(0xFFF1FBF5),
       smallIconBackground: const Color(0xFFDFF5E7),
@@ -65,11 +66,7 @@ class HomePage extends StatelessWidget {
           )
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              lostCard,
-              const SizedBox(height: 20),
-              foundCard,
-            ],
+            children: [lostCard, const SizedBox(height: 20), foundCard],
           );
 
     return Scaffold(
@@ -83,9 +80,18 @@ class HomePage extends StatelessWidget {
             children: [
               cardsSection,
               const SizedBox(height: 20),
-              const SearchBarWithFilter(),
-              const SizedBox(height: 24),
-              const RecentPublicationsSection(),
+              // Search bar is now connected to publications section via callback
+              RecentPublicationsSection(
+                headerBuilder: (onSearchChanged) => Column(
+                  children: [
+                    SearchBarWithFilter(
+                      onChanged: onSearchChanged,
+                      onFilterTap: () {},
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -158,11 +164,7 @@ class HomeActionCard extends StatelessWidget {
                       color: smallIconBackground,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Icon(
-                      smallIcon,
-                      color: smallIconColor,
-                      size: 22,
-                    ),
+                    child: Icon(smallIcon, color: smallIconColor, size: 22),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -197,11 +199,7 @@ class HomeActionCard extends StatelessWidget {
                 top: 0,
                 bottom: 0,
                 child: Center(
-                  child: Icon(
-                    bigIcon,
-                    size: 120,
-                    color: bigIconColor,
-                  ),
+                  child: Icon(bigIcon, size: 120, color: bigIconColor),
                 ),
               ),
             ],
@@ -250,11 +248,7 @@ class SearchBarWithFilter extends StatelessWidget {
                 isDense: true,
                 border: InputBorder.none,
                 hintText: "Rechercher (objet, lieu, mot-clé…)",
-                hintStyle: TextStyle(
-                  color: Color(0xFF9CA3AF),
-                  fontSize: 14,
-                ),
-                // contentPadding: EdgeInsets.zero,
+                hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
               ),
             ),
           ),
@@ -289,14 +283,6 @@ class SearchBarWithFilter extends StatelessWidget {
 // Recent publications section
 // ---------------------------------------------------------------------------
 
-class RecentPublicationsSection extends StatefulWidget {
-  const RecentPublicationsSection({super.key});
-
-  @override
-  State<RecentPublicationsSection> createState() =>
-      _RecentPublicationsSectionState();
-}
-
 enum PublicationStatus { perdu, trouve }
 
 class Publication {
@@ -321,6 +307,19 @@ class Publication {
   });
 }
 
+typedef HeaderBuilder = Widget Function(ValueChanged<String> onSearchChanged);
+
+class RecentPublicationsSection extends StatefulWidget {
+  const RecentPublicationsSection({super.key, this.headerBuilder});
+
+  /// Optional: inject the SearchBar above the section and connect it to search.
+  final HeaderBuilder? headerBuilder;
+
+  @override
+  State<RecentPublicationsSection> createState() =>
+      _RecentPublicationsSectionState();
+}
+
 class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _purple = Color(0xFF6C2BFF);
   static const _red = Color(0xFFFF3B30);
@@ -328,67 +327,77 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
 
-  final List<Publication> _publications = const [
-    Publication(
-      title: "Portefeuille en cuir marron",
-      status: PublicationStatus.perdu,
-      imageUrl:
-          "https://images.unsplash.com/photo-1542293787938-4d273c36b05d?auto=format&fit=crop&w=900&q=60",
-      dateText: "Aujourd’hui, 09:30",
-      description: "Perdu près de la gare, contient carte nationale et permis.",
-      cityArea: "Casablanca, Gare",
-      likes: 12,
-      comments: 4,
-    ),
-    Publication(
-      title: "Clés de voiture BMW",
-      status: PublicationStatus.trouve,
-      imageUrl:
-          "https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?auto=format&fit=crop&w=900&q=60",
-      dateText: "Aujourd’hui, 11:10",
-      description: "Trousseau avec badge bleu trouvé devant café Venezia.",
-      cityArea: "Rabat, Agdal",
-      likes: 8,
-      comments: 3,
-    ),
-    Publication(
-      title: "Chien Golden Retriever",
-      status: PublicationStatus.perdu,
-      imageUrl:
-          "https://images.unsplash.com/photo-1507146426996-ef05306b995a?auto=format&fit=crop&w=900&q=60",
-      dateText: "Hier, 18:45",
-      description: "Répond au nom Simba, collier rouge. Vu pour la dernière fois au parc.",
-      cityArea: "Marrakech, Guéliz",
-      likes: 30,
-      comments: 12,
-    ),
-    Publication(
-      title: "iPhone 13 rouge",
-      status: PublicationStatus.trouve,
-      imageUrl:
-          "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60",
-      dateText: "2 Fév, 14:00",
-      description: "Téléphone trouvé dans le tram, écran intact, coque rouge.",
-      cityArea: "Tanger, Centre",
-      likes: 19,
-      comments: 6,
-    ),
-  ];
+  List<Publication> _publications = [];
+  bool _loading = true;
+  String? _error;
 
   int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvé
+  String _query = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPublications();
+  }
+
+  Future<void> _loadPublications() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      // ✅ fetch from API as PUBLIC (no token)
+      String? type;
+      if (_selectedIndex == 1) type = 'lost';
+      if (_selectedIndex == 2) type = 'found';
+
+      final listings = await ApiService.instance.fetchListings(type: type);
+
+      final mapped = listings
+          .map(
+            (l) => Publication(
+              title: l.title,
+              status: l.type == 'lost'
+                  ? PublicationStatus.perdu
+                  : PublicationStatus.trouve,
+              imageUrl: (l.imageUrl != null && l.imageUrl!.isNotEmpty)
+                  ? l.imageUrl!
+                  : 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60',
+              dateText: l.date, // you can format later
+              description: l.description,
+              cityArea: l.location.isNotEmpty ? l.location : l.city,
+              likes: 0,
+              comments: 0,
+            ),
+          )
+          .toList();
+
+      setState(() {
+        _publications = mapped;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String q) {
+    setState(() => _query = q.trim().toLowerCase());
+  }
 
   List<Publication> get _filtered {
-    if (_selectedIndex == 1) {
-      return _publications
-          .where((p) => p.status == PublicationStatus.perdu)
-          .toList();
-    }
-    if (_selectedIndex == 2) {
-      return _publications
-          .where((p) => p.status == PublicationStatus.trouve)
-          .toList();
-    }
-    return _publications;
+    final base = _publications;
+
+    if (_query.isEmpty) return base;
+
+    return base.where((p) {
+      final hay = '${p.title} ${p.description} ${p.cityArea}'.toLowerCase();
+      return hay.contains(_query);
+    }).toList();
   }
 
   @override
@@ -396,52 +405,101 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        if (widget.headerBuilder != null)
+          widget.headerBuilder!(_onSearchChanged),
+        Row(
           children: [
-            const SizedBox(height: 8), // léger offset haut
-            Text(
-              "Publications récentes",
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1A1A1A),
-                  ),
-            ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 2),
-              child: FilterSegmentedControl(
-                selectedIndex: _selectedIndex,
-                onChanged: (i) => setState(() => _selectedIndex = i),
+            Expanded(
+              child: Text(
+                "Publications récentes",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1A1A1A),
+                ),
               ),
+            ),
+            const SizedBox(width: 10),
+            IconButton(
+              tooltip: 'Actualiser',
+              onPressed: _loadPublications,
+              icon: const Icon(Icons.refresh),
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: ListView.separated(
-            key: ValueKey(_selectedIndex),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 14),
-            itemBuilder: (context, index) {
-              final publication = _filtered[index];
-              return PublicationCard(
-                publication: publication,
-                purple: _purple,
-                red: _red,
-                green: _green,
-                textGray: _textGray,
-                mutedGray: _mutedGray,
-              );
-            },
-          ),
+        const SizedBox(height: 10),
+        FilterSegmentedControl(
+          selectedIndex: _selectedIndex,
+          onChanged: (i) {
+            setState(() => _selectedIndex = i);
+            _loadPublications(); // ✅ reload by type
+          },
         ),
+        const SizedBox(height: 14),
+        if (_loading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              children: [
+                Text(
+                  "Impossible de charger les annonces.",
+                  style: TextStyle(color: _textGray),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: _mutedGray, fontSize: 12),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _loadPublications,
+                  child: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          )
+        else if (_filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                "Aucune annonce pour le moment.",
+                style: TextStyle(color: _textGray),
+              ),
+            ),
+          )
+        else
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: ListView.separated(
+              key: ValueKey('$_selectedIndex-$_query'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _filtered.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (context, index) {
+                final publication = _filtered[index];
+                return PublicationCard(
+                  publication: publication,
+                  purple: _purple,
+                  red: _red,
+                  green: _green,
+                  textGray: _textGray,
+                  mutedGray: _mutedGray,
+                );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -461,7 +519,7 @@ class FilterSegmentedControl extends StatelessWidget {
   Widget build(BuildContext context) {
     const pillHeight = 60.0;
     const bgColor = Color(0xFFF5F6F8);
-    const textInactive = Color(0xFF6B7280); // plus contrasté
+    const textInactive = Color(0xFF6B7280);
     const textActive = Color(0xFF0F172A);
     final shadow = BoxShadow(
       color: Colors.black.withValues(alpha: 0.08),
@@ -469,7 +527,8 @@ class FilterSegmentedControl extends StatelessWidget {
       offset: const Offset(0, 2),
     );
 
-    List<String> labels = const ["Tout", "Perdu", "Trouvé"];
+    const labels = ["Tout", "Perdu", "Trouvé"];
+
     return Container(
       height: pillHeight,
       padding: const EdgeInsets.all(6),
@@ -488,7 +547,10 @@ class FilterSegmentedControl extends StatelessWidget {
               onTap: () => onChanged(i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 11,
+                ),
                 decoration: BoxDecoration(
                   color: isActive ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
@@ -542,18 +604,19 @@ class _PublicationCardState extends State<PublicationCard>
   @override
   void initState() {
     super.initState();
-    _comments = [
-      const Comment(
+    _comments = const [
+      Comment(
         name: "Imane",
         text: "Je crois l’avoir vu près de la sortie côté tram.",
         time: "Il y a 5 min",
       ),
-      const Comment(
+      Comment(
         name: "Youssef",
-        text: "Vérifie au bureau info de la gare, ils gardent souvent les objets.",
+        text:
+            "Vérifie au bureau info de la gare, ils gardent souvent les objets.",
         time: "Il y a 12 min",
       ),
-    ];
+    ].toList();
   }
 
   @override
@@ -570,11 +633,7 @@ class _PublicationCardState extends State<PublicationCard>
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
     setState(() {
-      _comments.add(Comment(
-        name: "Moi",
-        text: text,
-        time: "Maintenant",
-      ));
+      _comments.add(Comment(name: "Moi", text: text, time: "Maintenant"));
       _commentController.clear();
       _showComments = true;
     });
@@ -583,8 +642,12 @@ class _PublicationCardState extends State<PublicationCard>
   @override
   Widget build(BuildContext context) {
     final publication = widget.publication;
-    final badgeColor = publication.status == PublicationStatus.perdu ? widget.red : widget.green;
-    final badgeLabel = publication.status == PublicationStatus.perdu ? "PERDU" : "TROUVÉ";
+    final badgeColor = publication.status == PublicationStatus.perdu
+        ? widget.red
+        : widget.green;
+    final badgeLabel = publication.status == PublicationStatus.perdu
+        ? "PERDU"
+        : "TROUVÉ";
     final radius = BorderRadius.circular(16);
 
     return Card(
@@ -606,7 +669,11 @@ class _PublicationCardState extends State<PublicationCard>
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
                     color: Colors.grey.shade300,
-                    child: const Icon(Icons.image, size: 48, color: Colors.white),
+                    child: const Icon(
+                      Icons.image,
+                      size: 48,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -614,7 +681,10 @@ class _PublicationCardState extends State<PublicationCard>
                 top: 10,
                 left: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeColor,
                     borderRadius: BorderRadius.circular(12),
@@ -649,8 +719,11 @@ class _PublicationCardState extends State<PublicationCard>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.more_horiz,
-                          size: 18, color: Color(0xFF4B5563)),
+                      child: const Icon(
+                        Icons.more_horiz,
+                        size: 18,
+                        color: Color(0xFF4B5563),
+                      ),
                     ),
                   ),
                 ),
@@ -682,8 +755,11 @@ class _PublicationCardState extends State<PublicationCard>
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 14, color: Color(0xFF9CA3AF)),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: Color(0xFF9CA3AF),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           publication.dateText,
@@ -753,8 +829,11 @@ class _PublicationCardState extends State<PublicationCard>
                   onTap: _toggleComments,
                   child: Row(
                     children: [
-                      const Icon(Icons.mode_comment_outlined,
-                          size: 18, color: Color(0xFF6B7280)),
+                      const Icon(
+                        Icons.mode_comment_outlined,
+                        size: 18,
+                        color: Color(0xFF6B7280),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         "${publication.comments}",
@@ -778,8 +857,11 @@ class _PublicationCardState extends State<PublicationCard>
                         child: const SizedBox(
                           width: 36,
                           height: 36,
-                          child: Icon(Icons.chat_bubble_outline,
-                              color: Colors.white, size: 18),
+                          child: Icon(
+                            Icons.chat_bubble_outline,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                       ),
                     );
@@ -832,7 +914,8 @@ class _PublicationCardState extends State<PublicationCard>
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           mainAxisAlignment:
@@ -891,7 +974,11 @@ class _PublicationCardState extends State<PublicationCard>
                                 ),
                               ),
                               IconButton(
-                                icon: Icon(Icons.send, color: widget.purple, size: 20),
+                                icon: Icon(
+                                  Icons.send,
+                                  color: widget.purple,
+                                  size: 20,
+                                ),
                                 onPressed: _addComment,
                                 splashRadius: 20,
                               ),
@@ -930,7 +1017,7 @@ class _PublicationCardState extends State<PublicationCard>
             iconColor: const Color(0xFF34C759),
             label: "WhatsApp",
           ),
-          onTap: () => print("WhatsApp"),
+          onTap: () => debugPrint("WhatsApp"),
         ),
         PopupMenuItem(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -940,7 +1027,7 @@ class _PublicationCardState extends State<PublicationCard>
             iconColor: widget.purple,
             label: "Chat interne",
           ),
-          onTap: () => print("Chat interne"),
+          onTap: () => debugPrint("Chat interne"),
         ),
       ],
     );
@@ -952,17 +1039,16 @@ class _PublicationCardState extends State<PublicationCard>
     const double menuWidth = 220;
     const double offsetX = 8;
 
-    // position souhaitée à droite
-    Offset desiredTopLeft =
-        button.localToGlobal(Offset(button.size.width + offsetX, 0), ancestor: overlay);
+    Offset desiredTopLeft = button.localToGlobal(
+      Offset(button.size.width + offsetX, 0),
+      ancestor: overlay,
+    );
 
-    // si dépasse à droite, placer à gauche du bouton
     if (desiredTopLeft.dx + menuWidth > overlay.size.width) {
       desiredTopLeft = button.localToGlobal(
         Offset(-menuWidth - offsetX, 0),
         ancestor: overlay,
       );
-      // si encore négatif, clamp à 8px
       if (desiredTopLeft.dx < 8) {
         desiredTopLeft = Offset(8, desiredTopLeft.dy);
       }
@@ -992,7 +1078,7 @@ class _PublicationCardState extends State<PublicationCard>
         _menuItem(
           icon: Icons.share,
           label: "Partager",
-          onTap: () => print("Partager"),
+          onTap: () => debugPrint("Partager"),
         ),
         _menuItem(
           icon: Icons.flag,
@@ -1032,42 +1118,15 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text("Supprimer la publication"),
-          content: const Text("Êtes-vous sûr de vouloir supprimer cette publication ?"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text("Annuler"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text(
-                "Oui, supprimer",
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    if (result == true) {
-      print("Supprimer la publication");
-    }
-  }
-
   Future<void> _confirmReport(BuildContext context) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text("Signaler cette publication ?"),
-        content: const Text("Voulez-vous vraiment signaler cette publication ?"),
+        content: const Text(
+          "Voulez-vous vraiment signaler cette publication ?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -1075,27 +1134,24 @@ class _PublicationCardState extends State<PublicationCard>
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              "Signaler",
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text("Signaler", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
     if (result == true) {
-      print("Signaler");
+      debugPrint("Signaler");
     }
   }
 
   void _copyLink(BuildContext context) {
     final link =
-        "https://example.com/p/${Uri.encodeComponent(widget.publication.title)}";
+        "https://italents.ma/p/${Uri.encodeComponent(widget.publication.title)}";
     Clipboard.setData(ClipboardData(text: link));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Lien copié")),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Lien copié")));
   }
 }
 
@@ -1119,10 +1175,7 @@ class _MenuRow extends StatelessWidget {
         Container(
           width: 34,
           height: 34,
-          decoration: BoxDecoration(
-            color: bg,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
           child: Icon(icon, color: iconColor, size: 18),
         ),
         const SizedBox(width: 10),
@@ -1144,9 +1197,5 @@ class Comment {
   final String text;
   final String time;
 
-  const Comment({
-    required this.name,
-    required this.text,
-    required this.time,
-  });
+  const Comment({required this.name, required this.text, required this.time});
 }
