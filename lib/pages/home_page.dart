@@ -6,6 +6,9 @@ import 'lost_form_page.dart';
 import '../widgets/top_nav_bar.dart';
 import '../services/api_service.dart';
 
+const _fallbackImageUrl =
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60';
+
 /// Home page with action cards, search bar, and recent publications list.
 class HomePage extends StatelessWidget {
   const HomePage({super.key, this.showAppBar = true});
@@ -288,23 +291,26 @@ enum PublicationStatus { perdu, trouve }
 class Publication {
   final String title;
   final PublicationStatus status;
-  final String imageUrl;
+  final List<String> imageUrls;
   final String dateText;
   final String description;
   final String cityArea;
   final int likes;
   final int comments;
 
-  const Publication({
+  Publication({
     required this.title,
     required this.status,
-    required this.imageUrl,
+    required this.imageUrls,
     required this.dateText,
     required this.description,
     required this.cityArea,
     required this.likes,
     required this.comments,
   });
+
+  String get primaryImage =>
+      imageUrls.isNotEmpty ? imageUrls.first : _fallbackImageUrl;
 }
 
 typedef HeaderBuilder = Widget Function(ValueChanged<String> onSearchChanged);
@@ -355,22 +361,26 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
       final listings = await ApiService.instance.fetchListings(type: type);
 
       final mapped = listings
-          .map(
-            (l) => Publication(
+          .map((l) {
+            final images = l.images.isNotEmpty
+                ? l.images
+                : (l.imageUrl != null && l.imageUrl!.isNotEmpty
+                    ? <String>[l.imageUrl!]
+                    : <String>[]);
+
+            return Publication(
               title: l.title,
               status: l.type == 'lost'
                   ? PublicationStatus.perdu
                   : PublicationStatus.trouve,
-              imageUrl: (l.imageUrl != null && l.imageUrl!.isNotEmpty)
-                  ? l.imageUrl!
-                  : 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60',
+              imageUrls: images.isNotEmpty ? images : <String>[_fallbackImageUrl],
               dateText: l.date, // you can format later
               description: l.description,
               cityArea: l.location.isNotEmpty ? l.location : l.city,
               likes: 0,
               comments: 0,
-            ),
-          )
+            );
+          })
           .toList();
 
       setState(() {
@@ -486,7 +496,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: _filtered.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
               itemBuilder: (context, index) {
                 final publication = _filtered[index];
                 return PublicationCard(
@@ -599,11 +609,14 @@ class _PublicationCardState extends State<PublicationCard>
     with TickerProviderStateMixin {
   bool _showComments = false;
   final TextEditingController _commentController = TextEditingController();
+  late final PageController _pageController;
+  int _currentImage = 0;
   late List<Comment> _comments;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _comments = const [
       Comment(
         name: "Imane",
@@ -622,6 +635,7 @@ class _PublicationCardState extends State<PublicationCard>
   @override
   void dispose() {
     _commentController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -658,29 +672,62 @@ class _PublicationCardState extends State<PublicationCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            children: [
-              SizedBox(
-                height: 185,
-                width: double.infinity,
-                child: Image.network(
-                  publication.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.shade300,
-                    child: const Icon(
-                      Icons.image,
-                      size: 48,
-                      color: Colors.white,
+      children: [
+        Stack(
+          children: [
+            SizedBox(
+              height: 185,
+              width: double.infinity,
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (i) => setState(() => _currentImage = i),
+                itemCount: publication.imageUrls.length,
+                itemBuilder: (_, index) {
+                  final img = publication.imageUrls[index];
+                  return Image.network(
+                    img,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stack) => Container(
+                      color: Colors.grey.shade300,
+                      child: const Icon(
+                        Icons.image,
+                        size: 48,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
+                  );
+                },
+              ),
+            ),
+            if (publication.imageUrls.length > 1)
+              Positioned(
+                bottom: 10,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children:
+                      List.generate(publication.imageUrls.length, (i) {
+                    final active = i == _currentImage;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      height: 8,
+                      width: active ? 16 : 8,
+                      decoration: BoxDecoration(
+                        color: active
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    );
+                  }),
                 ),
               ),
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 6,

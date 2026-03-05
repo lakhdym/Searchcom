@@ -12,7 +12,7 @@ set_exception_handler(function ($e) {
         "error" => "Server error",
         "details" => $e->getMessage(),
     ]);
-    error_log((string)$e);
+    error_log((string) $e);
     exit;
 });
 
@@ -39,7 +39,7 @@ if ($isLocalhost || in_array($origin, $allowed, true)) {
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
-// إذا ما كتستعملش cookies/session خليه محيد
+// إذا ما كتستعملش cookies/session خليـه محيد
 // header('Access-Control-Allow-Credentials: true');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -67,10 +67,14 @@ $pdo = get_pdo();
  * Transforme une ligne de la table `listings` en structure JSON simplifiée
  * utilisée par l'app Flutter.
  */
-function map_listing_row(array $row): array
+function map_listing_row(array $row, array $imagesByListingId = []): array
 {
+    $listingId = (int) $row['id'];
+    $images = $imagesByListingId[$listingId] ?? [];
+    $mainImage = $images[0] ?? null;
+
     return [
-        'id' => (int) $row['id'],
+        'id' => $listingId,
         'type' => $row['type'], // lost | found
         'status' => $row['status'],
         'title' => $row['title'],
@@ -79,8 +83,144 @@ function map_listing_row(array $row): array
         'city' => $row['city'],
         'date' => $row['created_at'], // YYYY-MM-DD HH:MM:SS
         'is_boosted' => (bool) $row['is_boosted'],
-        'imageUrl' => null, // à alimenter plus tard via listing_photos
+        // Compat: champ simple (ancien) + nouveau tableau complet
+        'imageUrl' => $mainImage,
+        'images' => $images,
     ];
+}
+
+/**
+ * Convertit une URL relative (stockée dans la BD) en URL absolue pour le client.
+ */
+function absolutize_url(string $url): string
+{
+    if ($url === '') {
+        return $url;
+    }
+
+    if (preg_match('#^https?://#i', $url)) {
+        return $url;
+    }
+
+    // Si on stocke juste le nom de fichier, on préfixe avec la base publique.
+    if ($url[0] !== '/' && defined('PHOTO_BASE_URL')) {
+        return photo_url($url);
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+
+    // On se base sur la racine du domaine (et pas /api) pour couvrir les chemins du style "uploads/..."
+    return $scheme . '://' . $host . '/' . ltrim($url, '/');
+}
+
+/**
+ * Récupère toutes les photos associées à un ensemble d'annonces.
+ * Renvoie un tableau [listing_id => ['url1', 'url2', ...]].
+ */
+function fetch_listing_images(PDO $pdo, array $listingIds): array
+{
+    if (empty($listingIds)) {
+        return [];
+    }
+
+    // Vérifier si la table listing_photos existe dans la base courante
+    $tableExists = false;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'listing_photos'
+            LIMIT 1
+        ");
+        $stmt->execute();
+        $tableExists = (bool) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        // On ne bloque pas la réponse si le schéma est différent
+        return [];
+    }
+
+    if (!$tableExists) {
+        return [];
+    }
+
+    // Détecter les noms de colonnes disponibles pour l'URL et la clef étrangère
+    $columns = [];
+    try {
+        $stmtCols = $pdo->query("SHOW COLUMNS FROM listing_photos");
+        $columns = $stmtCols ? $stmtCols->fetchAll(PDO::FETCH_COLUMN, 0) : [];
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $imgColCandidates = ['url', 'photo_url', 'image_url', 'file_path', 'path', 'filename'];
+    $idColCandidates = ['listing_id', 'listingId', 'listingID'];
+    $orderColCandidates = ['sort_order', 'position', 'ordre', 'order_index'];
+
+    $imageCol = null;
+    foreach ($imgColCandidates as $c) {
+        if (in_array($c, $columns, true)) {
+            $imageCol = $c;
+            break;
+        }
+    }
+    $listingIdCol = null;
+    foreach ($idColCandidates as $c) {
+        if (in_array($c, $columns, true)) {
+            $listingIdCol = $c;
+            break;
+        }
+    }
+
+    if ($imageCol === null || $listingIdCol === null) {
+        return [];
+    }
+
+    $orderCol = null;
+    foreach ($orderColCandidates as $c) {
+        if (in_array($c, $columns, true)) {
+            $orderCol = $c;
+            break;
+        }
+    }
+    if ($orderCol === null && in_array('id', $columns, true)) {
+        $orderCol = 'id';
+    }
+
+    $placeholders = implode(',', array_fill(0, count($listingIds), '?'));
+    $orderSql = $orderCol ? " ORDER BY `id`" : '';
+
+    $sql = "
+        SELECT  listing_id, `url` AS image_url
+        FROM listing_photos
+        WHERE `listing_id` IN ($placeholders)
+        $orderSql
+    ";
+
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(array_values($listingIds));
+    } catch (Throwable $e) {
+        // Si la requête échoue (colonne manquante, etc.), on ignore les images
+        error_log('[annonces.php] listing_photos query failed: ' . $e->getMessage());
+        return [];
+    }
+
+    $imagesByListing = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $url = trim((string) ($row['image_url'] ?? ''));
+        if ($url === '') {
+            continue;
+        }
+        $listingId = (int) ($row['listing_id'] ?? 0);
+        if ($listingId <= 0) {
+            continue;
+        }
+        $imagesByListing[$listingId][] = absolutize_url($url);
+    }
+
+    return $imagesByListing;
 }
 
 if ($method === 'GET') {
@@ -105,7 +245,10 @@ if ($method === 'GET') {
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
 
-    $data = array_map('map_listing_row', $rows);
+    $listingIds = array_map(fn($r) => (int) $r['id'], $rows);
+    $imagesByListingId = fetch_listing_images($pdo, $listingIds);
+
+    $data = array_map(fn($row) => map_listing_row($row, $imagesByListingId), $rows);
     json_response($data);
 }
 
@@ -203,7 +346,8 @@ if ($method === 'POST') {
         json_response(['error' => "Impossible de récupérer l'annonce créée"], 500);
     }
 
-    $data = map_listing_row($row);
+    $imagesByListingId = fetch_listing_images($pdo, [$id]);
+    $data = map_listing_row($row, $imagesByListingId);
     json_response($data, 201);
 }
 

@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// Service centralisé pour communiquer avec l'API PHP (auth + annonces).
@@ -114,6 +113,7 @@ class ApiListing {
   final String date;
   final bool isBoosted;
   final String? imageUrl;
+  final List<String> images;
 
   ApiListing({
     required this.id,
@@ -126,9 +126,25 @@ class ApiListing {
     required this.date,
     required this.isBoosted,
     required this.imageUrl,
+    required this.images,
   });
 
   factory ApiListing.fromJson(Map<String, dynamic> json) {
+    final rawImages = json['images'];
+    final images = <String>[];
+    if (rawImages is List) {
+      for (final img in rawImages) {
+        if (img is String && img.trim().isNotEmpty) {
+          images.add(img.trim());
+        }
+      }
+    }
+
+    final imageUrl = (json['imageUrl'] as String?)?.trim();
+    if (images.isEmpty && imageUrl != null && imageUrl.isNotEmpty) {
+      images.add(imageUrl);
+    }
+
     return ApiListing(
       id: (json['id'] as num).toInt(),
       type: json['type'] as String? ?? 'lost',
@@ -139,7 +155,8 @@ class ApiListing {
       city: json['city'] as String? ?? '',
       date: json['date'] as String? ?? '',
       isBoosted: (json['is_boosted'] ?? false) == true,
-      imageUrl: json['imageUrl'] as String?,
+      imageUrl: imageUrl,
+      images: images,
     );
   }
 }
