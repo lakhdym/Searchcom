@@ -1051,9 +1051,8 @@ class _PublicationCardState extends State<PublicationCard>
                           )
                         else
                           ..._comments.map((c) {
-                            final author = (c.userId != null && c.userId != 0)
-                                ? "Utilisateur #${c.userId}"
-                                : "Utilisateur";
+                            final author =
+                                c.fullName ?? "Utilisateur #${c.userId}";
                             final initial = author.isNotEmpty ? author[0] : '?';
                             final timeLabel = _formatRelative(c.createdAt);
 
