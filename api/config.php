@@ -7,6 +7,15 @@ const DB_NAME = 'italents_searchcom';
 const DB_USER = 'italents_flutter';        // à adapter
 const DB_PASS = 'Pp6QOQ8mbUU)Dl&S';           // à adapter
 
+// Base publique pour servir les photos d'annonces.
+// Exemple : photo_url('123.jpg') => https://italents.ma/app/uploads/annonces/123.jpg
+const PHOTO_BASE_URL = 'https://italents.ma/app/uploads/annonces/';
+
+function photo_url(string $filename): string
+{
+    return rtrim(PHOTO_BASE_URL, '/') . '/' . ltrim($filename, '/');
+}
+
 function get_pdo(): PDO
 {
     static $pdo = null;
@@ -19,13 +28,12 @@ function get_pdo(): PDO
     }
     return $pdo;
 }
+
 // Clé secrète pour signer les JWT (à changer en prod)
 const JWT_SECRET = 'f3724ea34aa84913e27a4c581604ssdgk8f6g2azelazeddinea0fe4a256b6406bc4ff931fec59';
 
 // Durée de vie du token (en secondes)
 const JWT_TTL = 3600; // 1 heure
-
-// header('Content-Type: application/json; charset=utf-8');
 
 // Helper pour répondre en JSON
 function json_response($data, int $status = 200)
