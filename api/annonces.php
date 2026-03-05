@@ -70,7 +70,8 @@ $pdo = get_pdo();
 function map_listing_row(
     array $row,
     array $imagesByListingId = [],
-    array $commentsByListingId = []
+    array $commentsByListingId = [],
+    array $likesByListingId = []
 ): array
 {
     $listingId = (int) $row['id'];
@@ -91,6 +92,7 @@ function map_listing_row(
         'imageUrl' => $mainImage,
         'images' => $images,
         'comments_count' => (int) ($commentsByListingId[$listingId] ?? ($row['comments_count'] ?? 0)),
+        'likes_count' => (int) ($likesByListingId[$listingId] ?? ($row['likes_count'] ?? 0)),
     ];
 }
 
@@ -281,6 +283,58 @@ function fetch_comments_counts(PDO $pdo, array $listingIds): array
     return $counts;
 }
 
+/**
+ * RÃ©cupÃ¨re le nombre de likes par annonce.
+ * Renvoie un tableau [listing_id => count].
+ */
+function fetch_likes_counts(PDO $pdo, array $listingIds): array
+{
+    if (empty($listingIds)) {
+        return [];
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'listing_likes'
+            LIMIT 1
+        ");
+        $stmt->execute();
+        if (!$stmt->fetchColumn()) {
+            return [];
+        }
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($listingIds), '?'));
+    $sql = "
+        SELECT listing_id, COUNT(*) AS cnt
+        FROM listing_likes
+        WHERE listing_id IN ($placeholders)
+        GROUP BY listing_id
+    ";
+
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(array_values($listingIds));
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $counts = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $lid = (int) ($row['listing_id'] ?? 0);
+        if ($lid > 0) {
+            $counts[$lid] = (int) ($row['cnt'] ?? 0);
+        }
+    }
+
+    return $counts;
+}
+
 if ($method === 'GET') {
     // Optionnel : ?type=lost|found
     $type = $_GET['type'] ?? null;
@@ -306,9 +360,15 @@ if ($method === 'GET') {
     $listingIds = array_map(fn($r) => (int) $r['id'], $rows);
     $imagesByListingId = fetch_listing_images($pdo, $listingIds);
     $commentsByListingId = fetch_comments_counts($pdo, $listingIds);
+    $likesByListingId = fetch_likes_counts($pdo, $listingIds);
 
     $data = array_map(
-        fn($row) => map_listing_row($row, $imagesByListingId, $commentsByListingId),
+        fn($row) => map_listing_row(
+            $row,
+            $imagesByListingId,
+            $commentsByListingId,
+            $likesByListingId
+        ),
         $rows
     );
     json_response($data);
@@ -409,7 +469,7 @@ if ($method === 'POST') {
     }
 
     $imagesByListingId = fetch_listing_images($pdo, [$id]);
-    $data = map_listing_row($row, $imagesByListingId, []);
+    $data = map_listing_row($row, $imagesByListingId, [], []);
     json_response($data, 201);
 }
 

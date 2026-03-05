@@ -296,7 +296,7 @@ class Publication {
   final String dateText;
   final String description;
   final String cityArea;
-  final int likes;
+  final int likesCount;
   final int commentsCount;
 
   Publication({
@@ -307,7 +307,7 @@ class Publication {
     required this.dateText,
     required this.description,
     required this.cityArea,
-    required this.likes,
+    required this.likesCount,
     required this.commentsCount,
   });
 
@@ -379,7 +379,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           dateText: l.date, // you can format later
           description: l.description,
           cityArea: l.location.isNotEmpty ? l.location : l.city,
-          likes: 0,
+          likesCount: l.likesCount,
           commentsCount: l.commentsCount,
         );
       }).toList();
@@ -616,6 +616,10 @@ class _PublicationCardState extends State<PublicationCard>
   bool _loadingComments = false;
   bool _commentsLoaded = false;
   String? _commentsError;
+  List<ApiListingLike> _likes = [];
+  bool _likesLoaded = false;
+  bool _likesLoading = false;
+  String? _likesError;
   bool _submittingComment = false;
 
   @override
@@ -668,6 +672,122 @@ class _PublicationCardState extends State<PublicationCard>
         });
       }
     }
+  }
+
+  Future<void> _loadLikes() async {
+    setState(() {
+      _likesLoading = true;
+      _likesError = null;
+    });
+
+    try {
+      final likes =
+          await ApiService.instance.fetchLikes(widget.publication.id);
+      if (mounted) {
+        setState(() {
+          _likes = likes;
+          _likesLoaded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _likesError = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _likesLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openLikes() async {
+    if (!_likesLoaded && !_likesLoading) {
+      await _loadLikes();
+    }
+    if (!mounted) return;
+
+    if (_likesError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible de charger les likes")),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (_) {
+        if (_likesLoading) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
+        if (_likes.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              "Aucun like pour l'instant.",
+              style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: _likes.length,
+          separatorBuilder: (_, index) => const Divider(height: 1),
+          itemBuilder: (_, index) {
+            final like = _likes[index];
+            final name = like.fullName.isNotEmpty
+                ? like.fullName
+                : ((like.userId != null && like.userId != 0)
+                    ? "Utilisateur #${like.userId}"
+                    : "Utilisateur");
+            return ListTile(
+              dense: true,
+              leading: CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFE5E7EB),
+                child: Text(
+                  name.isNotEmpty ? name[0] : '?',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              title: Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              subtitle: Text(
+                _formatRelative(like.createdAt),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF9CA3AF),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _addComment() async {
@@ -731,6 +851,7 @@ class _PublicationCardState extends State<PublicationCard>
         ? "PERDU"
         : "TROUVÉ";
     final radius = BorderRadius.circular(16);
+    final likesCount = _likesLoaded ? _likes.length : publication.likesCount;
     final commentCount = _commentsLoaded
         ? _comments.length
         : publication.commentsCount;
@@ -928,18 +1049,21 @@ class _PublicationCardState extends State<PublicationCard>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.favorite_border, size: 18, color: widget.red),
-                    const SizedBox(width: 4),
-                    Text(
-                      "${publication.likes}",
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF111827),
+                GestureDetector(
+                  onTap: _openLikes,
+                  child: Row(
+                    children: [
+                      Icon(Icons.favorite_border, size: 18, color: widget.red),
+                      const SizedBox(width: 4),
+                      Text(
+                        "$likesCount",
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF111827),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 14),
                 GestureDetector(
@@ -1051,8 +1175,11 @@ class _PublicationCardState extends State<PublicationCard>
                           )
                         else
                           ..._comments.map((c) {
-                            final author =
-                                c.fullName ?? "Utilisateur #${c.userId}";
+                            final author = c.fullName.isNotEmpty
+                                ? c.fullName
+                                : ((c.userId != null && c.userId != 0)
+                                    ? "Utilisateur #${c.userId}"
+                                    : "Utilisateur");
                             final initial = author.isNotEmpty ? author[0] : '?';
                             final timeLabel = _formatRelative(c.createdAt);
 
