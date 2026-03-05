@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'found_form_page.dart';
@@ -289,6 +289,7 @@ class SearchBarWithFilter extends StatelessWidget {
 enum PublicationStatus { perdu, trouve }
 
 class Publication {
+  final int id;
   final String title;
   final PublicationStatus status;
   final List<String> imageUrls;
@@ -296,9 +297,10 @@ class Publication {
   final String description;
   final String cityArea;
   final int likes;
-  final int comments;
+  final int commentsCount;
 
   Publication({
+    required this.id,
     required this.title,
     required this.status,
     required this.imageUrls,
@@ -306,7 +308,7 @@ class Publication {
     required this.description,
     required this.cityArea,
     required this.likes,
-    required this.comments,
+    required this.commentsCount,
   });
 
   String get primaryImage =>
@@ -360,28 +362,27 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
       final listings = await ApiService.instance.fetchListings(type: type);
 
-      final mapped = listings
-          .map((l) {
-            final images = l.images.isNotEmpty
-                ? l.images
-                : (l.imageUrl != null && l.imageUrl!.isNotEmpty
-                    ? <String>[l.imageUrl!]
-                    : <String>[]);
+      final mapped = listings.map((l) {
+        final images = l.images.isNotEmpty
+            ? l.images
+            : (l.imageUrl != null && l.imageUrl!.isNotEmpty
+                  ? <String>[l.imageUrl!]
+                  : <String>[]);
 
-            return Publication(
-              title: l.title,
-              status: l.type == 'lost'
-                  ? PublicationStatus.perdu
-                  : PublicationStatus.trouve,
-              imageUrls: images.isNotEmpty ? images : <String>[_fallbackImageUrl],
-              dateText: l.date, // you can format later
-              description: l.description,
-              cityArea: l.location.isNotEmpty ? l.location : l.city,
-              likes: 0,
-              comments: 0,
-            );
-          })
-          .toList();
+        return Publication(
+          id: l.id,
+          title: l.title,
+          status: l.type == 'lost'
+              ? PublicationStatus.perdu
+              : PublicationStatus.trouve,
+          imageUrls: images.isNotEmpty ? images : <String>[_fallbackImageUrl],
+          dateText: l.date, // you can format later
+          description: l.description,
+          cityArea: l.location.isNotEmpty ? l.location : l.city,
+          likes: 0,
+          commentsCount: l.commentsCount,
+        );
+      }).toList();
 
       setState(() {
         _publications = mapped;
@@ -611,25 +612,16 @@ class _PublicationCardState extends State<PublicationCard>
   final TextEditingController _commentController = TextEditingController();
   late final PageController _pageController;
   int _currentImage = 0;
-  late List<Comment> _comments;
+  List<ApiListingComment> _comments = [];
+  bool _loadingComments = false;
+  bool _commentsLoaded = false;
+  String? _commentsError;
+  bool _submittingComment = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _comments = const [
-      Comment(
-        name: "Imane",
-        text: "Je crois l’avoir vu près de la sortie côté tram.",
-        time: "Il y a 5 min",
-      ),
-      Comment(
-        name: "Youssef",
-        text:
-            "Vérifie au bureau info de la gare, ils gardent souvent les objets.",
-        time: "Il y a 12 min",
-      ),
-    ].toList();
   }
 
   @override
@@ -640,17 +632,93 @@ class _PublicationCardState extends State<PublicationCard>
   }
 
   void _toggleComments() {
-    setState(() => _showComments = !_showComments);
+    final willShow = !_showComments;
+    setState(() => _showComments = willShow);
+    if (willShow && !_commentsLoaded && !_loadingComments) {
+      _loadComments();
+    }
   }
 
-  void _addComment() {
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _loadComments() async {
     setState(() {
-      _comments.add(Comment(name: "Moi", text: text, time: "Maintenant"));
-      _commentController.clear();
-      _showComments = true;
+      _loadingComments = true;
+      _commentsError = null;
     });
+
+    try {
+      final comments = await ApiService.instance.fetchComments(
+        widget.publication.id,
+      );
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+          _commentsLoaded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _commentsError = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingComments = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _addComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || _submittingComment) return;
+
+    setState(() {
+      _submittingComment = true;
+      _commentsError = null;
+    });
+
+    try {
+      final newComment = await ApiService.instance.addComment(
+        listingId: widget.publication.id,
+        content: text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments.insert(0, newComment);
+        _commentsLoaded = true;
+        _showComments = true;
+      });
+      _commentController.clear();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _commentsError = e.toString();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible d'envoyer le commentaire")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submittingComment = false;
+        });
+      }
+    }
+  }
+
+  String _formatRelative(DateTime? date) {
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return "A l'instant";
+    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
+    if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
+    if (diff.inDays < 7) return "Il y a ${diff.inDays} j";
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return "${date.year}-$m-$d";
   }
 
   @override
@@ -663,6 +731,9 @@ class _PublicationCardState extends State<PublicationCard>
         ? "PERDU"
         : "TROUVÉ";
     final radius = BorderRadius.circular(16);
+    final commentCount = _commentsLoaded
+        ? _comments.length
+        : publication.commentsCount;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -672,62 +743,61 @@ class _PublicationCardState extends State<PublicationCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-      children: [
-        Stack(
-          children: [
-            SizedBox(
-              height: 185,
-              width: double.infinity,
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (i) => setState(() => _currentImage = i),
-                itemCount: publication.imageUrls.length,
-                itemBuilder: (_, index) {
-                  final img = publication.imageUrls[index];
-                  return Image.network(
-                    img,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stack) => Container(
-                      color: Colors.grey.shade300,
-                      child: const Icon(
-                        Icons.image,
-                        size: 48,
-                        color: Colors.white,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            if (publication.imageUrls.length > 1)
-              Positioned(
-                bottom: 10,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children:
-                      List.generate(publication.imageUrls.length, (i) {
-                    final active = i == _currentImage;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      height: 8,
-                      width: active ? 16 : 8,
-                      decoration: BoxDecoration(
-                        color: active
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(10),
+        children: [
+          Stack(
+            children: [
+              SizedBox(
+                height: 185,
+                width: double.infinity,
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (i) => setState(() => _currentImage = i),
+                  itemCount: publication.imageUrls.length,
+                  itemBuilder: (_, index) {
+                    final img = publication.imageUrls[index];
+                    return Image.network(
+                      img,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) => Container(
+                        color: Colors.grey.shade300,
+                        child: const Icon(
+                          Icons.image,
+                          size: 48,
+                          color: Colors.white,
+                        ),
                       ),
                     );
-                  }),
+                  },
                 ),
               ),
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
+              if (publication.imageUrls.length > 1)
+                Positioned(
+                  bottom: 10,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(publication.imageUrls.length, (i) {
+                      final active = i == _currentImage;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        height: 8,
+                        width: active ? 16 : 8,
+                        decoration: BoxDecoration(
+                          color: active
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              Positioned(
+                top: 10,
+                left: 10,
+                child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 6,
@@ -883,7 +953,7 @@ class _PublicationCardState extends State<PublicationCard>
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        "${publication.comments}",
+                        "$commentCount",
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF111827),
@@ -928,7 +998,47 @@ class _PublicationCardState extends State<PublicationCard>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 8),
-                        if (_comments.isEmpty)
+                        if (_loadingComments)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (_commentsError != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Impossible de charger les commentaires.",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _commentsError!,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF9CA3AF),
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              TextButton(
+                                onPressed: _loadComments,
+                                child: const Text("Réessayer"),
+                              ),
+                            ],
+                          )
+                        else if (_comments.isEmpty)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 6),
                             child: Text(
@@ -940,8 +1050,14 @@ class _PublicationCardState extends State<PublicationCard>
                             ),
                           )
                         else
-                          ..._comments.map(
-                            (c) => Padding(
+                          ..._comments.map((c) {
+                            final author = (c.userId != null && c.userId != 0)
+                                ? "Utilisateur #${c.userId}"
+                                : "Utilisateur";
+                            final initial = author.isNotEmpty ? author[0] : '?';
+                            final timeLabel = _formatRelative(c.createdAt);
+
+                            return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -950,7 +1066,7 @@ class _PublicationCardState extends State<PublicationCard>
                                     radius: 14,
                                     backgroundColor: const Color(0xFFE5E7EB),
                                     child: Text(
-                                      c.name.isNotEmpty ? c.name[0] : '?',
+                                      initial,
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -969,7 +1085,7 @@ class _PublicationCardState extends State<PublicationCard>
                                               MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              c.name,
+                                              author,
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w700,
@@ -977,7 +1093,7 @@ class _PublicationCardState extends State<PublicationCard>
                                               ),
                                             ),
                                             Text(
-                                              c.time,
+                                              timeLabel,
                                               style: const TextStyle(
                                                 fontSize: 11,
                                                 color: Color(0xFF9CA3AF),
@@ -987,7 +1103,7 @@ class _PublicationCardState extends State<PublicationCard>
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          c.text,
+                                          c.content,
                                           style: const TextStyle(
                                             fontSize: 13,
                                             color: Color(0xFF374151),
@@ -998,8 +1114,8 @@ class _PublicationCardState extends State<PublicationCard>
                                   ),
                                 ],
                               ),
-                            ),
-                          ),
+                            );
+                          }),
                         const SizedBox(height: 6),
                         Container(
                           decoration: BoxDecoration(
@@ -1020,15 +1136,29 @@ class _PublicationCardState extends State<PublicationCard>
                                   ),
                                 ),
                               ),
-                              IconButton(
-                                icon: Icon(
-                                  Icons.send,
-                                  color: widget.purple,
-                                  size: 20,
-                                ),
-                                onPressed: _addComment,
-                                splashRadius: 20,
-                              ),
+                              _submittingComment
+                                  ? const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      icon: Icon(
+                                        Icons.send,
+                                        color: widget.purple,
+                                        size: 20,
+                                      ),
+                                      onPressed: _addComment,
+                                      splashRadius: 20,
+                                    ),
                             ],
                           ),
                         ),
@@ -1237,12 +1367,4 @@ class _MenuRow extends StatelessWidget {
       ],
     );
   }
-}
-
-class Comment {
-  final String name;
-  final String text;
-  final String time;
-
-  const Comment({required this.name, required this.text, required this.time});
 }

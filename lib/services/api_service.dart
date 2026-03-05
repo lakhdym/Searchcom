@@ -99,6 +99,64 @@ class ApiService {
         .map((e) => ApiListing.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// RÃ©cupÃ¨re les commentaires d'une annonce.
+  Future<List<ApiListingComment>> fetchComments(int listingId) async {
+    final uri = Uri.parse(
+      '$_baseUrl/comments.php',
+    ).replace(queryParameters: {'listing_id': '$listingId'});
+
+    final headers = <String, String>{};
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+
+    final response = await _client.get(
+      uri,
+      headers: headers.isEmpty ? null : headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erreur lors de la rÃ©cupÃ©ration des commentaires '
+        '(${response.statusCode}): ${response.body}',
+      );
+    }
+
+    final List<dynamic> jsonList = jsonDecode(response.body) as List<dynamic>;
+    return jsonList
+        .map((e) => ApiListingComment.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Ajoute un commentaire sur une annonce (auth nÃ©cessaire).
+  Future<ApiListingComment> addComment({
+    required int listingId,
+    required String content,
+  }) async {
+    final token = await _loginIfNeeded();
+
+    final uri = Uri.parse('$_baseUrl/comments.php');
+    final response = await _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'listing_id': listingId, 'content': content}),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception(
+        'Erreur lors de l\'ajout du commentaire '
+        '(${response.statusCode}): ${response.body}',
+      );
+    }
+
+    final Map<String, dynamic> json =
+        jsonDecode(response.body) as Map<String, dynamic>;
+    return ApiListingComment.fromJson(json);
+  }
 }
 
 /// Modèle simple représentant une annonce telle que renvoyée par l'API.
@@ -114,6 +172,7 @@ class ApiListing {
   final bool isBoosted;
   final String? imageUrl;
   final List<String> images;
+  final int commentsCount;
 
   ApiListing({
     required this.id,
@@ -127,6 +186,7 @@ class ApiListing {
     required this.isBoosted,
     required this.imageUrl,
     required this.images,
+    required this.commentsCount,
   });
 
   factory ApiListing.fromJson(Map<String, dynamic> json) {
@@ -157,6 +217,45 @@ class ApiListing {
       isBoosted: (json['is_boosted'] ?? false) == true,
       imageUrl: imageUrl,
       images: images,
+      commentsCount: (json['comments_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class ApiListingComment {
+  final int id;
+  final int listingId;
+  final String fullName;
+  final int? userId;
+  final String content;
+  final String? status;
+  final DateTime? createdAt;
+
+  ApiListingComment({
+    required this.id,
+    required this.listingId,
+    required this.fullName,
+    required this.userId,
+    required this.content,
+    required this.status,
+    required this.createdAt,
+  });
+
+  factory ApiListingComment.fromJson(Map<String, dynamic> json) {
+    final rawDate = json['created_at'] as String?;
+    DateTime? parsed;
+    if (rawDate != null && rawDate.isNotEmpty) {
+      parsed = DateTime.tryParse(rawDate);
+    }
+
+    return ApiListingComment(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      listingId: (json['listing_id'] as num?)?.toInt() ?? 0,
+      fullName: json['full_name'] as String? ?? '',
+      userId: (json['user_id'] as num?)?.toInt(),
+      content: json['content'] as String? ?? '',
+      status: json['status'] as String?,
+      createdAt: parsed,
     );
   }
 }
