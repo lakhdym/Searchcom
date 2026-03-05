@@ -129,6 +129,35 @@ class ApiService {
         .toList();
   }
 
+  /// RÃ©cupÃ¨re les likes d'une annonce.
+  Future<List<ApiListingLike>> fetchLikes(int listingId) async {
+    final uri = Uri.parse(
+      '$_baseUrl/likes.php',
+    ).replace(queryParameters: {'listing_id': '$listingId'});
+
+    final headers = <String, String>{};
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
+    }
+
+    final response = await _client.get(
+      uri,
+      headers: headers.isEmpty ? null : headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        'Erreur lors de la rÃ©cupÃ©ration des likes '
+        '(${response.statusCode}): ${response.body}',
+      );
+    }
+
+    final List<dynamic> jsonList = jsonDecode(response.body) as List<dynamic>;
+    return jsonList
+        .map((e) => ApiListingLike.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Ajoute un commentaire sur une annonce (auth nÃ©cessaire).
   Future<ApiListingComment> addComment({
     required int listingId,
@@ -172,6 +201,7 @@ class ApiListing {
   final bool isBoosted;
   final String? imageUrl;
   final List<String> images;
+  final int likesCount;
   final int commentsCount;
 
   ApiListing({
@@ -186,6 +216,7 @@ class ApiListing {
     required this.isBoosted,
     required this.imageUrl,
     required this.images,
+    required this.likesCount,
     required this.commentsCount,
   });
 
@@ -217,7 +248,37 @@ class ApiListing {
       isBoosted: (json['is_boosted'] ?? false) == true,
       imageUrl: imageUrl,
       images: images,
+      likesCount: (json['likes_count'] as num?)?.toInt() ?? 0,
       commentsCount: (json['comments_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class ApiListingLike {
+  final int? userId;
+  final int? listingId;
+  final String fullName;
+  final DateTime? createdAt;
+
+  ApiListingLike({
+    required this.userId,
+    required this.listingId,
+    required this.fullName,
+    required this.createdAt,
+  });
+
+  factory ApiListingLike.fromJson(Map<String, dynamic> json) {
+    final rawDate = json['created_at'] as String?;
+    DateTime? parsed;
+    if (rawDate != null && rawDate.isNotEmpty) {
+      parsed = DateTime.tryParse(rawDate);
+    }
+
+    return ApiListingLike(
+      userId: (json['user_id'] as num?)?.toInt(),
+      listingId: (json['listing_id'] as num?)?.toInt(),
+      fullName: json['full_name'] as String? ?? '',
+      createdAt: parsed,
     );
   }
 }
