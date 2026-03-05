@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../features/chat/pages/conversations_page.dart';
 import '../state/auth_state.dart';
 import '../widgets/top_nav_bar.dart';
 import 'home_page.dart';
@@ -17,7 +19,7 @@ class _HomeShellState extends State<HomeShell> {
     _NavPage(
       title: 'Chat',
       icon: Icons.chat_bubble_outline,
-      builder: () => const _PlaceholderPage(title: 'Chat'),
+      builder: () => const ConversationsPage(),
     ),
     _NavPage(
       title: 'Créer',
@@ -58,7 +60,7 @@ class _HomeShellState extends State<HomeShell> {
             selectedIndex: _index,
             height: 70,
             backgroundColor: scheme.surface,
-            indicatorColor: scheme.primary.withValues(alpha: 0.12),
+            indicatorColor: scheme.primary.withOpacity(0.12),
             surfaceTintColor: scheme.surfaceTint,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             onDestinationSelected: (i) => setState(() => _index = i),
@@ -99,8 +101,8 @@ class _PlaceholderPage extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            scheme.primary.withValues(alpha: 0.05),
-            scheme.secondaryContainer.withValues(alpha: 0.03),
+            scheme.primary.withOpacity(0.05),
+            scheme.secondaryContainer.withOpacity(0.03),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
