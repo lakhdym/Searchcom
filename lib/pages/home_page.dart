@@ -1,25 +1,30 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'found_form_page.dart';
 import 'lost_form_page.dart';
 import '../widgets/top_nav_bar.dart';
+import '../services/api_service.dart';
 
-/// Home page with action cards, search bar, and recent publications grid.
+const _fallbackImageUrl =
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60';
+
+/// Home page with action cards, search bar, and recent publications list.
 class HomePage extends StatelessWidget {
   const HomePage({super.key, this.showAppBar = true});
 
   final bool showAppBar;
 
   void _openLost(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LostFormPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const LostFormPage()));
   }
 
   void _openFound(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FoundFormPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const FoundFormPage()));
   }
 
   @override
@@ -43,8 +48,7 @@ class HomePage extends StatelessWidget {
 
     final foundCard = HomeActionCard(
       title: "J'ai trouvé",
-      subtitle:
-          "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
+      subtitle: "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
       height: 150,
       backgroundColor: const Color(0xFFF1FBF5),
       smallIconBackground: const Color(0xFFDFF5E7),
@@ -65,11 +69,7 @@ class HomePage extends StatelessWidget {
           )
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              lostCard,
-              const SizedBox(height: 20),
-              foundCard,
-            ],
+            children: [lostCard, const SizedBox(height: 20), foundCard],
           );
 
     return Scaffold(
@@ -83,9 +83,18 @@ class HomePage extends StatelessWidget {
             children: [
               cardsSection,
               const SizedBox(height: 20),
-              const SearchBarWithFilter(),
-              const SizedBox(height: 24),
-              const RecentPublicationsSection(),
+              // Search bar is now connected to publications section via callback
+              RecentPublicationsSection(
+                headerBuilder: (onSearchChanged) => Column(
+                  children: [
+                    SearchBarWithFilter(
+                      onChanged: onSearchChanged,
+                      onFilterTap: () {},
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -158,11 +167,7 @@ class HomeActionCard extends StatelessWidget {
                       color: smallIconBackground,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Icon(
-                      smallIcon,
-                      color: smallIconColor,
-                      size: 22,
-                    ),
+                    child: Icon(smallIcon, color: smallIconColor, size: 22),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -197,11 +202,7 @@ class HomeActionCard extends StatelessWidget {
                 top: 0,
                 bottom: 0,
                 child: Center(
-                  child: Icon(
-                    bigIcon,
-                    size: 120,
-                    color: bigIconColor,
-                  ),
+                  child: Icon(bigIcon, size: 120, color: bigIconColor),
                 ),
               ),
             ],
@@ -250,11 +251,7 @@ class SearchBarWithFilter extends StatelessWidget {
                 isDense: true,
                 border: InputBorder.none,
                 hintText: "Rechercher (objet, lieu, mot-clé…)",
-                hintStyle: TextStyle(
-                  color: Color(0xFF9CA3AF),
-                  fontSize: 14,
-                ),
-                // contentPadding: EdgeInsets.zero,
+                hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
               ),
             ),
           ),
@@ -289,36 +286,46 @@ class SearchBarWithFilter extends StatelessWidget {
 // Recent publications section
 // ---------------------------------------------------------------------------
 
+enum PublicationStatus { perdu, trouve }
+
+class Publication {
+  final int id;
+  final String title;
+  final PublicationStatus status;
+  final List<String> imageUrls;
+  final String dateText;
+  final String description;
+  final String cityArea;
+  final int likesCount;
+  final int commentsCount;
+
+  Publication({
+    required this.id,
+    required this.title,
+    required this.status,
+    required this.imageUrls,
+    required this.dateText,
+    required this.description,
+    required this.cityArea,
+    required this.likesCount,
+    required this.commentsCount,
+  });
+
+  String get primaryImage =>
+      imageUrls.isNotEmpty ? imageUrls.first : _fallbackImageUrl;
+}
+
+typedef HeaderBuilder = Widget Function(ValueChanged<String> onSearchChanged);
+
 class RecentPublicationsSection extends StatefulWidget {
-  const RecentPublicationsSection({super.key});
+  const RecentPublicationsSection({super.key, this.headerBuilder});
+
+  /// Optional: inject the SearchBar above the section and connect it to search.
+  final HeaderBuilder? headerBuilder;
 
   @override
   State<RecentPublicationsSection> createState() =>
       _RecentPublicationsSectionState();
-}
-
-enum PublicationStatus { perdu, trouve }
-
-class Publication {
-  final String title;
-  final PublicationStatus status;
-  final String imageUrl;
-  final String dateText;
-  final String description;
-  final String cityArea;
-  final int likes;
-  final int comments;
-
-  const Publication({
-    required this.title,
-    required this.status,
-    required this.imageUrl,
-    required this.dateText,
-    required this.description,
-    required this.cityArea,
-    required this.likes,
-    required this.comments,
-  });
 }
 
 class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
@@ -328,67 +335,80 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
 
-  final List<Publication> _publications = const [
-    Publication(
-      title: "Portefeuille en cuir marron",
-      status: PublicationStatus.perdu,
-      imageUrl:
-          "https://images.unsplash.com/photo-1542293787938-4d273c36b05d?auto=format&fit=crop&w=900&q=60",
-      dateText: "Aujourd’hui, 09:30",
-      description: "Perdu près de la gare, contient carte nationale et permis.",
-      cityArea: "Casablanca, Gare",
-      likes: 12,
-      comments: 4,
-    ),
-    Publication(
-      title: "Clés de voiture BMW",
-      status: PublicationStatus.trouve,
-      imageUrl:
-          "https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?auto=format&fit=crop&w=900&q=60",
-      dateText: "Aujourd’hui, 11:10",
-      description: "Trousseau avec badge bleu trouvé devant café Venezia.",
-      cityArea: "Rabat, Agdal",
-      likes: 8,
-      comments: 3,
-    ),
-    Publication(
-      title: "Chien Golden Retriever",
-      status: PublicationStatus.perdu,
-      imageUrl:
-          "https://images.unsplash.com/photo-1507146426996-ef05306b995a?auto=format&fit=crop&w=900&q=60",
-      dateText: "Hier, 18:45",
-      description: "Répond au nom Simba, collier rouge. Vu pour la dernière fois au parc.",
-      cityArea: "Marrakech, Guéliz",
-      likes: 30,
-      comments: 12,
-    ),
-    Publication(
-      title: "iPhone 13 rouge",
-      status: PublicationStatus.trouve,
-      imageUrl:
-          "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60",
-      dateText: "2 Fév, 14:00",
-      description: "Téléphone trouvé dans le tram, écran intact, coque rouge.",
-      cityArea: "Tanger, Centre",
-      likes: 19,
-      comments: 6,
-    ),
-  ];
+  List<Publication> _publications = [];
+  bool _loading = true;
+  String? _error;
 
   int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvé
+  String _query = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPublications();
+  }
+
+  Future<void> _loadPublications() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      // ✅ fetch from API as PUBLIC (no token)
+      String? type;
+      if (_selectedIndex == 1) type = 'lost';
+      if (_selectedIndex == 2) type = 'found';
+
+      final listings = await ApiService.instance.fetchListings(type: type);
+
+      final mapped = listings.map((l) {
+        final images = l.images.isNotEmpty
+            ? l.images
+            : (l.imageUrl != null && l.imageUrl!.isNotEmpty
+                  ? <String>[l.imageUrl!]
+                  : <String>[]);
+
+        return Publication(
+          id: l.id,
+          title: l.title,
+          status: l.type == 'lost'
+              ? PublicationStatus.perdu
+              : PublicationStatus.trouve,
+          imageUrls: images.isNotEmpty ? images : <String>[_fallbackImageUrl],
+          dateText: l.date, // you can format later
+          description: l.description,
+          cityArea: l.location.isNotEmpty ? l.location : l.city,
+          likesCount: l.likesCount,
+          commentsCount: l.commentsCount,
+        );
+      }).toList();
+
+      setState(() {
+        _publications = mapped;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String q) {
+    setState(() => _query = q.trim().toLowerCase());
+  }
 
   List<Publication> get _filtered {
-    if (_selectedIndex == 1) {
-      return _publications
-          .where((p) => p.status == PublicationStatus.perdu)
-          .toList();
-    }
-    if (_selectedIndex == 2) {
-      return _publications
-          .where((p) => p.status == PublicationStatus.trouve)
-          .toList();
-    }
-    return _publications;
+    final base = _publications;
+
+    if (_query.isEmpty) return base;
+
+    return base.where((p) {
+      final hay = '${p.title} ${p.description} ${p.cityArea}'.toLowerCase();
+      return hay.contains(_query);
+    }).toList();
   }
 
   @override
@@ -396,52 +416,101 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        if (widget.headerBuilder != null)
+          widget.headerBuilder!(_onSearchChanged),
+        Row(
           children: [
-            const SizedBox(height: 8), // léger offset haut
-            Text(
-              "Publications récentes",
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1A1A1A),
-                  ),
-            ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 2),
-              child: FilterSegmentedControl(
-                selectedIndex: _selectedIndex,
-                onChanged: (i) => setState(() => _selectedIndex = i),
+            Expanded(
+              child: Text(
+                "Publications récentes",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1A1A1A),
+                ),
               ),
+            ),
+            const SizedBox(width: 10),
+            IconButton(
+              tooltip: 'Actualiser',
+              onPressed: _loadPublications,
+              icon: const Icon(Icons.refresh),
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: ListView.separated(
-            key: ValueKey(_selectedIndex),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 14),
-            itemBuilder: (context, index) {
-              final publication = _filtered[index];
-              return PublicationCard(
-                publication: publication,
-                purple: _purple,
-                red: _red,
-                green: _green,
-                textGray: _textGray,
-                mutedGray: _mutedGray,
-              );
-            },
-          ),
+        const SizedBox(height: 10),
+        FilterSegmentedControl(
+          selectedIndex: _selectedIndex,
+          onChanged: (i) {
+            setState(() => _selectedIndex = i);
+            _loadPublications(); // ✅ reload by type
+          },
         ),
+        const SizedBox(height: 14),
+        if (_loading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              children: [
+                Text(
+                  "Impossible de charger les annonces.",
+                  style: TextStyle(color: _textGray),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: _mutedGray, fontSize: 12),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: _loadPublications,
+                  child: const Text('Réessayer'),
+                ),
+              ],
+            ),
+          )
+        else if (_filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                "Aucune annonce pour le moment.",
+                style: TextStyle(color: _textGray),
+              ),
+            ),
+          )
+        else
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: ListView.separated(
+              key: ValueKey('$_selectedIndex-$_query'),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _filtered.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
+              itemBuilder: (context, index) {
+                final publication = _filtered[index];
+                return PublicationCard(
+                  publication: publication,
+                  purple: _purple,
+                  red: _red,
+                  green: _green,
+                  textGray: _textGray,
+                  mutedGray: _mutedGray,
+                );
+              },
+            ),
+          ),
       ],
     );
   }
@@ -461,7 +530,7 @@ class FilterSegmentedControl extends StatelessWidget {
   Widget build(BuildContext context) {
     const pillHeight = 60.0;
     const bgColor = Color(0xFFF5F6F8);
-    const textInactive = Color(0xFF6B7280); // plus contrasté
+    const textInactive = Color(0xFF6B7280);
     const textActive = Color(0xFF0F172A);
     final shadow = BoxShadow(
       color: Colors.black.withValues(alpha: 0.08),
@@ -469,7 +538,8 @@ class FilterSegmentedControl extends StatelessWidget {
       offset: const Offset(0, 2),
     );
 
-    List<String> labels = const ["Tout", "Perdu", "Trouvé"];
+    const labels = ["Tout", "Perdu", "Trouvé"];
+
     return Container(
       height: pillHeight,
       padding: const EdgeInsets.all(6),
@@ -488,7 +558,10 @@ class FilterSegmentedControl extends StatelessWidget {
               onTap: () => onChanged(i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 11,
+                ),
                 decoration: BoxDecoration(
                   color: isActive ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
@@ -537,55 +610,251 @@ class _PublicationCardState extends State<PublicationCard>
     with TickerProviderStateMixin {
   bool _showComments = false;
   final TextEditingController _commentController = TextEditingController();
-  late List<Comment> _comments;
+  late final PageController _pageController;
+  int _currentImage = 0;
+  List<ApiListingComment> _comments = [];
+  bool _loadingComments = false;
+  bool _commentsLoaded = false;
+  String? _commentsError;
+  List<ApiListingLike> _likes = [];
+  bool _likesLoaded = false;
+  bool _likesLoading = false;
+  String? _likesError;
+  bool _submittingComment = false;
 
   @override
   void initState() {
     super.initState();
-    _comments = [
-      const Comment(
-        name: "Imane",
-        text: "Je crois l’avoir vu près de la sortie côté tram.",
-        time: "Il y a 5 min",
-      ),
-      const Comment(
-        name: "Youssef",
-        text: "Vérifie au bureau info de la gare, ils gardent souvent les objets.",
-        time: "Il y a 12 min",
-      ),
-    ];
+    _pageController = PageController();
   }
 
   @override
   void dispose() {
     _commentController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   void _toggleComments() {
-    setState(() => _showComments = !_showComments);
+    final willShow = !_showComments;
+    setState(() => _showComments = willShow);
+    if (willShow && !_commentsLoaded && !_loadingComments) {
+      _loadComments();
+    }
   }
 
-  void _addComment() {
-    final text = _commentController.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _loadComments() async {
     setState(() {
-      _comments.add(Comment(
-        name: "Moi",
-        text: text,
-        time: "Maintenant",
-      ));
-      _commentController.clear();
-      _showComments = true;
+      _loadingComments = true;
+      _commentsError = null;
     });
+
+    try {
+      final comments = await ApiService.instance.fetchComments(
+        widget.publication.id,
+      );
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+          _commentsLoaded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _commentsError = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingComments = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadLikes() async {
+    setState(() {
+      _likesLoading = true;
+      _likesError = null;
+    });
+
+    try {
+      final likes =
+          await ApiService.instance.fetchLikes(widget.publication.id);
+      if (mounted) {
+        setState(() {
+          _likes = likes;
+          _likesLoaded = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _likesError = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _likesLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openLikes() async {
+    if (!_likesLoaded && !_likesLoading) {
+      await _loadLikes();
+    }
+    if (!mounted) return;
+
+    if (_likesError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible de charger les likes")),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (_) {
+        if (_likesLoading) {
+          return const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
+        if (_likes.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              "Aucun like pour l'instant.",
+              style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemCount: _likes.length,
+          separatorBuilder: (_, index) => const Divider(height: 1),
+          itemBuilder: (_, index) {
+            final like = _likes[index];
+            final name = like.fullName.isNotEmpty
+                ? like.fullName
+                : ((like.userId != null && like.userId != 0)
+                    ? "Utilisateur #${like.userId}"
+                    : "Utilisateur");
+            return ListTile(
+              dense: true,
+              leading: CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(0xFFE5E7EB),
+                child: Text(
+                  name.isNotEmpty ? name[0] : '?',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+              title: Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              subtitle: Text(
+                _formatRelative(like.createdAt),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF9CA3AF),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _addComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || _submittingComment) return;
+
+    setState(() {
+      _submittingComment = true;
+      _commentsError = null;
+    });
+
+    try {
+      final newComment = await ApiService.instance.addComment(
+        listingId: widget.publication.id,
+        content: text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments.insert(0, newComment);
+        _commentsLoaded = true;
+        _showComments = true;
+      });
+      _commentController.clear();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _commentsError = e.toString();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Impossible d'envoyer le commentaire")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submittingComment = false;
+        });
+      }
+    }
+  }
+
+  String _formatRelative(DateTime? date) {
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return "A l'instant";
+    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
+    if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
+    if (diff.inDays < 7) return "Il y a ${diff.inDays} j";
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return "${date.year}-$m-$d";
   }
 
   @override
   Widget build(BuildContext context) {
     final publication = widget.publication;
-    final badgeColor = publication.status == PublicationStatus.perdu ? widget.red : widget.green;
-    final badgeLabel = publication.status == PublicationStatus.perdu ? "PERDU" : "TROUVÉ";
+    final badgeColor = publication.status == PublicationStatus.perdu
+        ? widget.red
+        : widget.green;
+    final badgeLabel = publication.status == PublicationStatus.perdu
+        ? "PERDU"
+        : "TROUVÉ";
     final radius = BorderRadius.circular(16);
+    final likesCount = _likesLoaded ? _likes.length : publication.likesCount;
+    final commentCount = _commentsLoaded
+        ? _comments.length
+        : publication.commentsCount;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -601,20 +870,59 @@ class _PublicationCardState extends State<PublicationCard>
               SizedBox(
                 height: 185,
                 width: double.infinity,
-                child: Image.network(
-                  publication.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.shade300,
-                    child: const Icon(Icons.image, size: 48, color: Colors.white),
-                  ),
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (i) => setState(() => _currentImage = i),
+                  itemCount: publication.imageUrls.length,
+                  itemBuilder: (_, index) {
+                    final img = publication.imageUrls[index];
+                    return Image.network(
+                      img,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) => Container(
+                        color: Colors.grey.shade300,
+                        child: const Icon(
+                          Icons.image,
+                          size: 48,
+                          color: Colors.white,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
+              if (publication.imageUrls.length > 1)
+                Positioned(
+                  bottom: 10,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(publication.imageUrls.length, (i) {
+                      final active = i == _currentImage;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        height: 8,
+                        width: active ? 16 : 8,
+                        decoration: BoxDecoration(
+                          color: active
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
               Positioned(
                 top: 10,
                 left: 10,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: badgeColor,
                     borderRadius: BorderRadius.circular(12),
@@ -649,8 +957,11 @@ class _PublicationCardState extends State<PublicationCard>
                           ),
                         ],
                       ),
-                      child: const Icon(Icons.more_horiz,
-                          size: 18, color: Color(0xFF4B5563)),
+                      child: const Icon(
+                        Icons.more_horiz,
+                        size: 18,
+                        color: Color(0xFF4B5563),
+                      ),
                     ),
                   ),
                 ),
@@ -682,8 +993,11 @@ class _PublicationCardState extends State<PublicationCard>
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 14, color: Color(0xFF9CA3AF)),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: Color(0xFF9CA3AF),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           publication.dateText,
@@ -735,29 +1049,35 @@ class _PublicationCardState extends State<PublicationCard>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.favorite_border, size: 18, color: widget.red),
-                    const SizedBox(width: 4),
-                    Text(
-                      "${publication.likes}",
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF111827),
+                GestureDetector(
+                  onTap: _openLikes,
+                  child: Row(
+                    children: [
+                      Icon(Icons.favorite_border, size: 18, color: widget.red),
+                      const SizedBox(width: 4),
+                      Text(
+                        "$likesCount",
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF111827),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 14),
                 GestureDetector(
                   onTap: _toggleComments,
                   child: Row(
                     children: [
-                      const Icon(Icons.mode_comment_outlined,
-                          size: 18, color: Color(0xFF6B7280)),
+                      const Icon(
+                        Icons.mode_comment_outlined,
+                        size: 18,
+                        color: Color(0xFF6B7280),
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        "${publication.comments}",
+                        "$commentCount",
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF111827),
@@ -778,8 +1098,11 @@ class _PublicationCardState extends State<PublicationCard>
                         child: const SizedBox(
                           width: 36,
                           height: 36,
-                          child: Icon(Icons.chat_bubble_outline,
-                              color: Colors.white, size: 18),
+                          child: Icon(
+                            Icons.chat_bubble_outline,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                       ),
                     );
@@ -799,7 +1122,47 @@ class _PublicationCardState extends State<PublicationCard>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const SizedBox(height: 8),
-                        if (_comments.isEmpty)
+                        if (_loadingComments)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (_commentsError != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Impossible de charger les commentaires.",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF6B7280),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _commentsError!,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF9CA3AF),
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              TextButton(
+                                onPressed: _loadComments,
+                                child: const Text("Réessayer"),
+                              ),
+                            ],
+                          )
+                        else if (_comments.isEmpty)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 6),
                             child: Text(
@@ -811,8 +1174,16 @@ class _PublicationCardState extends State<PublicationCard>
                             ),
                           )
                         else
-                          ..._comments.map(
-                            (c) => Padding(
+                          ..._comments.map((c) {
+                            final author = c.fullName.isNotEmpty
+                                ? c.fullName
+                                : ((c.userId != null && c.userId != 0)
+                                    ? "Utilisateur #${c.userId}"
+                                    : "Utilisateur");
+                            final initial = author.isNotEmpty ? author[0] : '?';
+                            final timeLabel = _formatRelative(c.createdAt);
+
+                            return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,7 +1192,7 @@ class _PublicationCardState extends State<PublicationCard>
                                     radius: 14,
                                     backgroundColor: const Color(0xFFE5E7EB),
                                     child: Text(
-                                      c.name.isNotEmpty ? c.name[0] : '?',
+                                      initial,
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -832,14 +1203,15 @@ class _PublicationCardState extends State<PublicationCard>
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              c.name,
+                                              author,
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w700,
@@ -847,7 +1219,7 @@ class _PublicationCardState extends State<PublicationCard>
                                               ),
                                             ),
                                             Text(
-                                              c.time,
+                                              timeLabel,
                                               style: const TextStyle(
                                                 fontSize: 11,
                                                 color: Color(0xFF9CA3AF),
@@ -857,7 +1229,7 @@ class _PublicationCardState extends State<PublicationCard>
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          c.text,
+                                          c.content,
                                           style: const TextStyle(
                                             fontSize: 13,
                                             color: Color(0xFF374151),
@@ -868,8 +1240,8 @@ class _PublicationCardState extends State<PublicationCard>
                                   ),
                                 ],
                               ),
-                            ),
-                          ),
+                            );
+                          }),
                         const SizedBox(height: 6),
                         Container(
                           decoration: BoxDecoration(
@@ -890,11 +1262,29 @@ class _PublicationCardState extends State<PublicationCard>
                                   ),
                                 ),
                               ),
-                              IconButton(
-                                icon: Icon(Icons.send, color: widget.purple, size: 20),
-                                onPressed: _addComment,
-                                splashRadius: 20,
-                              ),
+                              _submittingComment
+                                  ? const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                  : IconButton(
+                                      icon: Icon(
+                                        Icons.send,
+                                        color: widget.purple,
+                                        size: 20,
+                                      ),
+                                      onPressed: _addComment,
+                                      splashRadius: 20,
+                                    ),
                             ],
                           ),
                         ),
@@ -930,7 +1320,7 @@ class _PublicationCardState extends State<PublicationCard>
             iconColor: const Color(0xFF34C759),
             label: "WhatsApp",
           ),
-          onTap: () => print("WhatsApp"),
+          onTap: () => debugPrint("WhatsApp"),
         ),
         PopupMenuItem(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -940,7 +1330,7 @@ class _PublicationCardState extends State<PublicationCard>
             iconColor: widget.purple,
             label: "Chat interne",
           ),
-          onTap: () => print("Chat interne"),
+          onTap: () => debugPrint("Chat interne"),
         ),
       ],
     );
@@ -952,17 +1342,16 @@ class _PublicationCardState extends State<PublicationCard>
     const double menuWidth = 220;
     const double offsetX = 8;
 
-    // position souhaitée à droite
-    Offset desiredTopLeft =
-        button.localToGlobal(Offset(button.size.width + offsetX, 0), ancestor: overlay);
+    Offset desiredTopLeft = button.localToGlobal(
+      Offset(button.size.width + offsetX, 0),
+      ancestor: overlay,
+    );
 
-    // si dépasse à droite, placer à gauche du bouton
     if (desiredTopLeft.dx + menuWidth > overlay.size.width) {
       desiredTopLeft = button.localToGlobal(
         Offset(-menuWidth - offsetX, 0),
         ancestor: overlay,
       );
-      // si encore négatif, clamp à 8px
       if (desiredTopLeft.dx < 8) {
         desiredTopLeft = Offset(8, desiredTopLeft.dy);
       }
@@ -992,7 +1381,7 @@ class _PublicationCardState extends State<PublicationCard>
         _menuItem(
           icon: Icons.share,
           label: "Partager",
-          onTap: () => print("Partager"),
+          onTap: () => debugPrint("Partager"),
         ),
         _menuItem(
           icon: Icons.flag,
@@ -1032,42 +1421,15 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text("Supprimer la publication"),
-          content: const Text("Êtes-vous sûr de vouloir supprimer cette publication ?"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text("Annuler"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text(
-                "Oui, supprimer",
-                style: TextStyle(color: Colors.red),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-    if (result == true) {
-      print("Supprimer la publication");
-    }
-  }
-
   Future<void> _confirmReport(BuildContext context) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text("Signaler cette publication ?"),
-        content: const Text("Voulez-vous vraiment signaler cette publication ?"),
+        content: const Text(
+          "Voulez-vous vraiment signaler cette publication ?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -1075,27 +1437,24 @@ class _PublicationCardState extends State<PublicationCard>
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              "Signaler",
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text("Signaler", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
     if (result == true) {
-      print("Signaler");
+      debugPrint("Signaler");
     }
   }
 
   void _copyLink(BuildContext context) {
     final link =
-        "https://example.com/p/${Uri.encodeComponent(widget.publication.title)}";
+        "https://italents.ma/p/${Uri.encodeComponent(widget.publication.title)}";
     Clipboard.setData(ClipboardData(text: link));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Lien copié")),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Lien copié")));
   }
 }
 
@@ -1119,10 +1478,7 @@ class _MenuRow extends StatelessWidget {
         Container(
           width: 34,
           height: 34,
-          decoration: BoxDecoration(
-            color: bg,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
           child: Icon(icon, color: iconColor, size: 18),
         ),
         const SizedBox(width: 10),
@@ -1137,16 +1493,4 @@ class _MenuRow extends StatelessWidget {
       ],
     );
   }
-}
-
-class Comment {
-  final String name;
-  final String text;
-  final String time;
-
-  const Comment({
-    required this.name,
-    required this.text,
-    required this.time,
-  });
 }
