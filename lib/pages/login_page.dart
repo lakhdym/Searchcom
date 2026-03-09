@@ -3,6 +3,7 @@ import '../models/user_model.dart';
 import '../services/auth_api_service.dart';
 import '../services/auth_local_storage.dart';
 import '../state/auth_state.dart';
+import 'email_verification_page.dart';
 import 'home_shell.dart';
 import 'signup_page.dart';
 
@@ -60,6 +61,14 @@ class _LoginPageState extends State<LoginPage> {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeShell()),
         (route) => false,
+      );
+    } on EmailVerificationRequiredException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: e.email ?? _emailCtrl.text.trim())),
       );
     } on ApiException catch (e) {
       if (!mounted) return;

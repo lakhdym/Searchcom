@@ -32,7 +32,7 @@ try {
     $pdo = get_pdo();
 
     $stmt = $pdo->prepare(
-        'SELECT id, role, full_name, email, phone, avatar_url, preferred_lang, is_banned, password_hash
+        'SELECT id, role, full_name, email, phone, avatar_url, preferred_lang, is_banned, password_hash, email_verified_at
          FROM users
          WHERE email = :email
          LIMIT 1'
@@ -50,6 +50,16 @@ try {
 
     if (empty($user['password_hash']) || !password_verify($password, $user['password_hash'])) {
         json_response(['success' => false, 'message' => 'Email ou mot de passe incorrect'], 401);
+    }
+
+    if ($user['email_verified_at'] === null) {
+        json_response([
+            'success' => false,
+            'message' => 'Veuillez vérifier votre adresse email avant de vous connecter',
+            'requires_email_verification' => true,
+            'email' => $email,
+            'user_id' => (int)$user['id'],
+        ], 401);
     }
 
     unset($user['password_hash']);

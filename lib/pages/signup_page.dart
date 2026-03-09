@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../models/user_model.dart';
 import '../services/auth_api_service.dart';
-import '../services/auth_local_storage.dart';
-import '../state/auth_state.dart';
-import 'home_shell.dart';
+import 'email_verification_page.dart';
 import 'login_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -69,19 +66,19 @@ class _SignUpPageState extends State<SignUpPage> {
     }
     setState(() => _loading = true);
     try {
-      final UserModel user = await AuthApiService.instance.register(
+      final resp = await AuthApiService.instance.registerAndRequestVerification(
         fullName: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         password: _passwordCtrl.text,
         preferredLang: 'fr',
       );
-      await AuthLocalStorage.instance.saveUser(user);
-      loginUser(user);
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
-        (route) => false,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(resp.message.isNotEmpty ? resp.message : 'Compte créé avec succès 🎉')),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: resp.email)),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
