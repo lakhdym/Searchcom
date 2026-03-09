@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/user_model.dart';
+import '../services/auth_api_service.dart';
+import '../services/auth_local_storage.dart';
 import '../state/auth_state.dart';
 import 'home_shell.dart';
 import 'signup_page.dart';
@@ -46,14 +49,31 @@ class _LoginPageState extends State<LoginPage> {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    setState(() => _loading = false);
-    authState.value = true;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeShell()),
-      (route) => false,
-    );
+    try {
+      final UserModel user = await AuthApiService.instance.login(
+        email: _emailCtrl.text.trim(),
+        password: _passwordCtrl.text,
+      );
+      await AuthLocalStorage.instance.saveUser(user);
+      loginUser(user);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+        (route) => false,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur de connexion. Réessayez.')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override

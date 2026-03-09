@@ -11,18 +11,14 @@ class ApiService {
   ApiService._();
   static final ApiService instance = ApiService._();
 
-  /// URL de base de l'API.
-  /// En local XAMPP :  http://localhost/searchcom/api
-  /// En prod :        https://www.italents.ma/app/api
+  /// URL de base unique (prod).
   static const String baseUrlProd = 'https://italents.ma/app/api';
-  static const String baseUrlLocal = 'http://localhost/searchcom/api';
 
-  /// Switch auto : build release -> prod, build debug/profile -> local.
-  /// Ajuste si tu veux forcer un env.
-  final String _baseUrl = baseUrlProd; // ✅ دائما prod
+  /// On force toujours la prod.
+  final String _baseUrl = baseUrlProd;
 
   final http.Client _client = http.Client();
-
+  
   String? _token;
 
   /// Effectue un login simple sur `auth_login.php` et stocke le JWT en mémoire.

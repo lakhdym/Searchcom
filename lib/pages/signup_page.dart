@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+
+import '../models/user_model.dart';
+import '../services/auth_api_service.dart';
+import '../services/auth_local_storage.dart';
+import '../state/auth_state.dart';
+import 'home_shell.dart';
 import 'login_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -12,6 +18,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
 
@@ -24,7 +31,7 @@ class _SignUpPageState extends State<SignUpPage> {
   @override
   void initState() {
     super.initState();
-    for (final c in [_nameCtrl, _emailCtrl, _passwordCtrl, _confirmCtrl]) {
+    for (final c in [_nameCtrl, _emailCtrl, _phoneCtrl, _passwordCtrl, _confirmCtrl]) {
       c.addListener(_updateValid);
     }
   }
@@ -33,6 +40,7 @@ class _SignUpPageState extends State<SignUpPage> {
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
+    _phoneCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -41,6 +49,7 @@ class _SignUpPageState extends State<SignUpPage> {
   void _updateValid() {
     final valid = _nameCtrl.text.trim().length >= 2 &&
         _emailCtrl.text.contains('@') &&
+        _phoneCtrl.text.trim().length >= 6 &&
         _passwordCtrl.text.length >= 8 &&
         _confirmCtrl.text == _passwordCtrl.text &&
         _accepted;
@@ -59,13 +68,34 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
-    setState(() => _loading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Compte créé (simulation)')),
-    );
-    Navigator.pop(context);
+    try {
+      final UserModel user = await AuthApiService.instance.register(
+        fullName: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        password: _passwordCtrl.text,
+        preferredLang: 'fr',
+      );
+      await AuthLocalStorage.instance.saveUser(user);
+      loginUser(user);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+        (route) => false,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur lors de la création du compte.')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override
@@ -167,6 +197,18 @@ class _SignUpPageState extends State<SignUpPage> {
                               ),
                               validator: (v) =>
                                   (v == null || !v.contains('@')) ? 'Email invalide' : null,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _phoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              decoration: const InputDecoration(
+                                labelText: 'Téléphone',
+                                hintText: '+212 6 12 34 56 78',
+                                prefixIcon: Icon(Icons.phone_outlined),
+                              ),
+                              validator: (v) =>
+                                  (v == null || v.trim().length < 6) ? 'Téléphone invalide' : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(

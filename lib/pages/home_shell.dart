@@ -4,6 +4,7 @@ import '../features/chat/pages/conversations_page.dart';
 import '../state/auth_state.dart';
 import '../widgets/top_nav_bar.dart';
 import 'home_page.dart';
+import 'profile_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -34,7 +35,7 @@ class _HomeShellState extends State<HomeShell> {
     _NavPage(
       title: 'Profil',
       icon: Icons.person_outline,
-      builder: () => const _PlaceholderPage(title: 'Profil'),
+      builder: () => const ProfilePage(),
     ),
     _NavPage(
       title: 'Paramètres',
