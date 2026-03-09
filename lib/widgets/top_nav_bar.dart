@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../state/auth_state.dart';
 import '../pages/login_page.dart';
+import '../services/auth_local_storage.dart';
+import '../state/auth_state.dart';
 
 class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
   const TopNavBar({
@@ -96,12 +97,15 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                 return Padding(
                   padding: const EdgeInsets.only(left: 12),
                   child: InkWell(
-                    onTap: () {
-                      authState.value = false;
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const LoginPage()),
-                        (route) => false,
-                      );
+                    onTap: () async {
+                      await AuthLocalStorage.instance.clear();
+                      logoutUser();
+                      if (context.mounted) {
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (_) => const LoginPage()),
+                          (route) => false,
+                        );
+                      }
                     },
                     borderRadius: BorderRadius.circular(999),
                     child: Container(
