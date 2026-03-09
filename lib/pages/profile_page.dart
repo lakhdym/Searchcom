@@ -31,35 +31,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted) setState(() => _loadingUser = false);
   }
 
-  Future<void> _logout(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Déconnexion'),
-        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            child: const Text('Déconnexion'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    await AuthLocalStorage.instance.clear();
-    logoutUser();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-      (route) => false,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return ValueListenableBuilder<UserModel?>(
@@ -106,12 +79,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     _StatItem(label: 'Publications résolues', value: '0', icon: Icons.verified_outlined),
                     _StatItem(label: 'Messages', value: '0', icon: Icons.chat_bubble_outline),
                   ],
-                ),
-                const SizedBox(height: 16),
-                Text('Compte', style: textTheme.titleMedium),
-                const SizedBox(height: 8),
-                _ActionSection(
-                  onLogout: () => _logout(context),
                 ),
                 const SizedBox(height: 24),
               ],
@@ -351,68 +318,6 @@ class _StatCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ActionSection extends StatelessWidget {
-  const _ActionSection({required this.onLogout});
-  final VoidCallback onLogout;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _actionTile(context, Icons.edit_outlined, 'Modifier le profil', onTap: () {}),
-          _divider(context),
-          _actionTile(context, Icons.lock_reset_outlined, 'Changer le mot de passe', onTap: () {}),
-          _divider(context),
-          _actionTile(context, Icons.campaign_outlined, 'Mes publications', onTap: () {}),
-          _divider(context),
-          _actionTile(context, Icons.settings_outlined, 'Paramètres', onTap: () {}),
-          _divider(context),
-          _actionTile(
-            context,
-            Icons.logout,
-            'Déconnexion',
-            color: scheme.error,
-            onTap: onLogout,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _divider(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: 0.6));
-  }
-
-  Widget _actionTile(BuildContext context, IconData icon, String label,
-      {VoidCallback? onTap, Color? color}) {
-    final scheme = Theme.of(context).colorScheme;
-    return ListTile(
-      leading: Icon(icon, color: color ?? scheme.primary),
-      title: Text(label,
-          style: TextStyle(
-            color: color ?? scheme.onSurface,
-            fontWeight: FontWeight.w600,
-          )),
-      trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-      onTap: onTap,
     );
   }
 }
