@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_local_storage.dart';
 import '../state/auth_state.dart';
-import 'login_page.dart';
+import 'home_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -131,7 +131,7 @@ class SettingsPage extends StatelessWidget {
     logoutUser();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginPage()),
+      MaterialPageRoute(builder: (_) => const HomePage()),
       (route) => false,
     );
   }

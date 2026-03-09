@@ -20,6 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['success' => false, 'message' => 'Method not allowed'], 405);
 }
 
+require_once __DIR__ . '/helpers/send_verification_email.php';
+
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $fullName = trim($body['full_name'] ?? '');
@@ -61,8 +63,8 @@ try {
     $now = date('Y-m-d H:i:s');
 
     $stmt = $pdo->prepare(
-        'INSERT INTO users (role, full_name, email, phone, password_hash, preferred_lang, is_banned, created_at, updated_at)
-         VALUES (:role, :full_name, :email, :phone, :password_hash, :preferred_lang, 0, :created_at, :updated_at)'
+        'INSERT INTO users (role, full_name, email, phone, password_hash, preferred_lang, is_banned, email_verified_at, created_at, updated_at)
+         VALUES (:role, :full_name, :email, :phone, :password_hash, :preferred_lang, 0, NULL, :created_at, :updated_at)'
     );
 
     $stmt->execute([
@@ -78,19 +80,29 @@ try {
 
     $userId = (int)$pdo->lastInsertId();
 
+    // Générer un code OTP 6 chiffres et l'enregistrer
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $expiresAt = date('Y-m-d H:i:s', time() + 600); // 10 minutes
+
+    $stmt = $pdo->prepare('INSERT INTO email_verifications (user_id, email, verification_code, expires_at) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$userId, $email, $code, $expiresAt]);
+
+    // Envoyer l'email (erreurs non bloquantes)
+    $sent = sendVerificationEmail($email, $fullName, $code);
+
+    if (!$sent) {
+        json_response([
+            'success' => false,
+            'message' => "Impossible d'envoyer l'email de verification",
+        ], 500);
+    }
+
     json_response([
         'success' => true,
-        'message' => 'Compte créé avec succès',
-        'user' => [
-            'id' => $userId,
-            'role' => 'user',
-            'full_name' => $fullName,
-            'email' => $email,
-            'phone' => $phone ?: null,
-            'avatar_url' => null,
-            'preferred_lang' => $preferredLang,
-            'is_banned' => 0,
-        ],
+        'message' => 'Compte créé avec succès. Vérifiez votre email.',
+        'requires_email_verification' => true,
+        'user_id' => $userId,
+        'email' => $email,
     ]);
 } catch (Throwable $e) {
     json_response([

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../pages/login_page.dart';
-import '../services/auth_local_storage.dart';
 import '../state/auth_state.dart';
 
 class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
@@ -92,34 +91,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
           ValueListenableBuilder<bool>(
             valueListenable: authState,
             builder: (context, loggedIn, _) {
-              if (!showLoginAction && !loggedIn) return const SizedBox.shrink();
-              if (loggedIn) {
-                return Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: InkWell(
-                    onTap: () async {
-                      await AuthLocalStorage.instance.clear();
-                      logoutUser();
-                      if (context.mounted) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (_) => const LoginPage()),
-                          (route) => false,
-                        );
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      height: 34,
-                      width: 34,
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Icon(Icons.logout, size: 18, color: Colors.white),
-                    ),
-                  ),
-                );
-              }
+              if (!showLoginAction || loggedIn) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(left: 12),
                 child: InkWell(
