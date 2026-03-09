@@ -5,6 +5,7 @@ import '../state/auth_state.dart';
 import '../widgets/top_nav_bar.dart';
 import 'home_page.dart';
 import 'profile_page.dart';
+import 'settings_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -40,7 +41,7 @@ class _HomeShellState extends State<HomeShell> {
     _NavPage(
       title: 'Paramètres',
       icon: Icons.settings_outlined,
-      builder: () => const _PlaceholderPage(title: 'Paramètres'),
+      builder: () => const SettingsPage(),
     ),
   ];
 
