@@ -71,9 +71,9 @@ function map_listing_row(
     array $row,
     array $imagesByListingId = [],
     array $commentsByListingId = [],
-    array $likesByListingId = []
-): array
-{
+    array $likesByListingId = [],
+    array $likedByUser = []
+): array {
     $listingId = (int) $row['id'];
     $images = $imagesByListingId[$listingId] ?? [];
     $mainImage = $images[0] ?? null;
@@ -93,6 +93,7 @@ function map_listing_row(
         'images' => $images,
         'comments_count' => (int) ($commentsByListingId[$listingId] ?? ($row['comments_count'] ?? 0)),
         'likes_count' => (int) ($likesByListingId[$listingId] ?? ($row['likes_count'] ?? 0)),
+        'liked_by_me' => isset($likedByUser[$listingId]) ? true : false,
     ];
 }
 
@@ -335,6 +336,59 @@ function fetch_likes_counts(PDO $pdo, array $listingIds): array
     return $counts;
 }
 
+/**
+ * Renvoie la liste des annonces likÃ©es par l'utilisateur connectÃ©.
+ * Retourne un tableau [listing_id => true].
+ */
+function fetch_user_likes(PDO $pdo, array $listingIds, int $userId): array
+{
+    if ($userId <= 0 || empty($listingIds)) {
+        return [];
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 1
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'listing_likes'
+            LIMIT 1
+        ");
+        $stmt->execute();
+        if (!$stmt->fetchColumn()) {
+            return [];
+        }
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($listingIds), '?'));
+    $sql = "
+        SELECT listing_id
+        FROM listing_likes
+        WHERE user_id = ?
+          AND listing_id IN ($placeholders)
+    ";
+
+    try {
+        $params = array_merge([$userId], array_values($listingIds));
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+    } catch (Throwable $e) {
+        return [];
+    }
+
+    $liked = [];
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $lid = (int) ($row['listing_id'] ?? 0);
+        if ($lid > 0) {
+            $liked[$lid] = true;
+        }
+    }
+
+    return $liked;
+}
+
 if ($method === 'GET') {
     // Optionnel : ?type=lost|found
     $type = $_GET['type'] ?? null;
@@ -361,13 +415,19 @@ if ($method === 'GET') {
     $imagesByListingId = fetch_listing_images($pdo, $listingIds);
     $commentsByListingId = fetch_comments_counts($pdo, $listingIds);
     $likesByListingId = fetch_likes_counts($pdo, $listingIds);
+    $likedByUser = [];
+    $userIdForLike = isset($payload['sub']) ? (int) $payload['sub'] : 0;
+    if ($userIdForLike > 0) {
+        $likedByUser = fetch_user_likes($pdo, $listingIds, $userIdForLike);
+    }
 
     $data = array_map(
         fn($row) => map_listing_row(
             $row,
             $imagesByListingId,
             $commentsByListingId,
-            $likesByListingId
+            $likesByListingId,
+            $likedByUser
         ),
         $rows
     );
@@ -385,7 +445,7 @@ if ($method === 'POST') {
     $type = $body['type'] ?? null; // lost | found
     $title = trim($body['title'] ?? '');
     $description = trim($body['description'] ?? '');
-    $location = trim($body['location'] ?? '');
+    $location = trim($body['location_text'] ?? ($body['location'] ?? ''));
     $city = trim($body['city'] ?? $location);
 
     if (!in_array($type, ['lost', 'found'], true)) {
@@ -407,51 +467,66 @@ if ($method === 'POST') {
 
     $now = date('Y-m-d H:i:s');
 
+    // Dans la section POST de api/annonces.php, remplacer l'INSERT par :
     $sql = "
-        INSERT INTO listings (
-            user_id,
-            type,
-            status,
-            title,
-            description,
-            category_id,
-            city,
-            location_text,
-            contact_chat,
-            contact_whatsapp,
-            contact_call,
-            is_boosted,
-            created_at,
-            updated_at
-        ) VALUES (
-            :user_id,
-            :type,
-            :status,
-            :title,
-            :description,
-            NULL,
-            :city,
-            :location_text,
-            1,
-            1,
-            1,
-            0,
-            :created_at,
-            :created_at
-        )
-    ";
+INSERT INTO listings (
+    user_id,
+    type,
+    status,
+    title,
+    description,
+    category_id,
+    city,
+    location_text,
+    lat,
+    lng,
+    event_date,
+    contact_chat,
+    contact_whatsapp,
+    contact_call,
+    is_boosted,
+    published_at,
+    created_at,
+    updated_at
+) VALUES (
+    :user_id,
+    :type,
+    :status,
+    :title,
+    :description,
+    :category_id,
+    :city,
+    :location_text,
+    NULL,
+    NULL,
+    :event_date,
+    :contact_chat,
+    :contact_whatsapp,
+    :contact_call,
+    0,
+    NOW(),
+    :created_at,
+    :created_at
+)
+";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
         ':user_id' => $userId,
         ':type' => $type,
-        ':status' => $status,
+        ':status' => $status, // garde la logique existante (pending_payment pour lost, published pour found)
         ':title' => $title,
         ':description' => $description,
+        ':category_id' => $body['category_id'] ?? null,
         ':city' => $city,
         ':location_text' => $location !== '' ? $location : $city,
+        ':event_date' => $body['event_date'] ?? null,
+        ':contact_chat' => !empty($body['contact_chat']) ? 1 : 0,
+        ':contact_whatsapp' => !empty($body['contact_whatsapp']) ? 1 : 0,
+        ':contact_call' => !empty($body['contact_call']) ? 1 : 0,
         ':created_at' => $now,
     ]);
+
 
     $id = (int) $pdo->lastInsertId();
 
@@ -469,7 +544,7 @@ if ($method === 'POST') {
     }
 
     $imagesByListingId = fetch_listing_images($pdo, [$id]);
-    $data = map_listing_row($row, $imagesByListingId, [], []);
+    $data = map_listing_row($row, $imagesByListingId, [], [], []);
     json_response($data, 201);
 }
 

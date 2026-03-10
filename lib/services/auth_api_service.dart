@@ -24,7 +24,7 @@ class AuthApiService {
 
   final http.Client _client = http.Client();
 
-  Future<UserModel> login({
+  Future<AuthSession> login({
     required String email,
     required String password,
   }) async {
@@ -62,7 +62,7 @@ class AuthApiService {
     );
   }
 
-  Future<UserModel> _sendAuthRequest(Uri uri, Map<String, dynamic> payload) async {
+  Future<AuthSession> _sendAuthRequest(Uri uri, Map<String, dynamic> payload) async {
     final resp = await _postJson(uri, payload);
     final status = resp['status'] as int?;
     final success = resp['success'] == true;
@@ -80,7 +80,11 @@ class AuthApiService {
     if (userJson == null) {
       throw ApiException('Réponse invalide du serveur', statusCode: status);
     }
-    return UserModel.fromJson(userJson);
+    final token = resp['token'] as String?;
+    if (token == null || token.isEmpty) {
+      throw ApiException('Token d\'authentification manquant', statusCode: status);
+    }
+    return AuthSession(user: UserModel.fromJson(userJson), token: token);
   }
 
   Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload) async {
@@ -141,4 +145,10 @@ class EmailVerificationRequiredException extends ApiException {
   final String? email;
   EmailVerificationRequiredException(String message, {this.email, int? statusCode})
       : super(message, statusCode: statusCode);
+}
+
+class AuthSession {
+  final UserModel user;
+  final String token;
+  AuthSession({required this.user, required this.token});
 }

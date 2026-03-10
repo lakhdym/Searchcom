@@ -10,11 +10,13 @@ class AuthLocalStorage {
 
   static const _kUserKey = 'auth_user';
   static const _kLoggedIn = 'auth_logged_in';
+  static const _kToken = 'auth_token';
 
-  Future<void> saveUser(UserModel user) async {
+  Future<void> saveSession(UserModel user, String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kUserKey, jsonEncode(user.toJson()));
     await prefs.setBool(_kLoggedIn, true);
+    await prefs.setString(_kToken, token);
   }
 
   Future<UserModel?> getUser() async {
@@ -29,6 +31,19 @@ class AuthLocalStorage {
     }
   }
 
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_kToken);
+    if (token == null || token.isEmpty) return null;
+    return token;
+  }
+
+  @deprecated
+  Future<void> saveUser(UserModel user) async {
+    // Compat: sauvegarde sans token
+    await saveSession(user, '');
+  }
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kLoggedIn) ?? false;
@@ -38,5 +53,6 @@ class AuthLocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kUserKey);
     await prefs.remove(_kLoggedIn);
+    await prefs.remove(_kToken);
   }
 }

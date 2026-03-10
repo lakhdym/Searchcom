@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_api_service.dart';
 import '../services/auth_local_storage.dart';
+import '../services/api_service.dart';
 import '../state/auth_state.dart';
 import 'email_verification_page.dart';
 import 'home_shell.dart';
@@ -51,12 +52,13 @@ class _LoginPageState extends State<LoginPage> {
     if (form == null || !form.validate()) return;
     setState(() => _loading = true);
     try {
-      final UserModel user = await AuthApiService.instance.login(
+      final AuthSession session = await AuthApiService.instance.login(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
-      await AuthLocalStorage.instance.saveUser(user);
-      loginUser(user);
+      await AuthLocalStorage.instance.saveSession(session.user, session.token);
+      ApiService.instance.setToken(session.token);
+      loginUser(session.user);
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeShell()),

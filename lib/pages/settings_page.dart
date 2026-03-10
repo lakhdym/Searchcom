@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_local_storage.dart';
+import '../services/api_service.dart';
 import '../state/auth_state.dart';
 import 'home_page.dart';
 
@@ -129,6 +130,7 @@ class SettingsPage extends StatelessWidget {
     if (confirm != true) return;
     await AuthLocalStorage.instance.clear();
     logoutUser();
+    ApiService.instance.setToken(null);
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const HomePage()),

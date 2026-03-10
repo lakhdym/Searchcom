@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 
 import 'found_form_page.dart';
 import 'lost_form_page.dart';
+import 'login_page.dart';
 import '../widgets/top_nav_bar.dart';
 import '../services/api_service.dart';
+import '../state/auth_state.dart';
 
 const _fallbackImageUrl =
     'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60';
@@ -16,15 +18,54 @@ class HomePage extends StatelessWidget {
   final bool showAppBar;
 
   void _openLost(BuildContext context) {
-    Navigator.of(
+    _ensureAuthThen(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const LostFormPage()));
+      () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LostFormPage()),
+      ),
+    );
   }
 
   void _openFound(BuildContext context) {
-    Navigator.of(
+    _ensureAuthThen(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const FoundFormPage()));
+      () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const FoundFormPage()),
+      ),
+    );
+  }
+
+  void _ensureAuthThen(BuildContext context, VoidCallback onAllowed) async {
+    final isLoggedIn = currentUser.value != null || ApiService.instance.isAuthenticated;
+    if (isLoggedIn) {
+      onAllowed();
+      return;
+    }
+
+    final goLogin = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Connexion requise"),
+        content: const Text("Vous devez vous connecter pour publier une annonce."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text("Se connecter"),
+          ),
+        ],
+      ),
+    );
+
+    if (!context.mounted) return;
+
+    if (goLogin == true) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+    }
   }
 
   @override
@@ -298,6 +339,7 @@ class Publication {
   final String cityArea;
   final int likesCount;
   final int commentsCount;
+  final bool likedByMe;
 
   Publication({
     required this.id,
@@ -309,6 +351,7 @@ class Publication {
     required this.cityArea,
     required this.likesCount,
     required this.commentsCount,
+    required this.likedByMe,
   });
 
   String get primaryImage =>
@@ -381,6 +424,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           cityArea: l.location.isNotEmpty ? l.location : l.city,
           likesCount: l.likesCount,
           commentsCount: l.commentsCount,
+          likedByMe: l.likedByMe,
         );
       }).toList();
 
@@ -621,11 +665,16 @@ class _PublicationCardState extends State<PublicationCard>
   bool _likesLoading = false;
   String? _likesError;
   bool _submittingComment = false;
+  bool _liked = false;
+  int _likesCount = 0;
+  bool _likeBusy = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    _liked = widget.publication.likedByMe;
+    _likesCount = widget.publication.likesCount;
   }
 
   @override
@@ -687,6 +736,7 @@ class _PublicationCardState extends State<PublicationCard>
         setState(() {
           _likes = likes;
           _likesLoaded = true;
+          _likesCount = likes.length;
         });
       }
     } catch (e) {
@@ -701,6 +751,41 @@ class _PublicationCardState extends State<PublicationCard>
           _likesLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    if (_likeBusy) return;
+    if (!ApiService.instance.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Connectez-vous pour liker cette annonce")),
+      );
+      return;
+    }
+
+    setState(() => _likeBusy = true);
+
+    try {
+      final result =
+          await ApiService.instance.toggleLike(widget.publication.id);
+      if (!mounted) return;
+      setState(() {
+        _liked = result.liked;
+        _likesCount = result.likesCount;
+        // invalide la liste pour forcer un refresh propre si besoin
+        _likesLoaded = false;
+        _likes = [];
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Impossible de mettre \u00e0 jour le like"),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _likeBusy = false);
     }
   }
 
@@ -794,6 +879,13 @@ class _PublicationCardState extends State<PublicationCard>
     final text = _commentController.text.trim();
     if (text.isEmpty || _submittingComment) return;
 
+    if (!ApiService.instance.isAuthenticated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Connectez-vous pour commenter")),
+      );
+      return;
+    }
+
     setState(() {
       _submittingComment = true;
       _commentsError = null;
@@ -811,6 +903,9 @@ class _PublicationCardState extends State<PublicationCard>
         _showComments = true;
       });
       _commentController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Commentaire ajouté")),
+      );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -851,7 +946,7 @@ class _PublicationCardState extends State<PublicationCard>
         ? "PERDU"
         : "TROUVÉ";
     final radius = BorderRadius.circular(16);
-    final likesCount = _likesLoaded ? _likes.length : publication.likesCount;
+    final likesCount = _likesCount;
     final commentCount = _commentsLoaded
         ? _comments.length
         : publication.commentsCount;
@@ -1050,10 +1145,24 @@ class _PublicationCardState extends State<PublicationCard>
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: _openLikes,
+                  onTap: _toggleLike,
+                  onLongPress: _openLikes,
                   child: Row(
                     children: [
-                      Icon(Icons.favorite_border, size: 18, color: widget.red),
+                      if (_likeBusy)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                          ),
+                        )
+                      else
+                        Icon(
+                          _liked ? Icons.favorite : Icons.favorite_border,
+                          size: 18,
+                          color: widget.red,
+                        ),
                       const SizedBox(width: 4),
                       Text(
                         "$likesCount",

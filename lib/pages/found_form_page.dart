@@ -1,9 +1,13 @@
+﻿import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../services/api_service.dart';
+import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/top_nav_bar.dart';
-import 'lost_form_page.dart';
+import 'login_page.dart';
 
-/// Page de formulaire "Objet trouvé" - Signalement Objet Trouvé
 class FoundFormPage extends StatefulWidget {
   const FoundFormPage({super.key});
 
@@ -13,330 +17,194 @@ class FoundFormPage extends StatefulWidget {
 
 class _FoundFormPageState extends State<FoundFormPage> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+
+  DateTime? _eventDate;
+  String _type = 'found'; // 'found' ou 'lost'
+  bool _contactChat = true;
+  bool _contactWhatsApp = true;
+  bool _contactCall = true;
+
+  final ImagePicker _picker = ImagePicker();
+  List<ApiPickedImage> _images = [];
+
+  List<ApiCategory> _categories = [];
+  int? _selectedCategoryId;
+  bool _loadingCats = true;
+  String? _catsError;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _locationController.dispose();
-    _phoneController.dispose();
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _cityCtrl.dispose();
+    _locationCtrl.dispose();
     super.dispose();
   }
 
+  Future<void> _loadCategories() async {
+    setState(() => _loadingCats = true);
+    try {
+      final cats = await ApiService.instance.fetchCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories = cats;
+        if (cats.isNotEmpty) {
+          _selectedCategoryId = cats.first.id;
+          _catsError = null;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _catsError = e.toString());
+    } finally {
+      if (mounted) setState(() => _loadingCats = false);
+    }
+  }
+
+  Future<void> _pickImages() async {
+    final picked = await _picker.pickMultiImage(imageQuality: 80);
+    if (picked.isEmpty) return;
+    final additions = <ApiPickedImage>[];
+    for (final x in picked) {
+      final Uint8List bytes = await x.readAsBytes();
+      additions.add(ApiPickedImage(file: x, bytes: bytes));
+    }
+    setState(() => _images = [..._images, ...additions]);
+  }
+
   void _onSubmit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      // Publication directe sans paiement (objet trouvé = gratuit)
+    final isLoggedIn = currentUser.value != null || ApiService.instance.isAuthenticated;
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Connectez-vous pour publier')));
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+      return;
+    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!_contactChat && !_contactWhatsApp && !_contactCall) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Annonce publiée avec succès !')),
+        const SnackBar(content: Text('Activez au moins un moyen de contact')),
       );
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+    final phone = currentUser.value?.phone?.trim() ?? '';
+    if ((_contactWhatsApp || _contactCall) && phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Ajoutez un numéro dans votre profil pour WhatsApp / Appel")),
+      );
+      return;
+    }
+    _createListing();
+  }
+
+  Future<void> _createListing() async {
+    setState(() => _submitting = true);
+    try {
+      final listingId = await ApiService.instance.createListing(
+        type: _type,
+        title: _titleCtrl.text.trim(),
+        description: _descCtrl.text.trim(),
+        categoryId: _selectedCategoryId,
+        city: _cityCtrl.text.trim(),
+        locationText: _locationCtrl.text.trim(),
+        eventDate: _eventDate,
+        contactChat: _contactChat,
+        contactWhatsApp: _contactWhatsApp,
+        contactCall: _contactCall,
+      );
+      if (_images.isNotEmpty) {
+        await ApiService.instance.uploadListingPhotos(listingId, _images);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Annonce publiée avec succès')));
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-
+    final isMobile = MediaQuery.of(context).size.width < 640;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F8F8),
-      appBar: TopNavBar(
-        showBack: true,
-        onBack: () => Navigator.of(context).pop(),
-      ),
+      backgroundColor: const Color(0xFFF7F7FB),
+      appBar: TopNavBar(showBack: true, onBack: () => Navigator.of(context).pop()),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _header(context),
+                      const SizedBox(height: 20),
+                      _typeSwitcher(),
+                      const SizedBox(height: 20),
+                      _photosSection(),
+                      const SizedBox(height: 20),
+                      _textField(
+                        label: "Titre",
+                        controller: _titleCtrl,
+                        hint: "Ex: Téléphone trouvé au parc",
+                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _textField(
+                        label: "Description",
+                        controller: _descCtrl,
+                        hint: "Décrivez l'objet, où et quand vous l'avez trouvé...",
+                        maxLines: 4,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _categoryDropdown(),
+                      const SizedBox(height: 16),
+                      _textField(
+                        label: "Ville",
+                        controller: _cityCtrl,
+                        hint: "Casablanca, Rabat...",
+                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _textField(
+                        label: "Lieu précis",
+                        controller: _locationCtrl,
+                        hint: "Quartier, rue, repère...",
+                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _datePicker(context),
+                      const SizedBox(height: 16),
+                      _contactToggles(),
+                      const SizedBox(height: 24),
+                      _submitButton(),
+                    ],
                   ),
-                ],
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Titre
-                    Text(
-                      'Signalement Objet Trouvé',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Remplissez les détails ci-dessous pour publier votre annonce.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Sélecteur Objet Perdu / Objet Trouvé
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.backgroundGray,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () {
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                    builder: (context) => const LostFormPage(),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.03),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                                child: Text(
-                                  'Objet Perdu',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 12, horizontal: 16),
-                              decoration: BoxDecoration(
-                                color: AppTheme.primaryVioletLight,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                'Objet Trouvé',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.successGreen,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Titre de l'objet
-                    Text(
-                      'Titre de l\'objet',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _titleController,
-                      decoration: InputDecoration(
-                        hintText: 'Ex: Clés de voiture BMW',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                              color: AppTheme.primaryViolet, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Photos
-                    Text(
-                      'Photos',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () {
-                        // TODO: ImagePicker
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Sélection d\'images à implémenter')),
-                        );
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 40),
-                        decoration: BoxDecoration(
-                          color: AppTheme.backgroundGray,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppTheme.borderMedium,
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(Icons.camera_alt_outlined,
-                                size: 48, color: AppTheme.textMuted),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Cliquez pour ajouter des photos',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'JPG, PNG (max 5MB)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Description détaillée
-                    Text(
-                      'Description détaillée',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _descriptionController,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Décrivez l\'objet, le lieu exact, l\'heure...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                              color: AppTheme.primaryViolet, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        alignLabelWithHint: true,
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Lieu et Téléphone (ligne sur desktop, colonne sur mobile)
-                    isMobile
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLocationField(),
-                              const SizedBox(height: 20),
-                              _buildPhoneField(),
-                            ],
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: _buildLocationField()),
-                              const SizedBox(width: 16),
-                              Expanded(child: _buildPhoneField()),
-                            ],
-                          ),
-                    const SizedBox(height: 28),
-
-                    // Bouton Publier
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _onSubmit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryViolet,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text('Publier l\'annonce'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Footer
-                    Center(
-                      child: Text(
-                        'La publication d\'objets trouvés est 100% gratuite.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.textMuted,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -346,95 +214,360 @@ class _FoundFormPageState extends State<FoundFormPage> {
     );
   }
 
-  Widget _buildLocationField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _header(BuildContext context) {
+    return Row(
       children: [
-        Text(
-          'Lieu',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: AppTheme.textPrimary,
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryViolet.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
           ),
+          child: const Icon(Icons.edit_outlined, color: AppTheme.primaryViolet),
         ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _locationController,
-          decoration: InputDecoration(
-            hintText: 'Ville, Quartier...',
-            prefixIcon: Icon(
-              Icons.location_on_outlined,
-              size: 20,
-              color: AppTheme.textMuted,
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Créer une annonce",
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    )),
+            Text(
+              "Publiez un objet perdu ou trouvé",
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
             ),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.borderLight),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.borderLight),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                  color: AppTheme.primaryViolet, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 14),
-          ),
-          validator: (v) => (v == null || v.trim().isEmpty)
-              ? 'Champ requis'
-              : null,
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildPhoneField() {
+  Widget _typeSwitcher() {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundGray,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _type = 'lost'),
+              child: _pill("J'ai perdu", _type == 'lost'),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _type = 'found'),
+              child: _pill("J'ai trouvé", _type == 'found'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, bool active) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: active ? Colors.white : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
+              ]
+            : [],
+      ),
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: active ? AppTheme.textPrimary : AppTheme.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _photosSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Numéro de téléphone',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: AppTheme.textPrimary,
-          ),
-        ),
+        _label("Photos"),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: _phoneController,
-          keyboardType: TextInputType.phone,
-          decoration: InputDecoration(
-            hintText: '+212 6...',
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.borderLight),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ..._images.map((img) => Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        img.bytes,
+                        width: 95,
+                        height: 95,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _images.remove(img)),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black54,
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                )),
+            GestureDetector(
+              onTap: _pickImages,
+              child: Container(
+                width: 95,
+                height: 95,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.borderLight),
+                ),
+                child: const Icon(Icons.add_a_photo_outlined, color: AppTheme.textMuted),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.borderLight),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                  color: AppTheme.primaryViolet, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
-          ),
-          validator: (v) => (v == null || v.trim().isEmpty)
-              ? 'Champ requis'
-              : null,
+          ],
         ),
       ],
     );
   }
+
+  Widget _categoryDropdown() {
+    if (_loadingCats) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(minHeight: 3),
+      );
+    }
+    if (_catsError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label("Catégorie"),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  "Échec du chargement des catégories",
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _loadCategories,
+                icon: const Icon(Icons.refresh),
+                label: const Text("Réessayer"),
+              )
+            ],
+          ),
+        ],
+      );
+    }
+    if (_categories.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _label("Catégorie"),
+          const SizedBox(height: 8),
+          const Text("Aucune catégorie trouvée"),
+        ],
+      );
+    }
+    final lang = currentUser.value?.preferredLang ?? 'fr';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label("Catégorie"),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int>(
+          key: ValueKey(_selectedCategoryId),
+          initialValue: _selectedCategoryId,
+          decoration: _inputDecoration(null),
+          items: _categories
+              .map((c) => DropdownMenuItem(
+                    value: c.id,
+                    child: Text(c.displayName(lang)),
+                  ))
+              .toList(),
+          onChanged: (v) => setState(() => _selectedCategoryId = v),
+          validator: (v) => v == null ? "Choisissez une catégorie" : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _datePicker(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label("Date de l'événement"),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _eventDate ?? now,
+              firstDate: DateTime(now.year - 5),
+              lastDate: DateTime(now.year + 1),
+            );
+            if (picked != null) setState(() => _eventDate = picked);
+          },
+          child: InputDecorator(
+            decoration: _inputDecoration(null),
+            child: Row(
+              children: [
+                const Icon(Icons.event_outlined, color: AppTheme.textMuted),
+                const SizedBox(width: 8),
+                Text(
+                  _eventDate == null
+                      ? "Sélectionner une date"
+                      : "${_eventDate!.day.toString().padLeft(2, '0')}/${_eventDate!.month.toString().padLeft(2, '0')}/${_eventDate!.year}",
+                  style: TextStyle(
+                    color: _eventDate == null ? AppTheme.textMuted : AppTheme.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contactToggles() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label("Moyens de contact"),
+        const SizedBox(height: 6),
+        const Text(
+          "Le numéro utilisé pour WhatsApp/Appel est celui de votre profil.",
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Chat dans l'app"),
+          value: _contactChat,
+          onChanged: (v) => setState(() => _contactChat = v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("WhatsApp"),
+          value: _contactWhatsApp,
+          onChanged: (v) => setState(() => _contactWhatsApp = v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Appel téléphonique"),
+          value: _contactCall,
+          onChanged: (v) => setState(() => _contactCall = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _submitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: _submitting ? null : _onSubmit,
+        icon: _submitting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.cloud_upload_outlined),
+        label: Text(
+          _submitting ? "Publication..." : "Publier l'annonce",
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          backgroundColor: AppTheme.primaryViolet,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 0,
+        ),
+      ),
+    );
+  }
+
+  Widget _textField({
+    required String label,
+    required TextEditingController controller,
+    String? hint,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          decoration: _inputDecoration(hint),
+          validator: validator,
+        ),
+      ],
+    );
+  }
+
+  Widget _label(String text) => Text(
+        text,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.textPrimary,
+        ),
+      );
+
+  InputDecoration _inputDecoration(String? hint) => InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.borderLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primaryViolet, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      );
 }
