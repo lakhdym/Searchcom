@@ -6,12 +6,14 @@ class PaymentModal extends StatefulWidget {
   final String amount;
   final VoidCallback onPaymentSuccess;
   final VoidCallback? onCancel;
+  final Future<bool> Function(String method)? onPay;
 
   const PaymentModal({
     super.key,
     required this.amount,
     required this.onPaymentSuccess,
     this.onCancel,
+    this.onPay,
   });
 
   /// Affiche le modal de paiement
@@ -20,6 +22,7 @@ class PaymentModal extends StatefulWidget {
     required String amount,
     required VoidCallback onPaymentSuccess,
     VoidCallback? onCancel,
+    Future<bool> Function(String method)? onPay,
   }) {
     return showDialog(
       context: context,
@@ -28,6 +31,7 @@ class PaymentModal extends StatefulWidget {
         amount: amount,
         onPaymentSuccess: onPaymentSuccess,
         onCancel: onCancel,
+        onPay: onPay,
       ),
     );
   }
@@ -75,14 +79,29 @@ class _PaymentModalState extends State<PaymentModal>
   Future<void> _handlePayment() async {
     setState(() => _isProcessing = true);
 
-    // Simulation du paiement (2 secondes)
-    await Future.delayed(const Duration(seconds: 2));
+    bool success = true;
+    if (widget.onPay != null) {
+      try {
+        success = await widget.onPay!.call(_selectedMethod);
+      } catch (_) {
+        success = false;
+      }
+    } else {
+      // Simulation
+      await Future.delayed(const Duration(seconds: 2));
+    }
 
     if (!mounted) return;
 
     setState(() => _isProcessing = false);
     Navigator.of(context).pop();
-    widget.onPaymentSuccess();
+    if (success) {
+      widget.onPaymentSuccess();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Paiement échoué')),
+      );
+    }
   }
 
   void _handleCancel() {

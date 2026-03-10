@@ -530,6 +530,47 @@ INSERT INTO listings (
 
     $id = (int) $pdo->lastInsertId();
 
+    if ($type === 'lost') {
+        $settings = ['publish_price' => 0, 'currency' => 'MAD'];
+        try {
+            $stmtSet = $pdo->query("SELECT publish_price, currency FROM app_settings ORDER BY updated_at DESC LIMIT 1");
+            if ($stmtSet) {
+                $rowSet = $stmtSet->fetch(PDO::FETCH_ASSOC);
+                if ($rowSet) {
+                    $settings['publish_price'] = $rowSet['publish_price'] ?? 0;
+                    $settings['currency'] = $rowSet['currency'] ?? 'MAD';
+                }
+            }
+        } catch (Throwable $e) {
+            // keep defaults
+        }
+        $amount = is_numeric($settings['publish_price']) ? $settings['publish_price'] : 0;
+        $currency = $settings['currency'] ?? 'MAD';
+
+        $stmtPay = $pdo->prepare("
+            INSERT INTO payments (user_id, listing_id, purpose, provider, amount, currency, status, created_at)
+            VALUES (:user_id, :listing_id, 'publish', 'cmi', :amount, :currency, 'pending', NOW())
+        ");
+        $stmtPay->execute([
+            ':user_id' => $userId,
+            ':listing_id' => $id,
+            ':amount' => $amount,
+            ':currency' => $currency,
+        ]);
+        $paymentId = (int) $pdo->lastInsertId();
+
+        json_response([
+            'success' => true,
+            'requires_payment' => true,
+            'message' => 'Annonce créée, paiement requis',
+            'listing_id' => $id,
+            'payment_id' => $paymentId,
+            'amount' => (string) $amount,
+            'currency' => $currency,
+            'status' => 'pending_payment',
+        ], 201);
+    }
+
     // Récupérer la ligne insérée pour renvoyer un objet cohérent
     $stmt = $pdo->prepare("
         SELECT id, type, status, title, description, city, location_text, is_boosted, created_at

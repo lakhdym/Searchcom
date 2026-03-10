@@ -84,7 +84,7 @@ class ApiService {
   // -------------------------------------------------------------
   // Creation annonce
   // -------------------------------------------------------------
-  Future<int> createListing({
+  Future<CreateListingResult> createListing({
     required String type, // 'lost' ou 'found'
     required String title,
     required String description,
@@ -128,12 +128,22 @@ class ApiService {
       );
     }
     final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final requiresPayment = data['requires_payment'] == true;
     final listingId =
         (data['id'] ?? data['listing_id'] ?? data['listingId']) as num?;
     if (listingId == null) {
       throw Exception('Reponse creation annonce invalide: id manquant');
     }
-    return listingId.toInt();
+    final paymentId = data['payment_id'] as num?;
+    final amount = data['amount']?.toString();
+    final currency = data['currency']?.toString();
+    return CreateListingResult(
+      listingId: listingId.toInt(),
+      requiresPayment: requiresPayment,
+      paymentId: paymentId?.toInt(),
+      amount: amount,
+      currency: currency,
+    );
   }
 
   // -------------------------------------------------------------
@@ -244,6 +254,36 @@ class ApiService {
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     return LikeToggleResult.fromJson(data);
+  }
+
+  // -------------------------------------------------------------
+  // Paiement publication
+  // -------------------------------------------------------------
+  Future<void> confirmPublishPayment({
+    required int paymentId,
+    required int listingId,
+    String provider = 'cmi',
+    String? providerTxnId,
+  }) async {
+    await _loadTokenIfNeeded();
+    if (!isAuthenticated) throw ApiAuthRequired('User not authenticated');
+
+    final uri = Uri.parse('$_baseUrl/confirm_publish_payment.php');
+    final body = <String, dynamic>{
+      'payment_id': paymentId,
+      'listing_id': listingId,
+      'provider': provider,
+    };
+    if (providerTxnId != null) body['provider_txn_id'] = providerTxnId;
+
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode(body),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Erreur confirmation paiement (${resp.statusCode}): ${resp.body}');
+    }
   }
 }
 
@@ -435,4 +475,19 @@ class ApiPickedImage {
   final XFile file;
   final Uint8List bytes;
   ApiPickedImage({required this.file, required this.bytes});
+}
+
+class CreateListingResult {
+  final int listingId;
+  final bool requiresPayment;
+  final int? paymentId;
+  final String? amount;
+  final String? currency;
+  CreateListingResult({
+    required this.listingId,
+    required this.requiresPayment,
+    this.paymentId,
+    this.amount,
+    this.currency,
+  });
 }
