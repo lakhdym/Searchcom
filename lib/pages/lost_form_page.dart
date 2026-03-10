@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/payment_modal.dart';
 import '../widgets/top_nav_bar.dart';
+import '../services/api_service.dart';
+import '../state/auth_state.dart';
 import 'found_form_page.dart';
+import 'login_page.dart';
 
-/// Page de formulaire "Objet perdu" - Signalement Objet Perdu
 class LostFormPage extends StatefulWidget {
   const LostFormPage({super.key});
 
@@ -18,6 +20,7 @@ class _LostFormPageState extends State<LostFormPage> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _phoneController = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -29,26 +32,63 @@ class _LostFormPageState extends State<LostFormPage> {
   }
 
   void _onSubmit() {
-    if (_formKey.currentState?.validate() ?? false) {
-      // Ouvrir le modal de paiement pour "Objet Perdu"
-      PaymentModal.show(
+    if (!ApiService.instance.isAuthenticated && currentUser.value == null) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+      return;
+    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    _createLostListing();
+  }
+
+  Future<void> _createLostListing() async {
+    setState(() => _submitting = true);
+    try {
+      final result = await ApiService.instance.createListing(
+        type: 'lost',
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        city: _locationController.text.trim(),
+        locationText: _locationController.text.trim(),
+        contactChat: true,
+        contactCall: true,
+        contactWhatsApp: false,
+      );
+      if (!mounted) return;
+
+      final priceLabel =
+          "${result.amount ?? ''} ${result.currency ?? ''}".trim().isEmpty
+              ? 'Paiement requis'
+              : "${result.amount} ${result.currency}";
+
+      await PaymentModal.show(
         context,
-        amount: '10 DH',
+        amount: priceLabel,
+        onPay: (_) async {
+          await ApiService.instance.confirmPublishPayment(
+            paymentId: result.paymentId ?? 0,
+            listingId: result.listingId,
+          );
+          return true;
+        },
         onPaymentSuccess: () {
-          // Après paiement réussi, publier l'annonce
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Annonce publiée avec succès !'),
+              content: Text('Paiement confirmé, annonce publiée'),
               backgroundColor: AppTheme.successGreen,
             ),
           );
-          // Retourner à la page d'accueil
           Navigator.of(context).popUntil((route) => route.isFirst);
         },
-        onCancel: () {
-          // L'utilisateur a annulé le paiement
-        },
       );
+      if (!mounted) return;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -86,7 +126,6 @@ class _LostFormPageState extends State<LostFormPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Titre
                     Text(
                       'Signalement Objet Perdu',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -103,7 +142,7 @@ class _LostFormPageState extends State<LostFormPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Sélecteur Objet Perdu / Objet Trouvé
+                    // Sélecteur Perdu / Trouvé
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -114,8 +153,7 @@ class _LostFormPageState extends State<LostFormPage> {
                         children: [
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 12, horizontal: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(10),
@@ -132,7 +170,7 @@ class _LostFormPageState extends State<LostFormPage> {
                                   ),
                                 ],
                               ),
-                              child: Text(
+                              child: const Text(
                                 'Objet Perdu',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
@@ -154,13 +192,12 @@ class _LostFormPageState extends State<LostFormPage> {
                                 );
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 12, horizontal: 16),
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                                 decoration: BoxDecoration(
                                   color: AppTheme.backgroundGray,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Text(
+                                child: const Text(
                                   'Objet Trouvé',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
@@ -177,47 +214,16 @@ class _LostFormPageState extends State<LostFormPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Titre de l'objet
-                    Text(
-                      'Titre de l\'objet',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
+                    _buildTextField(
+                      label: "Titre de l'objet",
                       controller: _titleController,
-                      decoration: InputDecoration(
-                        hintText: 'Ex: Clés de voiture BMW',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                              color: AppTheme.primaryViolet, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
+                      hint: 'Ex: Clés de voiture BMW',
                     ),
                     const SizedBox(height: 20),
 
-                    // Photos
                     Text(
                       'Photos',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: AppTheme.textPrimary,
@@ -226,7 +232,6 @@ class _LostFormPageState extends State<LostFormPage> {
                     const SizedBox(height: 8),
                     GestureDetector(
                       onTap: () {
-                        // TODO: ImagePicker
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Sélection d\'images à implémenter')),
                         );
@@ -243,24 +248,17 @@ class _LostFormPageState extends State<LostFormPage> {
                           ),
                         ),
                         child: Column(
-                          children: [
-                            Icon(Icons.camera_alt_outlined,
-                                size: 48, color: AppTheme.textMuted),
-                            const SizedBox(height: 12),
+                          children: const [
+                            Icon(Icons.camera_alt_outlined, size: 48, color: AppTheme.textMuted),
+                            SizedBox(height: 12),
                             Text(
                               'Cliquez pour ajouter des photos',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: AppTheme.textSecondary,
-                              ),
+                              style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Text(
                               'JPG, PNG (max 5MB)',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textMuted,
-                              ),
+                              style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
                             ),
                           ],
                         ),
@@ -268,47 +266,14 @@ class _LostFormPageState extends State<LostFormPage> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Description détaillée
-                    Text(
-                      'Description détaillée',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
+                    _buildTextField(
+                      label: 'Description détaillée',
                       controller: _descriptionController,
+                      hint: "Décrivez l'objet, le lieu exact, l'heure...",
                       maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText:
-                            'Décrivez l\'objet, le lieu exact, l\'heure...',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.borderLight),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                              color: AppTheme.primaryViolet, width: 2),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        alignLabelWithHint: true,
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
                     ),
                     const SizedBox(height: 20),
 
-                    // Lieu et Téléphone (ligne sur desktop, colonne sur mobile)
                     isMobile
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,11 +293,10 @@ class _LostFormPageState extends State<LostFormPage> {
                           ),
                     const SizedBox(height: 28),
 
-                    // Bouton Publier
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _onSubmit,
+                        onPressed: _submitting ? null : _onSubmit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryViolet,
                           foregroundColor: Colors.white,
@@ -342,16 +306,15 @@ class _LostFormPageState extends State<LostFormPage> {
                           ),
                           elevation: 0,
                         ),
-                        child: const Text('Publier l\'annonce'),
+                        child: Text(_submitting ? 'Traitement...' : "Publier l'annonce"),
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Footer
                     Center(
                       child: Text(
-                        'Un paiement de 10 DH sera demandé à l\'étape suivante.',
-                        style: TextStyle(
+                        'Un paiement sera demandé à l\'étape suivante.',
+                        style: const TextStyle(
                           fontSize: 13,
                           color: AppTheme.textMuted,
                         ),
@@ -367,13 +330,18 @@ class _LostFormPageState extends State<LostFormPage> {
     );
   }
 
-  Widget _buildLocationField() {
+  Widget _buildTextField({
+    required String label,
+    required TextEditingController controller,
+    String? hint,
+    int maxLines = 1,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Lieu',
-          style: TextStyle(
+          label,
+          style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: AppTheme.textPrimary,
@@ -381,14 +349,10 @@ class _LostFormPageState extends State<LostFormPage> {
         ),
         const SizedBox(height: 8),
         TextFormField(
-          controller: _locationController,
+          controller: controller,
+          maxLines: maxLines,
           decoration: InputDecoration(
-            hintText: 'Ville, Quartier...',
-            prefixIcon: Icon(
-              Icons.location_on_outlined,
-              size: 20,
-              color: AppTheme.textMuted,
-            ),
+            hintText: hint,
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
@@ -401,61 +365,29 @@ class _LostFormPageState extends State<LostFormPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                  color: AppTheme.primaryViolet, width: 2),
+              borderSide: const BorderSide(color: AppTheme.primaryViolet, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
-          validator: (v) => (v == null || v.trim().isEmpty)
-              ? 'Champ requis'
-              : null,
+          validator: (v) => (v == null || v.trim().isEmpty) ? 'Champ requis' : null,
         ),
       ],
     );
   }
 
+  Widget _buildLocationField() {
+    return _buildTextField(
+      label: 'Lieu',
+      controller: _locationController,
+      hint: 'Ville, Quartier...',
+    );
+  }
+
   Widget _buildPhoneField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Numéro de téléphone',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _phoneController,
-          keyboardType: TextInputType.phone,
-          decoration: InputDecoration(
-            hintText: '+212 6...',
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.borderLight),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppTheme.borderLight),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                  color: AppTheme.primaryViolet, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
-          ),
-          validator: (v) => (v == null || v.trim().isEmpty)
-              ? 'Champ requis'
-              : null,
-        ),
-      ],
+    return _buildTextField(
+      label: 'Numéro de téléphone',
+      controller: _phoneController,
+      hint: '+212 6...',
     );
   }
 }

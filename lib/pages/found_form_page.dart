@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/top_nav_bar.dart';
+import '../widgets/payment_modal.dart';
 import 'login_page.dart';
 
 class FoundFormPage extends StatefulWidget {
@@ -111,7 +112,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
   Future<void> _createListing() async {
     setState(() => _submitting = true);
     try {
-      final listingId = await ApiService.instance.createListing(
+      final result = await ApiService.instance.createListing(
         type: _type,
         title: _titleCtrl.text.trim(),
         description: _descCtrl.text.trim(),
@@ -123,13 +124,40 @@ class _FoundFormPageState extends State<FoundFormPage> {
         contactWhatsApp: _contactWhatsApp,
         contactCall: _contactCall,
       );
+      if (!mounted) return;
       if (_images.isNotEmpty) {
-        await ApiService.instance.uploadListingPhotos(listingId, _images);
+        await ApiService.instance.uploadListingPhotos(result.listingId, _images);
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Annonce publiée avec succès')));
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      if (result.requiresPayment) {
+        final priceLabel =
+            "${result.amount ?? ''} ${result.currency ?? ''}".trim();
+        await PaymentModal.show(
+          context,
+          amount: priceLabel.isEmpty ? 'Paiement requis' : priceLabel,
+          onPay: (_) async {
+            await ApiService.instance.confirmPublishPayment(
+              paymentId: result.paymentId ?? 0,
+              listingId: result.listingId,
+              provider: 'cmi',
+            );
+            return true;
+          },
+          onPaymentSuccess: () {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Paiement confirmé, annonce publiée')),
+            );
+            Navigator.of(context).popUntil((r) => r.isFirst);
+          },
+        );
+        if (!mounted) return;
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Annonce publiée avec succès')));
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
