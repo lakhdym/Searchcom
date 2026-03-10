@@ -5,6 +5,7 @@ import '../state/auth_state.dart';
 import 'edit_profile_page.dart';
 import 'home_page.dart';
 import 'change_password_page.dart';
+import 'my_listings_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -44,7 +45,9 @@ class SettingsPage extends StatelessWidget {
                   SettingsTile(
                     icon: Icons.campaign_outlined,
                     title: 'Mes publications',
-                    onTap: () => _placeholder(context),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MyListingsPage()),
+                    ),
                   ),
                 ],
               ),
