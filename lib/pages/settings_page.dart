@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_local_storage.dart';
 import '../state/auth_state.dart';
+import 'edit_profile_page.dart';
 import 'home_page.dart';
+import 'change_password_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -28,12 +30,16 @@ class SettingsPage extends StatelessWidget {
                   SettingsTile(
                     icon: Icons.edit_outlined,
                     title: 'Modifier le profil',
-                    onTap: () => _placeholder(context),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const EditProfilePage()),
+                    ),
                   ),
                   SettingsTile(
                     icon: Icons.lock_reset_outlined,
                     title: 'Changer le mot de passe',
-                    onTap: () => _placeholder(context),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ChangePasswordPage()),
+                    ),
                   ),
                   SettingsTile(
                     icon: Icons.campaign_outlined,

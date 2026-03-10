@@ -10,6 +10,8 @@ class AuthLocalStorage {
 
   static const _kUserKey = 'auth_user';
   static const _kLoggedIn = 'auth_logged_in';
+  static const _kAccessToken = 'auth_access_token';
+  static const _kRefreshToken = 'auth_refresh_token';
 
   Future<void> saveUser(UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,5 +40,7 @@ class AuthLocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kUserKey);
     await prefs.remove(_kLoggedIn);
+    await prefs.remove(_kAccessToken);
+    await prefs.remove(_kRefreshToken);
   }
 }
