@@ -1,0 +1,24 @@
+[03-Mar-2026 14:31:25 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 153
+[03-Mar-2026 14:32:37 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 162
+[03-Mar-2026 14:35:51 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:36:02 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:42:55 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:47:19 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:50:20 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:51:02 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:55:21 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:56:47 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 167
+[03-Mar-2026 14:57:59 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 167
+[03-Mar-2026 15:03:41 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 168
+[03-Mar-2026 15:04:23 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 168
+[03-Mar-2026 15:12:16 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 168
+[03-Mar-2026 22:47:59 UTC] PHP Fatal error:  Uncaught PDOException: SQLSTATE[28000] [1045] Access denied for user 'italents_flutter'@'localhost' (using password: YES) in /home/italents/public_html/app/api/config.php:15
+Stack trace:
+#0 /home/italents/public_html/app/api/config.php(15): PDO->__construct()
+#1 /home/italents/public_html/app/api/annonces.php(46): get_pdo()
+#2 {main}
+  thrown in /home/italents/public_html/app/api/config.php on line 15
+[09-Mar-2026 13:44:24 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[09-Mar-2026 13:47:35 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[09-Mar-2026 14:12:56 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[09-Mar-2026 14:15:09 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51

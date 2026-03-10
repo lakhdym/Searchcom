@@ -148,9 +148,10 @@ if ($method === 'POST') {
     $id = (int) $pdo->lastInsertId();
 
     $stmt = $pdo->prepare("
-        SELECT id, listing_id, user_id, content, status, created_at
-        FROM listing_comments
-        WHERE id = :id
+        SELECT l.id, l.listing_id, l.user_id, u.full_name, l.content, l.status, l.created_at
+        FROM listing_comments l
+        LEFT JOIN users u ON l.user_id = u.id
+        WHERE l.id = :id
     ");
     $stmt->execute([':id' => $id]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -163,6 +164,7 @@ if ($method === 'POST') {
         'id' => (int) ($row['id'] ?? $id),
         'listing_id' => (int) ($row['listing_id'] ?? $listingId),
         'user_id' => isset($row['user_id']) ? (int) $row['user_id'] : null,
+        'full_name' => isset($row['full_name']) ? (string) $row['full_name'] : '',
         'content' => (string) ($row['content'] ?? $content),
         'status' => $row['status'] ?? $status,
         'created_at' => $row['created_at'] ?? $now,

@@ -64,9 +64,19 @@ try {
 
     unset($user['password_hash']);
 
+    // Générer un JWT pour les actions protégées
+    $token = create_jwt([
+        'sub' => (int)$user['id'],
+        'email' => $user['email'],
+        'role' => $user['role'],
+        'iat' => time(),
+        'exp' => time() + JWT_TTL,
+    ]);
+
     json_response([
         'success' => true,
         'message' => 'Connexion réussie',
+        'token' => $token,
         'user' => [
             'id' => (int)$user['id'],
             'role' => $user['role'],

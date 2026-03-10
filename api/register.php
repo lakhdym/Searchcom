@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['success' => false, 'message' => 'Method not allowed'], 405);
 }
 
-require_once __DIR__ . '/helpers/send_verification_email.php';
+require_once __DIR__ . '/send_verification_email.php';
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -88,14 +88,7 @@ try {
     $stmt->execute([$userId, $email, $code, $expiresAt]);
 
     // Envoyer l'email (erreurs non bloquantes)
-    $sent = sendVerificationEmail($email, $fullName, $code);
-
-    if (!$sent) {
-        json_response([
-            'success' => false,
-            'message' => "Impossible d'envoyer l'email de verification",
-        ], 500);
-    }
+    send_verification_email($email, $fullName, $code);
 
     json_response([
         'success' => true,
