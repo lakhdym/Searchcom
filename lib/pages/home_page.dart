@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'found_form_page.dart';
-import 'lost_form_page.dart';
 import 'login_page.dart';
 import '../widgets/top_nav_bar.dart';
 import '../services/auth_local_storage.dart';
@@ -23,7 +22,7 @@ class HomePage extends StatelessWidget {
       context,
       onAllowed: () => Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const LostFormPage())),
+      ).push(MaterialPageRoute(builder: (_) => const FoundFormPage(type: "lost"))),
       title: "Connexion requise",
       message: "Vous devez vous connecter pour publier une annonce perdue.",
     );
@@ -34,7 +33,7 @@ class HomePage extends StatelessWidget {
       context,
       onAllowed: () => Navigator.of(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const FoundFormPage())),
+      ).push(MaterialPageRoute(builder: (_) => const FoundFormPage(type: "found"))),
       title: "Connexion requise",
       message: "Vous devez vous connecter pour publier une annonce.",
     );

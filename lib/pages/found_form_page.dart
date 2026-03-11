@@ -10,7 +10,8 @@ import '../widgets/payment_modal.dart';
 import 'login_page.dart';
 
 class FoundFormPage extends StatefulWidget {
-  const FoundFormPage({super.key});
+  final String type; // 'lost' ou 'found'
+  const FoundFormPage({super.key, required this.type});
 
   @override
   State<FoundFormPage> createState() => _FoundFormPageState();
@@ -24,7 +25,6 @@ class _FoundFormPageState extends State<FoundFormPage> {
   final _locationCtrl = TextEditingController();
 
   DateTime? _eventDate;
-  String _type = 'found'; // 'found' ou 'lost'
   bool _contactChat = true;
   bool _contactWhatsApp = true;
   bool _contactCall = true;
@@ -122,7 +122,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
     setState(() => _submitting = true);
     try {
       final result = await ApiService.instance.createListing(
-        type: _type,
+        type: widget.type,
         title: _titleCtrl.text.trim(),
         description: _descCtrl.text.trim(),
         categoryId: _selectedCategoryId,
@@ -186,6 +186,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 640;
+    final accent = widget.type == 'lost' ? Colors.redAccent : Colors.green;
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FB),
       appBar: TopNavBar(
@@ -209,9 +210,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _header(context),
-                      const SizedBox(height: 20),
-                      _typeSwitcher(),
+                      _header(context, accent),
                       const SizedBox(height: 20),
                       _photosSection(),
                       const SizedBox(height: 20),
@@ -271,30 +270,34 @@ class _FoundFormPageState extends State<FoundFormPage> {
     );
   }
 
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, Color accent) {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: AppTheme.primaryViolet.withValues(alpha: 0.1),
+            color: accent.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.edit_outlined, color: AppTheme.primaryViolet),
+          child: Icon(Icons.edit_outlined, color: accent),
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Créer une annonce",
+              widget.type == 'lost'
+                  ? "Publier un objet perdu"
+                  : "Publier un objet trouvé",
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
               ),
             ),
             Text(
-              "Publiez un objet perdu ou trouvé",
+              widget.type == 'lost'
+                  ? "Paiement requis avant publication"
+                  : "Publication gratuite",
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
@@ -302,62 +305,6 @@ class _FoundFormPageState extends State<FoundFormPage> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _typeSwitcher() {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundGray,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _type = 'lost'),
-              child: _pill("J'ai perdu", _type == 'lost'),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _type = 'found'),
-              child: _pill("J'ai trouvé", _type == 'found'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _pill(String label, bool active) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: active ? Colors.white : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : [],
-      ),
-      child: Center(
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: active ? AppTheme.textPrimary : AppTheme.textSecondary,
-          ),
-        ),
-      ),
     );
   }
 
