@@ -1,12 +1,13 @@
-﻿import 'package:flutter/material.dart';
+﻿// ignore_for_file: use_build_context_synchronously
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'found_form_page.dart';
 import 'lost_form_page.dart';
 import 'login_page.dart';
 import '../widgets/top_nav_bar.dart';
+import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
-import '../state/auth_state.dart';
 
 const _fallbackImageUrl =
     'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=60';
@@ -18,36 +19,52 @@ class HomePage extends StatelessWidget {
   final bool showAppBar;
 
   void _openLost(BuildContext context) {
-    _ensureAuthThen(
+    _guardAuthThen(
       context,
-      () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LostFormPage()),
-      ),
+      onAllowed: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const LostFormPage())),
+      title: "Connexion requise",
+      message: "Vous devez vous connecter pour publier une annonce perdue.",
     );
   }
 
   void _openFound(BuildContext context) {
-    _ensureAuthThen(
+    _guardAuthThen(
       context,
-      () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FoundFormPage()),
-      ),
+      onAllowed: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const FoundFormPage())),
+      title: "Connexion requise",
+      message: "Vous devez vous connecter pour publier une annonce.",
     );
   }
 
-  void _ensureAuthThen(BuildContext context, VoidCallback onAllowed) async {
-    final isLoggedIn = currentUser.value != null || ApiService.instance.isAuthenticated;
-    if (isLoggedIn) {
+  void _guardAuthThen(
+    BuildContext context, {
+    required VoidCallback onAllowed,
+    required String title,
+    required String message,
+  }) async {
+    final storedToken = await AuthLocalStorage.instance.getToken();
+    debugPrint(
+      '[GuardLostFound] tokenPresent=${storedToken != null && storedToken.isNotEmpty}',
+    );
+
+    if (storedToken != null && storedToken.isNotEmpty) {
+      ApiService.instance.setToken(storedToken);
       onAllowed();
       return;
     }
+
+    final navigator = Navigator.of(context);
 
     final goLogin = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Connexion requise"),
-        content: const Text("Vous devez vous connecter pour publier une annonce."),
+        title: Text(title),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -61,13 +78,55 @@ class HomePage extends StatelessWidget {
       ),
     );
 
-    if (!context.mounted) return;
+    if (!navigator.mounted) return;
 
     if (goLogin == true) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+      navigator.push(MaterialPageRoute(builder: (_) => const LoginPage()));
     }
   }
 
+  /*
+  Future<void> _guardAuthThen(
+    BuildContext context, {
+    required VoidCallback onAllowed,
+    required String title,
+    required String message,
+  }) async {
+    final token = await AuthLocalStorage.instance.getToken();
+    final isLoggedIn = token != null && token.isNotEmpty;
+
+    debugPrint("TOKEN = $token");
+    debugPrint("isLoggedIn = $isLoggedIn");
+
+    if (isLoggedIn) {
+      onAllowed();
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushNamed(context, '/login');
+            },
+            child: const Text("Se connecter"),
+          ),
+        ],
+      ),
+    );
+  }
+*/
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -730,8 +789,7 @@ class _PublicationCardState extends State<PublicationCard>
     });
 
     try {
-      final likes =
-          await ApiService.instance.fetchLikes(widget.publication.id);
+      final likes = await ApiService.instance.fetchLikes(widget.publication.id);
       if (mounted) {
         setState(() {
           _likes = likes;
@@ -758,7 +816,9 @@ class _PublicationCardState extends State<PublicationCard>
     if (_likeBusy) return;
     if (!ApiService.instance.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Connectez-vous pour liker cette annonce")),
+        const SnackBar(
+          content: Text("Connectez-vous pour liker cette annonce"),
+        ),
       );
       return;
     }
@@ -766,8 +826,9 @@ class _PublicationCardState extends State<PublicationCard>
     setState(() => _likeBusy = true);
 
     try {
-      final result =
-          await ApiService.instance.toggleLike(widget.publication.id);
+      final result = await ApiService.instance.toggleLike(
+        widget.publication.id,
+      );
       if (!mounted) return;
       setState(() {
         _liked = result.liked;
@@ -838,8 +899,8 @@ class _PublicationCardState extends State<PublicationCard>
             final name = like.fullName.isNotEmpty
                 ? like.fullName
                 : ((like.userId != null && like.userId != 0)
-                    ? "Utilisateur #${like.userId}"
-                    : "Utilisateur");
+                      ? "Utilisateur #${like.userId}"
+                      : "Utilisateur");
             return ListTile(
               dense: true,
               leading: CircleAvatar(
@@ -863,10 +924,7 @@ class _PublicationCardState extends State<PublicationCard>
               ),
               subtitle: Text(
                 _formatRelative(like.createdAt),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF9CA3AF),
-                ),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
               ),
             );
           },
@@ -903,9 +961,9 @@ class _PublicationCardState extends State<PublicationCard>
         _showComments = true;
       });
       _commentController.clear();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Commentaire ajouté")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajouté")));
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1153,9 +1211,7 @@ class _PublicationCardState extends State<PublicationCard>
                         const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       else
                         Icon(
@@ -1287,8 +1343,8 @@ class _PublicationCardState extends State<PublicationCard>
                             final author = c.fullName.isNotEmpty
                                 ? c.fullName
                                 : ((c.userId != null && c.userId != 0)
-                                    ? "Utilisateur #${c.userId}"
-                                    : "Utilisateur");
+                                      ? "Utilisateur #${c.userId}"
+                                      : "Utilisateur");
                             final initial = author.isNotEmpty ? author[0] : '?';
                             final timeLabel = _formatRelative(c.createdAt);
 

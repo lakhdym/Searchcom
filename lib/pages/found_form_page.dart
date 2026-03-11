@@ -85,11 +85,16 @@ class _FoundFormPageState extends State<FoundFormPage> {
   }
 
   void _onSubmit() {
-    final isLoggedIn = currentUser.value != null || ApiService.instance.isAuthenticated;
+    debugPrint('FoundFormPage onSubmit called');
+    final isLoggedIn =
+        currentUser.value != null || ApiService.instance.isAuthenticated;
     if (!isLoggedIn) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Connectez-vous pour publier')));
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connectez-vous pour publier')),
+      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const LoginPage()));
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -102,7 +107,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
     final phone = currentUser.value?.phone?.trim() ?? '';
     if ((_contactWhatsApp || _contactCall) && phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ajoutez un numéro dans votre profil pour WhatsApp / Appel")),
+        const SnackBar(
+          content: Text(
+            "Ajoutez un numéro dans votre profil pour WhatsApp / Appel",
+          ),
+        ),
       );
       return;
     }
@@ -126,12 +135,15 @@ class _FoundFormPageState extends State<FoundFormPage> {
       );
       if (!mounted) return;
       if (_images.isNotEmpty) {
-        await ApiService.instance.uploadListingPhotos(result.listingId, _images);
+        await ApiService.instance.uploadListingPhotos(
+          result.listingId,
+          _images,
+        );
       }
       if (!mounted) return;
       if (result.requiresPayment) {
-        final priceLabel =
-            "${result.amount ?? ''} ${result.currency ?? ''}".trim();
+        final priceLabel = "${result.amount ?? ''} ${result.currency ?? ''}"
+            .trim();
         await PaymentModal.show(
           context,
           amount: priceLabel.isEmpty ? 'Paiement requis' : priceLabel,
@@ -146,7 +158,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
           onPaymentSuccess: () {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Paiement confirmé, annonce publiée')),
+              const SnackBar(
+                content: Text('Paiement confirmé, annonce publiée'),
+              ),
             );
             Navigator.of(context).popUntil((r) => r.isFirst);
           },
@@ -154,15 +168,16 @@ class _FoundFormPageState extends State<FoundFormPage> {
         if (!mounted) return;
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Annonce publiée avec succès')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Annonce publiée avec succès')),
+        );
         Navigator.of(context).popUntil((r) => r.isFirst);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -173,7 +188,10 @@ class _FoundFormPageState extends State<FoundFormPage> {
     final isMobile = MediaQuery.of(context).size.width < 640;
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FB),
-      appBar: TopNavBar(showBack: true, onBack: () => Navigator.of(context).pop()),
+      appBar: TopNavBar(
+        showBack: true,
+        onBack: () => Navigator.of(context).pop(),
+      ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Center(
@@ -181,7 +199,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
             constraints: const BoxConstraints(maxWidth: 720),
             child: Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Form(
@@ -199,15 +219,20 @@ class _FoundFormPageState extends State<FoundFormPage> {
                         label: "Titre",
                         controller: _titleCtrl,
                         hint: "Ex: Téléphone trouvé au parc",
-                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Champ requis"
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       _textField(
                         label: "Description",
                         controller: _descCtrl,
-                        hint: "Décrivez l'objet, où et quand vous l'avez trouvé...",
+                        hint:
+                            "Décrivez l'objet, où et quand vous l'avez trouvé...",
                         maxLines: 4,
-                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Champ requis"
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       _categoryDropdown(),
@@ -216,14 +241,18 @@ class _FoundFormPageState extends State<FoundFormPage> {
                         label: "Ville",
                         controller: _cityCtrl,
                         hint: "Casablanca, Rabat...",
-                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Champ requis"
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       _textField(
                         label: "Lieu précis",
                         controller: _locationCtrl,
                         hint: "Quartier, rue, repère...",
-                        validator: (v) => (v == null || v.trim().isEmpty) ? "Champ requis" : null,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Champ requis"
+                            : null,
                       ),
                       const SizedBox(height: 16),
                       _datePicker(context),
@@ -257,16 +286,18 @@ class _FoundFormPageState extends State<FoundFormPage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Créer une annonce",
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                    )),
+            Text(
+              "Créer une annonce",
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
+            ),
             Text(
               "Publiez un objet perdu ou trouvé",
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -314,7 +345,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                   color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
-                )
+                ),
               ]
             : [],
       ),
@@ -340,34 +371,40 @@ class _FoundFormPageState extends State<FoundFormPage> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            ..._images.map((img) => Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.memory(
-                        img.bytes,
-                        width: 95,
-                        height: 95,
-                        fit: BoxFit.cover,
-                      ),
+            ..._images.map(
+              (img) => Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      img.bytes,
+                      width: 95,
+                      height: 95,
+                      fit: BoxFit.cover,
                     ),
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: GestureDetector(
-                        onTap: () => setState(() => _images.remove(img)),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black54,
-                          ),
-                          padding: const EdgeInsets.all(4),
-                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _images.remove(img)),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black54,
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: const Icon(
+                          Icons.close,
+                          size: 14,
+                          color: Colors.white,
                         ),
                       ),
                     ),
-                  ],
-                )),
+                  ),
+                ],
+              ),
+            ),
             GestureDetector(
               onTap: _pickImages,
               child: Container(
@@ -378,7 +415,10 @@ class _FoundFormPageState extends State<FoundFormPage> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppTheme.borderLight),
                 ),
-                child: const Icon(Icons.add_a_photo_outlined, color: AppTheme.textMuted),
+                child: const Icon(
+                  Icons.add_a_photo_outlined,
+                  color: AppTheme.textMuted,
+                ),
               ),
             ),
           ],
@@ -412,7 +452,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                 onPressed: _loadCategories,
                 icon: const Icon(Icons.refresh),
                 label: const Text("Réessayer"),
-              )
+              ),
             ],
           ),
         ],
@@ -439,10 +479,12 @@ class _FoundFormPageState extends State<FoundFormPage> {
           initialValue: _selectedCategoryId,
           decoration: _inputDecoration(null),
           items: _categories
-              .map((c) => DropdownMenuItem(
-                    value: c.id,
-                    child: Text(c.displayName(lang)),
-                  ))
+              .map(
+                (c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.displayName(lang)),
+                ),
+              )
               .toList(),
           onChanged: (v) => setState(() => _selectedCategoryId = v),
           validator: (v) => v == null ? "Choisissez une catégorie" : null,
@@ -479,7 +521,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
                       ? "Sélectionner une date"
                       : "${_eventDate!.day.toString().padLeft(2, '0')}/${_eventDate!.month.toString().padLeft(2, '0')}/${_eventDate!.year}",
                   style: TextStyle(
-                    color: _eventDate == null ? AppTheme.textMuted : AppTheme.textPrimary,
+                    color: _eventDate == null
+                        ? AppTheme.textMuted
+                        : AppTheme.textPrimary,
                   ),
                 ),
               ],
@@ -531,7 +575,10 @@ class _FoundFormPageState extends State<FoundFormPage> {
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : const Icon(Icons.cloud_upload_outlined),
         label: Text(
@@ -542,7 +589,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
           padding: const EdgeInsets.symmetric(vertical: 14),
           backgroundColor: AppTheme.primaryViolet,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           elevation: 0,
         ),
       ),
@@ -572,30 +621,30 @@ class _FoundFormPageState extends State<FoundFormPage> {
   }
 
   Widget _label(String text) => Text(
-        text,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.textPrimary,
-        ),
-      );
+    text,
+    style: const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: AppTheme.textPrimary,
+    ),
+  );
 
   InputDecoration _inputDecoration(String? hint) => InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.borderLight),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.borderLight),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primaryViolet, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      );
+    hintText: hint,
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppTheme.borderLight),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppTheme.borderLight),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppTheme.primaryViolet, width: 2),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  );
 }
