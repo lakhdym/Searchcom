@@ -49,13 +49,7 @@ require_once __DIR__ . '/config.php';
 
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['Authorization'] ?? '');
 $payload = null;
-if (preg_match('/Bearer\\s+(.*)$/i', $auth, $matches)) {
-    $token = $matches[1];
-    $payload = verify_jwt($token);
-    if ($payload === null) {
-        json_response(['error' => 'Token invalide ou expirÃ©'], 401);
-    }
-}
+
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = get_pdo();
@@ -113,8 +107,14 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    if ($payload === null) {
-        json_response(['error' => 'Token manquant'], 401);
+
+
+    if (preg_match('/Bearer\\s+(.*)$/i', $auth, $matches)) {
+        $token = $matches[1];
+        $payload = verify_jwt($token);
+        if ($payload === null) {
+            json_response(['error' => 'Token invalide ou expirÃ©'], 401);
+        }
     }
 
     $body = json_decode(file_get_contents('php://input'), true) ?? [];

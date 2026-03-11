@@ -996,6 +996,330 @@ class _PublicationCardState extends State<PublicationCard>
     }
   }
 
+  Future<void> _openFullDetails() async {
+    if (!_commentsLoaded && !_loadingComments) {
+      await _loadComments();
+    }
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            Future<void> refreshComments() async {
+              await _loadComments();
+              setSheetState(() {});
+            }
+
+            Future<void> sendComment() async {
+              await _addComment();
+              setSheetState(() {});
+            }
+
+            final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+            final publication = widget.publication;
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottom),
+              child: DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.9,
+                minChildSize: 0.6,
+                maxChildSize: 0.95,
+                builder: (ctx, controller) {
+                  return Column(
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        width: 48,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView(
+                          controller: controller,
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    publication.title,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: publication.status ==
+                                            PublicationStatus.perdu
+                                        ? widget.red
+                                        : widget.green,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    publication.status ==
+                                            PublicationStatus.perdu
+                                        ? "PERDU"
+                                        : "TROUVÉ",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.place, size: 16),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    publication.cityArea,
+                                    style: TextStyle(
+                                      color: widget.textGray,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const Icon(Icons.calendar_today_outlined,
+                                    size: 14, color: Color(0xFF9CA3AF)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  publication.dateText,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: widget.mutedGray,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (publication.imageUrls.isNotEmpty)
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.network(
+                                  publication.imageUrls.first,
+                                  height: 180,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    height: 180,
+                                    color: Colors.grey.shade300,
+                                    child: const Icon(Icons.image, size: 48),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 14),
+                            Text(
+                              publication.description,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: widget.textGray,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                const Text(
+                                  "Commentaires",
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                if (_commentsLoaded)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE5E7EB),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      "${_comments.length}",
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF4B5563),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: const Icon(Icons.refresh, size: 18),
+                                  onPressed: refreshComments,
+                                ),
+                              ],
+                            ),
+                            if (_loadingComments)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else if (_commentsError != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  "Erreur: $_commentsError",
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              )
+                            else if (_comments.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  "Aucun commentaire pour l'instant.",
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF6B7280)),
+                                ),
+                              )
+                            else
+                              ListView.separated(
+                                physics: const NeverScrollableScrollPhysics(),
+                                shrinkWrap: true,
+                                itemCount: _comments.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (_, index) {
+                                  final c = _comments[index];
+                                  final author = c.fullName.isNotEmpty
+                                      ? c.fullName
+                                      : ((c.userId != null && c.userId != 0)
+                                            ? "Utilisateur #${c.userId}"
+                                            : "Utilisateur");
+                                  final timeLabel =
+                                      _formatRelative(c.createdAt);
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor:
+                                          const Color(0xFFE5E7EB),
+                                      child: Text(
+                                        author.isNotEmpty ? author[0] : '?',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF111827),
+                                        ),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      author,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF111827),
+                                      ),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          timeLabel,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Color(0xFF9CA3AF),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          c.content,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF111827),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            const SizedBox(height: 12),
+                          ],
+                        ),
+                      ),
+                      SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _commentController,
+                                  minLines: 1,
+                                  maxLines: 3,
+                                  decoration: const InputDecoration(
+                                    hintText: "Ajouter un commentaire...",
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              _submittingComment
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : IconButton(
+                                      icon: Icon(
+                                        Icons.send,
+                                        color: widget.purple,
+                                        size: 20,
+                                      ),
+                                      onPressed: sendComment,
+                                      splashRadius: 20,
+                                    ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   String _formatRelative(DateTime? date) {
     if (date == null) return '';
     final diff = DateTime.now().difference(date);
@@ -1026,6 +1350,7 @@ class _PublicationCardState extends State<PublicationCard>
     final hasContactOptions = publication.contactChat ||
         (publication.contactWhatsApp && hasPhone) ||
         (publication.contactCall && hasPhone);
+    final bool longDescription = publication.description.length > 140;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -1193,6 +1518,19 @@ class _PublicationCardState extends State<PublicationCard>
                     height: 1.3,
                   ),
                 ),
+                if (longDescription)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: _openFullDetails,
+                      child: const Text("Lire la suite"),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
