@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'found_form_page.dart';
 import 'login_page.dart';
@@ -1713,14 +1714,14 @@ class _PublicationCardState extends State<PublicationCard>
         _menuItem(
           icon: Icons.share,
           label: "Partager",
-          onTap: () => debugPrint("Partager"),
+          onTap: _shareListing,
         ),
         _menuItem(
           icon: Icons.flag,
           label: "Signaler",
           iconColor: Colors.red,
           textColor: Colors.red,
-          onTap: () => _confirmReport(context),
+          onTap: _reportListing,
         ),
       ],
     );
@@ -1753,36 +1754,169 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 
-  Future<void> _confirmReport(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Signaler cette publication ?"),
-        content: const Text(
-          "Voulez-vous vraiment signaler cette publication ?",
+  String _buildListingShareUrl() {
+    const base = 'https://italents.ma/app/listing';
+    return '$base/${widget.publication.id}';
+  }
+
+  Future<void> _shareListing() async {
+    final url = _buildListingShareUrl();
+    final buffer = StringBuffer()
+      ..write("Regarde cette annonce : ${widget.publication.title}");
+    if (widget.publication.cityArea.isNotEmpty) {
+      buffer.write(" à ${widget.publication.cityArea}");
+    }
+    buffer.write("\n$url");
+    await Share.share(buffer.toString());
+  }
+
+  Future<void> _reportListing() async {
+    final token = await AuthLocalStorage.instance.getToken();
+    if (token == null || token.isEmpty) {
+      final goLogin = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text("Connexion requise"),
+          content: const Text(
+              "Vous devez vous connecter pour signaler une annonce."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text("Se connecter"),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Annuler"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text("Signaler", style: TextStyle(color: Colors.red)),
-          ),
-        ],
+      );
+      if (goLogin == true && mounted) {
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+      }
+      return;
+    }
+
+    ApiService.instance.setToken(token);
+    final reasons = ['spam', 'scam', 'abuse', 'illegal', 'other'];
+    String selected = reasons.first;
+    final detailsCtrl = TextEditingController();
+    bool sending = false;
+
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
+      builder: (ctx) {
+        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    "Signaler l'annonce",
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...reasons.map(
+                    (r) => RadioListTile<String>(
+                      dense: true,
+                      value: r,
+                      groupValue: selected,
+                      onChanged: (v) => setSheetState(() => selected = v ?? selected),
+                      title: Text(r),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: detailsCtrl,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: "Détails (optionnel)",
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: sending ? null : () => Navigator.of(ctx).pop(),
+                        child: const Text("Annuler"),
+                      ),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: sending
+                            ? null
+                            : () async {
+                                setSheetState(() => sending = true);
+                                try {
+                                  await ApiService.instance.reportListing(
+                                    listingId: widget.publication.id,
+                                    reason: selected,
+                                    details: detailsCtrl.text,
+                                  );
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text("Signalement envoyé")),
+                                    );
+                                  }
+                                  Navigator.of(ctx).pop(true);
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text("Erreur: $e")),
+                                    );
+                                  }
+                                  setSheetState(() => sending = false);
+                                }
+                              },
+                        child: sending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text("Envoyer"),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
 
-    if (result == true) {
-      debugPrint("Signaler");
-    }
+    detailsCtrl.dispose();
   }
 
   void _copyLink(BuildContext context) {
-    final link =
-        "https://italents.ma/p/${Uri.encodeComponent(widget.publication.title)}";
+    final link = _buildListingShareUrl();
     Clipboard.setData(ClipboardData(text: link));
     ScaffoldMessenger.of(
       context,

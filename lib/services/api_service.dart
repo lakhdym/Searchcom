@@ -285,6 +285,43 @@ class ApiService {
       throw Exception('Erreur confirmation paiement (${resp.statusCode}): ${resp.body}');
     }
   }
+
+  // -------------------------------------------------------------
+  // Signalements
+  // -------------------------------------------------------------
+  Future<void> reportListing({
+    required int listingId,
+    required String reason,
+    String? details,
+  }) async {
+    await _loadTokenIfNeeded();
+    if (!isAuthenticated) throw ApiAuthRequired('User not authenticated');
+
+    final uri = Uri.parse('$_baseUrl/report.php');
+    final body = <String, dynamic>{
+      'target_type': 'listing',
+      'target_id': listingId,
+      'reason': reason,
+    };
+    final d = details?.trim();
+    if (d != null && d.isNotEmpty) body['details'] = d;
+
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode(body),
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception(
+        'Erreur signalement (${resp.statusCode}): ${resp.body}',
+      );
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] != true) {
+      throw Exception(data['message']?.toString() ?? 'Signalement refusé');
+    }
+  }
 }
 
 class ApiCategory {
