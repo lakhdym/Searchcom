@@ -52,13 +52,7 @@ require_once __DIR__ . '/config.php';
 
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['Authorization'] ?? '');
 $payload = null;
-if (preg_match('/Bearer\\s+(.*)$/i', $auth, $matches)) {
-    $token = $matches[1];
-    $payload = verify_jwt($token);
-    if ($payload === null) {
-        json_response(['error' => 'Token invalide ou expiré'], 401);
-    }
-}
+
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = get_pdo();
@@ -435,6 +429,15 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    /*
+    if (preg_match('/Bearer\\s+(.*)$/i', $auth, $matches)) {
+        $token = $matches[1];
+        $payload = verify_jwt($token);
+        if ($payload === null) {
+            json_response(['error' => 'Token invalide ou expiré'], 401);
+        }
+    }
+*/
     // Les créations nécessitent toujours un utilisateur authentifié
     if ($payload === null) {
         json_response(['error' => 'Token manquant'], 401);

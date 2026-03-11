@@ -12,10 +12,7 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Paramètres'),
-        centerTitle: false,
-      ),
+      appBar: AppBar(title: const Text('Paramètres'), centerTitle: false),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -105,9 +102,9 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _placeholder(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fonctionnalité à venir.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Fonctionnalité à venir.')));
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -118,7 +115,10 @@ class SettingsPage extends StatelessWidget {
         title: const Text('Déconnexion'),
         content: const Text('Voulez-vous vraiment vous déconnecter ?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: scheme.error),
@@ -129,8 +129,8 @@ class SettingsPage extends StatelessWidget {
     );
     if (confirm != true) return;
     await AuthLocalStorage.instance.clear();
-    logoutUser();
     ApiService.instance.setToken(null);
+    logoutUser();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const HomePage()),
@@ -165,7 +165,11 @@ class _SettingsSection extends StatelessWidget {
           return Column(
             children: [
               tile,
-              if (!isLast) Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              if (!isLast)
+                Divider(
+                  height: 1,
+                  color: scheme.outlineVariant.withValues(alpha: 0.6),
+                ),
             ],
           );
         }),
@@ -190,8 +194,8 @@ class SettingsTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     required this.onTap,
-  })  : color = null,
-        isDanger = true;
+  }) : color = null,
+       isDanger = true;
 
   final IconData icon;
   final String title;
@@ -218,7 +222,9 @@ class SettingsTile extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(
               subtitle!,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             )
           : null,
       trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
