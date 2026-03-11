@@ -1,4 +1,4 @@
-ï»¿// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -148,8 +148,8 @@ class HomePage extends StatelessWidget {
     );
 
     final foundCard = HomeActionCard(
-      title: "J'ai trouvÃ©",
-      subtitle: "Aidez quelqu'un Ã  retrouver son bien en publiant une annonce.",
+      title: "J'ai trouvé",
+      subtitle: "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
       height: 150,
       backgroundColor: const Color(0xFFF1FBF5),
       smallIconBackground: const Color(0xFFDFF5E7),
@@ -351,7 +351,7 @@ class SearchBarWithFilter extends StatelessWidget {
               decoration: const InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                hintText: "Rechercher (objet, lieu, mot-clÃ©â€¦)",
+                hintText: "Rechercher (objet, lieu, mot-clé…)",
                 hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
               ),
             ),
@@ -450,7 +450,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   bool _loading = true;
   String? _error;
 
-  int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: TrouvÃ©
+  int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvé
   String _query = "";
 
   @override
@@ -466,7 +466,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     });
 
     try {
-      // âœ… fetch from API as PUBLIC (no token)
+      // ? fetch from API as PUBLIC (no token)
       String? type;
       if (_selectedIndex == 1) type = 'lost';
       if (_selectedIndex == 2) type = 'found';
@@ -538,7 +538,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           children: [
             Expanded(
               child: Text(
-                "Publications rÃ©centes",
+                "Publications récentes",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -560,7 +560,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           selectedIndex: _selectedIndex,
           onChanged: (i) {
             setState(() => _selectedIndex = i);
-            _loadPublications(); // âœ… reload by type
+            _loadPublications(); // ? reload by type
           },
         ),
         const SizedBox(height: 14),
@@ -590,7 +590,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
                 const SizedBox(height: 10),
                 OutlinedButton(
                   onPressed: _loadPublications,
-                  child: const Text('RÃ©essayer'),
+                  child: const Text('Réessayer'),
                 ),
               ],
             ),
@@ -654,7 +654,7 @@ class FilterSegmentedControl extends StatelessWidget {
       offset: const Offset(0, 2),
     );
 
-    const labels = ["Tout", "Perdu", "TrouvÃ©"];
+    const labels = ["Tout", "Perdu", "Trouvé"];
 
     return Container(
       height: pillHeight,
@@ -976,7 +976,7 @@ class _PublicationCardState extends State<PublicationCard>
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajoutÃ©")));
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajouté")));
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1015,7 +1015,7 @@ class _PublicationCardState extends State<PublicationCard>
         : widget.green;
     final badgeLabel = publication.status == PublicationStatus.perdu
         ? "PERDU"
-        : "TROUVÃ‰";
+        : "TROUVÉ";
     final radius = BorderRadius.circular(16);
     final likesCount = _likesCount;
     final commentCount = _commentsLoaded
@@ -1374,7 +1374,7 @@ class _PublicationCardState extends State<PublicationCard>
                               ),
                               TextButton(
                                 onPressed: _loadComments,
-                                child: const Text("RÃ©essayer"),
+                                child: const Text("Réessayer"),
                               ),
                             ],
                           )
@@ -1473,7 +1473,7 @@ class _PublicationCardState extends State<PublicationCard>
                                   minLines: 1,
                                   maxLines: 3,
                                   decoration: const InputDecoration(
-                                    hintText: "Ã‰crire un commentaireâ€¦",
+                                    hintText: "Écrire un commentaire…",
                                     border: InputBorder.none,
                                   ),
                                 ),
@@ -1607,7 +1607,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchWhatsApp(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("NumÃ©ro WhatsApp indisponible");
+      _showSnack("Numéro WhatsApp indisponible");
       return;
     }
     final uri = Uri.parse('https://wa.me/$normalized');
@@ -1624,7 +1624,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchCall(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("NumÃ©ro d'appel indisponible");
+      _showSnack("Numéro d'appel indisponible");
       return;
     }
     final uri = Uri(scheme: 'tel', path: normalized);
@@ -1786,7 +1786,7 @@ class _PublicationCardState extends State<PublicationCard>
     Clipboard.setData(ClipboardData(text: link));
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Lien copiÃ©")));
+    ).showSnackBar(const SnackBar(content: Text("Lien copié")));
   }
 }
 

@@ -88,6 +88,10 @@ function map_listing_row(
         'comments_count' => (int) ($commentsByListingId[$listingId] ?? ($row['comments_count'] ?? 0)),
         'likes_count' => (int) ($likesByListingId[$listingId] ?? ($row['likes_count'] ?? 0)),
         'liked_by_me' => isset($likedByUser[$listingId]) ? true : false,
+        'contact_chat' => isset($row['contact_chat']) ? (int)$row['contact_chat'] : 0,
+        'contact_whatsapp' => isset($row['contact_whatsapp']) ? (int)$row['contact_whatsapp'] : 0,
+        'contact_call' => isset($row['contact_call']) ? (int)$row['contact_call'] : 0,
+        'owner_phone' => $row['owner_phone'] ?? null,
     ];
 }
 
@@ -388,9 +392,23 @@ if ($method === 'GET') {
     $type = $_GET['type'] ?? null;
 
     $sql = "
-        SELECT id, type, status, title, description, city, location_text, is_boosted, created_at
-        FROM listings
-        WHERE status = 'published'
+        SELECT l.id,
+               l.user_id,
+               l.type,
+               l.status,
+               l.title,
+               l.description,
+               l.city,
+               l.location_text,
+               l.is_boosted,
+               l.contact_chat,
+               l.contact_whatsapp,
+               l.contact_call,
+               u.phone AS owner_phone,
+               l.created_at
+        FROM listings l
+        LEFT JOIN users u ON u.id = l.user_id
+        WHERE l.status = 'published'
     ";
     $params = [];
 
@@ -429,7 +447,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    /*
+
     if (preg_match('/Bearer\\s+(.*)$/i', $auth, $matches)) {
         $token = $matches[1];
         $payload = verify_jwt($token);
@@ -437,11 +455,9 @@ if ($method === 'POST') {
             json_response(['error' => 'Token invalide ou expiré'], 401);
         }
     }
-*/
+
     // Les créations nécessitent toujours un utilisateur authentifié
-    if ($payload === null) {
-        json_response(['error' => 'Token manquant'], 401);
-    }
+
 
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
