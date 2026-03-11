@@ -338,6 +338,10 @@ class ApiListing {
   final int commentsCount;
   final int likesCount;
   final bool likedByMe;
+  final bool contactChat;
+  final bool contactWhatsApp;
+  final bool contactCall;
+  final String? ownerPhone;
 
   ApiListing({
     required this.id,
@@ -354,6 +358,10 @@ class ApiListing {
     required this.commentsCount,
     required this.likesCount,
     required this.likedByMe,
+    required this.contactChat,
+    required this.contactWhatsApp,
+    required this.contactCall,
+    required this.ownerPhone,
   });
 
   factory ApiListing.fromJson(Map<String, dynamic> json) {
@@ -381,6 +389,14 @@ class ApiListing {
           ? (json['likes_count'] as num).toInt()
           : int.tryParse(json['likes_count']?.toString() ?? '0') ?? 0,
       likedByMe: json['liked_by_me'] == true || json['liked_by_me'] == 1,
+      contactChat: json['contact_chat'] == true || json['contact_chat'] == 1,
+      contactWhatsApp:
+          json['contact_whatsapp'] == true || json['contact_whatsapp'] == 1,
+      contactCall: json['contact_call'] == true || json['contact_call'] == 1,
+      ownerPhone: () {
+        final raw = (json['owner_phone'] ?? json['phone'] ?? '').toString().trim();
+        return raw.isEmpty ? null : raw;
+      }(),
     );
   }
 }
