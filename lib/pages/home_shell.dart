@@ -8,14 +8,17 @@ import 'profile_page.dart';
 import 'settings_page.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, this.initialIndex = 2});
+
+  /// 0: Chat, 1: Créer, 2: Accueil, 3: Profil, 4: Paramètres
+  final int initialIndex;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 2; // default Home
+  late int _index = widget.initialIndex.clamp(0, 4);
 
   late final List<_NavPage> _pages = [
     _NavPage(
