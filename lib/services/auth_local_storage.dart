@@ -4,19 +4,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 
+/// Stockage local simple de la session (user + token).
 class AuthLocalStorage {
   AuthLocalStorage._();
   static final AuthLocalStorage instance = AuthLocalStorage._();
 
   static const _kUserKey = 'auth_user';
   static const _kLoggedIn = 'auth_logged_in';
-<<<<<<< HEAD
-  static const _kAccessToken = 'auth_access_token';
-  static const _kRefreshToken = 'auth_refresh_token';
-=======
   static const _kToken = 'auth_token';
-  static const _kRefresh = 'auth_refresh_token';
->>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
 
   Future<void> saveSession(UserModel user, String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,7 +41,6 @@ class AuthLocalStorage {
 
   @Deprecated('Use saveSession(user, token) instead')
   Future<void> saveUser(UserModel user) async {
-    // Compat: sauvegarde sans token
     await saveSession(user, '');
   }
 
@@ -61,12 +55,6 @@ class AuthLocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kUserKey);
     await prefs.remove(_kLoggedIn);
-<<<<<<< HEAD
-    await prefs.remove(_kAccessToken);
-    await prefs.remove(_kRefreshToken);
-=======
     await prefs.remove(_kToken);
-    await prefs.remove(_kRefresh);
->>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
   }
 }

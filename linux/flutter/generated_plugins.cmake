@@ -5,11 +5,8 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   emoji_picker_flutter
   file_selector_linux
-<<<<<<< HEAD
   flutter_secure_storage_linux
-=======
   url_launcher_linux
->>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

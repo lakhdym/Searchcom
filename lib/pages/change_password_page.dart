@@ -174,7 +174,7 @@ class _Card extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.06),
+            color: scheme.shadow.withOpacity(0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
