@@ -26,7 +26,7 @@ class AuthApiService {
 
   final http.Client _client = http.Client();
 
-  Future<UserModel> login({
+  Future<AuthSession> login({
     required String email,
     required String password,
   }) async {
@@ -81,8 +81,37 @@ class AuthApiService {
     );
   }
 
+<<<<<<< HEAD
   Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload,
       {Map<String, String>? headers}) async {
+=======
+  Future<AuthSession> _sendAuthRequest(Uri uri, Map<String, dynamic> payload) async {
+    final resp = await _postJson(uri, payload);
+    final status = resp['status'] as int?;
+    final success = resp['success'] == true;
+    if (!success) {
+      if (resp['requires_email_verification'] == true) {
+        throw EmailVerificationRequiredException(
+          resp['message']?.toString() ?? 'Veuillez vérifier votre adresse email.',
+          email: resp['email']?.toString(),
+          statusCode: status,
+        );
+      }
+      throw ApiException(resp['message']?.toString() ?? 'Erreur inconnue', statusCode: status);
+    }
+    final userJson = resp['user'] as Map<String, dynamic>?;
+    if (userJson == null) {
+      throw ApiException('Réponse invalide du serveur', statusCode: status);
+    }
+    final token = resp['token'] as String?;
+    if (token == null || token.isEmpty) {
+      throw ApiException('Token d\'authentification manquant', statusCode: status);
+    }
+    return AuthSession(user: UserModel.fromJson(userJson), token: token);
+  }
+
+  Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload) async {
+>>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
     try {
       final response = await _client.post(
         uri,
@@ -189,4 +218,10 @@ class EmailVerificationRequiredException extends ApiException {
   final String? email;
   EmailVerificationRequiredException(String message, {this.email, int? statusCode})
       : super(message, statusCode: statusCode);
+}
+
+class AuthSession {
+  final UserModel user;
+  final String token;
+  AuthSession({required this.user, required this.token});
 }

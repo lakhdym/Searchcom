@@ -18,7 +18,12 @@ dependencies:
   file_picker: ^6.1.1
   http: ^1.2.2
   jwt_decoder: ^2.0.1
+<<<<<<< HEAD
   flutter_secure_storage: ^10.0.0
+=======
+  url_launcher: ^6.2.6
+  share_plus: ^7.2.2
+>>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
 
 dev_dependencies:
   flutter_test:
