@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_local_storage.dart';
+import '../services/api_service.dart';
 import '../state/auth_state.dart';
 import 'login_page.dart';
 
@@ -25,8 +26,12 @@ class _ProfilePageState extends State<ProfilePage> {
     if (currentUser.value != null || _loadingUser) return;
     setState(() => _loadingUser = true);
     final stored = await AuthLocalStorage.instance.getUser();
+    final token = await AuthLocalStorage.instance.getToken();
     if (stored != null) {
       loginUser(stored);
+      if (token != null && token.isNotEmpty) {
+        ApiService.instance.setToken(token);
+      }
     }
     if (mounted) setState(() => _loadingUser = false);
   }

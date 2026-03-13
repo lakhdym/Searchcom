@@ -10,13 +10,19 @@ class AuthLocalStorage {
 
   static const _kUserKey = 'auth_user';
   static const _kLoggedIn = 'auth_logged_in';
+<<<<<<< HEAD
   static const _kAccessToken = 'auth_access_token';
   static const _kRefreshToken = 'auth_refresh_token';
+=======
+  static const _kToken = 'auth_token';
+  static const _kRefresh = 'auth_refresh_token';
+>>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
 
-  Future<void> saveUser(UserModel user) async {
+  Future<void> saveSession(UserModel user, String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kUserKey, jsonEncode(user.toJson()));
     await prefs.setBool(_kLoggedIn, true);
+    await prefs.setString(_kToken, token);
   }
 
   Future<UserModel?> getUser() async {
@@ -31,8 +37,23 @@ class AuthLocalStorage {
     }
   }
 
+  Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_kToken);
+    if (token == null || token.isEmpty) return null;
+    return token;
+  }
+
+  @Deprecated('Use saveSession(user, token) instead')
+  Future<void> saveUser(UserModel user) async {
+    // Compat: sauvegarde sans token
+    await saveSession(user, '');
+  }
+
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_kToken);
+    if (token != null && token.isNotEmpty) return true;
     return prefs.getBool(_kLoggedIn) ?? false;
   }
 
@@ -40,7 +61,12 @@ class AuthLocalStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kUserKey);
     await prefs.remove(_kLoggedIn);
+<<<<<<< HEAD
     await prefs.remove(_kAccessToken);
     await prefs.remove(_kRefreshToken);
+=======
+    await prefs.remove(_kToken);
+    await prefs.remove(_kRefresh);
+>>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
   }
 }
