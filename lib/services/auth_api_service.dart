@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/user_model.dart';
 import 'api_service.dart';
-import '../services/auth_local_storage.dart';
+import 'auth_local_storage.dart';
 import '../state/auth_state.dart';
 
 class ApiException implements Exception {
@@ -17,15 +17,39 @@ class ApiException implements Exception {
   String toString() => 'ApiException($statusCode): $message';
 }
 
+class EmailVerificationRequiredException extends ApiException {
+  final String? email;
+  EmailVerificationRequiredException(String message, {this.email, int? statusCode})
+      : super(message, statusCode: statusCode);
+}
+
+class AuthSession {
+  final UserModel user;
+  final String token;
+  AuthSession({required this.user, required this.token});
+}
+
+class RegisterResponse {
+  final bool success;
+  final String message;
+  final String email;
+  final bool requiresEmailVerification;
+  RegisterResponse({
+    required this.success,
+    required this.message,
+    required this.email,
+    required this.requiresEmailVerification,
+  });
+}
+
 class AuthApiService {
   AuthApiService._();
   static final AuthApiService instance = AuthApiService._();
 
-  /// URL forcée sur la prod.
   final String _baseUrl = ApiService.baseUrlProd;
-
   final http.Client _client = http.Client();
 
+  // ----------------------- AUTH -----------------------
   Future<AuthSession> login({
     required String email,
     required String password,
@@ -41,17 +65,17 @@ class AuthApiService {
       if (resp['requires_email_verification'] == true) {
         throw EmailVerificationRequiredException(
           resp['message']?.toString() ?? 'Veuillez vérifier votre adresse email.',
-          email: resp['email']?.toString(),
+          email: resp['email']?.toString() ?? email,
           statusCode: status,
         );
       }
       throw ApiException(resp['message']?.toString() ?? 'Erreur inconnue', statusCode: status);
     }
+
     final userJson = resp['user'] as Map<String, dynamic>?;
-    if (userJson == null) {
-      throw ApiException('Réponse invalide du serveur', statusCode: status);
-    }
-    return UserModel.fromJson(userJson);
+    if (userJson == null) throw ApiException('Réponse invalide du serveur', statusCode: status);
+    final token = (resp['token'] ?? '').toString();
+    return AuthSession(user: UserModel.fromJson(userJson), token: token);
   }
 
   Future<RegisterResponse> registerAndRequestVerification({
@@ -69,8 +93,7 @@ class AuthApiService {
       'password': password,
       'preferred_lang': preferredLang,
     });
-    final success = resp['success'] == true;
-    if (!success) {
+    if (resp['success'] != true) {
       throw ApiException(resp['message']?.toString() ?? 'Erreur inconnue', statusCode: resp['status']);
     }
     return RegisterResponse(
@@ -81,71 +104,10 @@ class AuthApiService {
     );
   }
 
-<<<<<<< HEAD
-  Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload,
-      {Map<String, String>? headers}) async {
-=======
-  Future<AuthSession> _sendAuthRequest(Uri uri, Map<String, dynamic> payload) async {
-    final resp = await _postJson(uri, payload);
-    final status = resp['status'] as int?;
-    final success = resp['success'] == true;
-    if (!success) {
-      if (resp['requires_email_verification'] == true) {
-        throw EmailVerificationRequiredException(
-          resp['message']?.toString() ?? 'Veuillez vérifier votre adresse email.',
-          email: resp['email']?.toString(),
-          statusCode: status,
-        );
-      }
-      throw ApiException(resp['message']?.toString() ?? 'Erreur inconnue', statusCode: status);
-    }
-    final userJson = resp['user'] as Map<String, dynamic>?;
-    if (userJson == null) {
-      throw ApiException('Réponse invalide du serveur', statusCode: status);
-    }
-    final token = resp['token'] as String?;
-    if (token == null || token.isEmpty) {
-      throw ApiException('Token d\'authentification manquant', statusCode: status);
-    }
-    return AuthSession(user: UserModel.fromJson(userJson), token: token);
-  }
-
-  Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload) async {
->>>>>>> 1f3144f8906be1dbe4482433fe18c1ce63c1f4a4
-    try {
-      final response = await _client.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          ...?headers,
-        },
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 15));
-
-      final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
-      data['status'] = response.statusCode;
-      return data;
-    } on SocketException {
-      throw ApiException('Connexion réseau impossible. Vérifiez votre connexion internet.');
-    } on FormatException {
-      throw ApiException('Réponse serveur invalide.');
-    } on ApiException {
-      rethrow;
-    } catch (e) {
-      throw ApiException('Erreur inconnue: $e');
-    }
-  }
-
-  Future<void> logout() async {
-    await AuthLocalStorage.instance.clear();
-    logoutUser();
-  }
-
   Future<void> verifyEmail({required String email, required String code}) async {
     final uri = Uri.parse('$_baseUrl/verify_email.php');
     final resp = await _postJson(uri, {'email': email, 'code': code});
-    final success = resp['success'] == true;
-    if (!success) {
+    if (resp['success'] != true) {
       throw ApiException(resp['message']?.toString() ?? 'Code invalide', statusCode: resp['status']);
     }
   }
@@ -153,8 +115,7 @@ class AuthApiService {
   Future<void> resendVerification({required String email}) async {
     final uri = Uri.parse('$_baseUrl/resend_verification_code.php');
     final resp = await _postJson(uri, {'email': email});
-    final success = resp['success'] == true;
-    if (!success) {
+    if (resp['success'] != true) {
       throw ApiException(resp['message']?.toString() ?? 'Envoi impossible', statusCode: resp['status']);
     }
   }
@@ -199,29 +160,38 @@ class AuthApiService {
       throw ApiException(resp['message']?.toString() ?? 'Impossible de changer le mot de passe', statusCode: resp['status']);
     }
   }
-}
 
-class RegisterResponse {
-  final bool success;
-  final String message;
-  final String email;
-  final bool requiresEmailVerification;
-  RegisterResponse({
-    required this.success,
-    required this.message,
-    required this.email,
-    required this.requiresEmailVerification,
-  });
-}
+  Future<void> logout() async {
+    await AuthLocalStorage.instance.clear();
+    logoutUser();
+  }
 
-class EmailVerificationRequiredException extends ApiException {
-  final String? email;
-  EmailVerificationRequiredException(String message, {this.email, int? statusCode})
-      : super(message, statusCode: statusCode);
-}
+  // ----------------------- Helpers -----------------------
+  Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload,
+      {Map<String, String>? headers}) async {
+    try {
+      final response = await _client
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              ...?headers,
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 15));
 
-class AuthSession {
-  final UserModel user;
-  final String token;
-  AuthSession({required this.user, required this.token});
+      final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+      data['status'] = response.statusCode;
+      return data;
+    } on SocketException {
+      throw ApiException('Connexion réseau impossible. Vérifiez votre connexion internet.');
+    } on FormatException {
+      throw ApiException('Réponse serveur invalide.');
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Erreur inconnue: $e');
+    }
+  }
 }
