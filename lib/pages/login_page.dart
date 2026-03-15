@@ -24,12 +24,14 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscure = true;
   bool _loading = false;
   bool _formValid = false;
+  bool _checkingSession = true;
 
   @override
   void initState() {
     super.initState();
     _emailCtrl.addListener(_updateValid);
     _passwordCtrl.addListener(_updateValid);
+    _restoreSession();
   }
 
   @override
@@ -37,6 +39,22 @@ class _LoginPageState extends State<LoginPage> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _restoreSession() async {
+    final storedUser = await AuthLocalStorage.instance.getUser();
+    final storedToken = await AuthLocalStorage.instance.getToken();
+    if (storedUser != null && storedToken != null && storedToken.isNotEmpty) {
+      ApiService.instance.setToken(storedToken);
+      loginUser(storedUser);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShell()),
+        (route) => false,
+      );
+      return;
+    }
+    if (mounted) setState(() => _checkingSession = false);
   }
 
   void _updateValid() {
@@ -92,6 +110,13 @@ class _LoginPageState extends State<LoginPage> {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
+    if (_checkingSession) {
+      return Scaffold(
+        backgroundColor: scheme.surface,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: scheme.surface,
       appBar: AppBar(
@@ -106,9 +131,9 @@ class _LoginPageState extends State<LoginPage> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              scheme.primary.withValues(alpha: 0.06),
-              scheme.secondaryContainer.withValues(alpha: 0.04),
-              scheme.surfaceTint.withValues(alpha: 0.03),
+              scheme.primary.withOpacity(0.06),
+              scheme.secondaryContainer.withOpacity(0.04),
+              scheme.surfaceTint.withOpacity(0.03),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -122,10 +147,10 @@ class _LoginPageState extends State<LoginPage> {
                 final maxWidth = constraints.maxWidth >= 900 ? 520.0 : 420.0;
                 return ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxWidth),
-                  child: Material(
-                    elevation: 8,
-                    color: scheme.surface,
-                    shadowColor: scheme.shadow.withValues(alpha: 0.14),
+                    child: Material(
+                      elevation: 8,
+                      color: scheme.surface,
+                      shadowColor: scheme.shadow.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(16),
                     child: Padding(
                       padding: const EdgeInsets.all(24),

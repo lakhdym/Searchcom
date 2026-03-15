@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/listing_model.dart';
 import '../services/my_listings_api_service.dart';
+import '../services/api_service.dart';
 import 'home_page.dart';
 
 class MyListingsPage extends StatefulWidget {
@@ -77,34 +78,40 @@ class _MyListingsPageState extends State<MyListingsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Mes publications')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HomePage())),
-        child: const Icon(Icons.add),
+      backgroundColor: scheme.surface,
+      appBar: AppBar(
+        title: const Text('Mes publications'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HomePage())),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Nouvelle'),
+              style: FilledButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          )
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           children: [
-            TextField(
+            _SearchBar(
               controller: _searchCtrl,
-              decoration: InputDecoration(
-                labelText: 'Rechercher',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchCtrl.clear();
-                    _load();
-                  },
-                ),
-              ),
-              onSubmitted: (_) => _load(),
+              onClear: () {
+                _searchCtrl.clear();
+                _load();
+              },
+              onSubmit: (_) => _load(),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             if (_loading)
               const Padding(
                 padding: EdgeInsets.all(24),
@@ -336,22 +343,44 @@ class _Cover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final resolvedUrl = _resolveUrl(url);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: url != null && url!.isNotEmpty
-          ? Image.network(url!, width: 86, height: 86, fit: BoxFit.cover, errorBuilder: (_, __, ___) {
-              return _placeholder(scheme);
-            })
+      borderRadius: BorderRadius.circular(14),
+      child: resolvedUrl != null
+          ? Image.network(
+              resolvedUrl,
+              width: 110,
+              height: 110,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _placeholder(scheme),
+            )
           : _placeholder(scheme),
     );
   }
 
   Widget _placeholder(ColorScheme scheme) => Container(
-        width: 86,
-        height: 86,
-        color: scheme.surfaceVariant.withOpacity(0.5),
-        child: Icon(Icons.image, color: scheme.onSurfaceVariant),
+        width: 110,
+        height: 110,
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        child: Icon(Icons.photo_size_select_actual_outlined, color: scheme.onSurfaceVariant),
       );
+
+  /// Retourne une URL absolue si possible.
+  String? _resolveUrl(String? raw) {
+    final placeholder = 'https://via.placeholder.com/400x300?text=Annonce';
+    if (raw == null) return placeholder;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return placeholder;
+    if (trimmed.startsWith('http')) return trimmed;
+    // Traite les chemins relatifs: ajoute baseUrlProd et supprime éventuel slash initial
+    final cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+    // Si déjà sous /uploads, garde le chemin
+    if (cleaned.startsWith('uploads/')) {
+      return '${ApiService.baseUrlProd}/$cleaned';
+    }
+    // Si juste un nom de fichier, préfixe par uploads/
+    return '${ApiService.baseUrlProd}/uploads/$cleaned';
+  }
 }
 
 class _BoostPlanTile extends StatelessWidget {
@@ -404,6 +433,43 @@ class _BoostPlanTile extends StatelessWidget {
           ),
           Text(price, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: color)),
         ],
+      ),
+    );
+  }
+}
+
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({
+    required this.controller,
+    required this.onClear,
+    required this.onSubmit,
+  });
+
+  final TextEditingController controller;
+  final VoidCallback onClear;
+  final ValueChanged<String> onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      elevation: 2,
+      shadowColor: scheme.shadow.withOpacity(0.05),
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: TextField(
+        controller: controller,
+        onSubmitted: onSubmit,
+        decoration: InputDecoration(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          border: InputBorder.none,
+          prefixIcon: const Icon(Icons.search),
+          hintText: 'Rechercher une publication',
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: onClear,
+          ),
+        ),
       ),
     );
   }

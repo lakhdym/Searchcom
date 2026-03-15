@@ -41,14 +41,21 @@ class ListingModel {
     // Normalize booleans/ints that may arrive as string ("0"/"1").
     bool boosted = false;
     final dynamic boostedRaw = json['is_boosted'];
-    if (boostedRaw is bool) boosted = boostedRaw;
-    else if (boostedRaw is int) boosted = boostedRaw == 1;
-    else if (boostedRaw is String) boosted = boostedRaw == '1' || boostedRaw.toLowerCase() == 'true';
+    if (boostedRaw is bool) {
+      boosted = boostedRaw;
+    } else if (boostedRaw is int) {
+      boosted = boostedRaw == 1;
+    } else if (boostedRaw is String) {
+      boosted = boostedRaw == '1' || boostedRaw.toLowerCase() == 'true';
+    }
 
     int? parsedCategoryId;
     final dynamic catRaw = json['category_id'];
-    if (catRaw is int) parsedCategoryId = catRaw;
-    else if (catRaw is String) parsedCategoryId = int.tryParse(catRaw);
+    if (catRaw is int) {
+      parsedCategoryId = catRaw;
+    } else if (catRaw is String) {
+      parsedCategoryId = int.tryParse(catRaw);
+    }
     return ListingModel(
       id: json['id'] is String ? int.parse(json['id']) : json['id'] ?? 0,
       userId: json['user_id'] is String ? int.parse(json['user_id']) : json['user_id'] ?? 0,

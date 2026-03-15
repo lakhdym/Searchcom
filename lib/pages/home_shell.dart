@@ -65,7 +65,7 @@ class _HomeShellState extends State<HomeShell> {
             selectedIndex: _index,
             height: 70,
             backgroundColor: scheme.surface,
-            indicatorColor: scheme.primary.withOpacity(0.12),
+            indicatorColor: scheme.primary.withValues(alpha: 0.12),
             surfaceTintColor: scheme.surfaceTint,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             onDestinationSelected: (i) => setState(() => _index = i),
@@ -106,8 +106,8 @@ class _PlaceholderPage extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            scheme.primary.withOpacity(0.05),
-            scheme.secondaryContainer.withOpacity(0.03),
+            scheme.primary.withValues(alpha: 0.05),
+            scheme.secondaryContainer.withValues(alpha: 0.03),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
