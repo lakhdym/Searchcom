@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/chat/pages/conversations_page.dart';
 import '../../services/api_service.dart';
+import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
 import 'publication_contact_chip.dart';
@@ -333,6 +334,19 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 
+  Future<void> _openImageViewer(int initialIndex) async {
+    if (widget.publication.imageUrls.isEmpty) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ImageViewerPage(
+          images: widget.publication.imageUrls,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
   String _formatRelative(DateTime? date) {
     if (date == null) return '';
     final diff = DateTime.now().difference(date);
@@ -383,15 +397,19 @@ class _PublicationCardState extends State<PublicationCard>
                   itemCount: publication.imageUrls.length,
                   itemBuilder: (context, index) {
                     final image = publication.imageUrls[index];
-                    return Image.network(
-                      image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, error, stackTrace) => Container(
-                        color: Colors.grey.shade300,
-                        child: const Icon(
-                          Icons.image,
-                          size: 48,
-                          color: Colors.white,
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _openImageViewer(index),
+                      child: Image.network(
+                        image,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, error, stackTrace) => Container(
+                          color: Colors.grey.shade300,
+                          child: const Icon(
+                            Icons.image,
+                            size: 48,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     );
