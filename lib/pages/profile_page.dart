@@ -5,6 +5,9 @@ import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
 import '../state/auth_state.dart';
 import 'login_page.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter/services.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -15,6 +18,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _loadingUser = false;
+  String? _publicProfileUrl;
 
   @override
   void initState() {
@@ -32,8 +36,14 @@ class _ProfilePageState extends State<ProfilePage> {
       if (token != null && token.isNotEmpty) {
         ApiService.instance.setToken(token);
       }
+      _publicProfileUrl = _buildProfileUrl(stored);
     }
     if (mounted) setState(() => _loadingUser = false);
+  }
+
+  String _buildProfileUrl(UserModel user) {
+    // Exemple d'URL publique : baseUrl/user/{id}
+    return '${ApiService.baseUrlProd}/user/${user.id}';
   }
 
   @override
@@ -63,7 +73,11 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ProfileHeaderCard(user: user, roleLabel: roleLabel),
+                ProfileHeaderCard(
+                  user: user,
+                  roleLabel: roleLabel,
+                  profileUrl: _publicProfileUrl ?? _buildProfileUrl(user),
+                ),
                 const SizedBox(height: 16),
                 Text('Informations personnelles', style: textTheme.titleMedium),
                 const SizedBox(height: 8),
@@ -109,10 +123,16 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 class ProfileHeaderCard extends StatelessWidget {
-  const ProfileHeaderCard({super.key, required this.user, required this.roleLabel});
+  const ProfileHeaderCard({
+    super.key,
+    required this.user,
+    required this.roleLabel,
+    required this.profileUrl,
+  });
 
   final UserModel user;
   final String roleLabel;
+  final String profileUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -140,16 +160,85 @@ class ProfileHeaderCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  user.fullName.isEmpty ? 'Utilisateur' : user.fullName,
-                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.fullName.isEmpty ? 'Utilisateur' : user.fullName,
+                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user.email,
+                            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'copy':
+                            _copyLink(context);
+                            break;
+                          case 'share':
+                            _shareProfile();
+                            break;
+                          case 'qr':
+                            _showQr(context);
+                            break;
+                        }
+                      },
+                      itemBuilder: (ctx) => const [
+                        PopupMenuItem(
+                          value: 'copy',
+                          child: Row(
+                            children: [
+                              Icon(Icons.copy_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Copier le lien'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'share',
+                          child: Row(
+                            children: [
+                              Icon(Icons.share_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Partager le profil'),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'qr',
+                          child: Row(
+                            children: [
+                              Icon(Icons.qr_code_2_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Code QR'),
+                            ],
+                          ),
+                        ),
+                      ],
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceVariant.withValues(alpha: 0.4),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.more_vert, color: scheme.onSurface),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  user.email,
-                  style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
@@ -164,11 +253,91 @@ class ProfileHeaderCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
+            ],
+          ),
+        ),
+      ],
+      ),
+    );
+  }
+
+  void _copyLink(BuildContext context) {
+    Clipboard.setData(ClipboardData(text: profileUrl));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Lien de profil copié')),
+    );
+  }
+
+  void _shareProfile() {
+    Share.share(profileUrl, subject: 'Découvre mon profil');
+  }
+
+  void _showQr(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        final viewInsets = MediaQuery.of(ctx).viewInsets;
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: 20 + viewInsets.bottom,
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Code QR du profil', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 12),
+                  Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: QrImageView(
+                        data: profileUrl,
+                        version: QrVersions.auto,
+                        size: 200,
+                        foregroundColor: scheme.onSurface,
+                        eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: scheme.onSurface),
+                        dataModuleStyle: QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: scheme.onSurface),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceVariant.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      profileUrl,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+                    child: const Text('Fermer'),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
