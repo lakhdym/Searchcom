@@ -124,7 +124,7 @@ class _PublicationFullDetailsSheetState
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajoutÃ©")));
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajout\u00E9")));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -390,7 +390,7 @@ class _PublicationFullDetailsSheetState
                           child: Text(
                             publication.status == PublicationStatus.perdu
                                 ? "PERDU"
-                                : "TROUVÃ‰",
+                                : "TROUV\u00C9",
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -621,5 +621,6 @@ class _PublicationFullDetailsSheetState
     );
   }
 }
+
 
 

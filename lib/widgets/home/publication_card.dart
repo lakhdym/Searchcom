@@ -170,7 +170,7 @@ class _PublicationCardState extends State<PublicationCard>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Impossible de mettre Ã  jour le like"),
+          content: Text("Impossible de mettre \u00E0 jour le like"),
         ),
       );
     } finally {
@@ -295,7 +295,7 @@ class _PublicationCardState extends State<PublicationCard>
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajoutÃ©")));
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajout\u00E9")));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -381,7 +381,7 @@ class _PublicationCardState extends State<PublicationCard>
         : widget.green;
     final badgeLabel = publication.status == PublicationStatus.perdu
         ? "PERDU"
-        : "TROUVÃ‰";
+        : "TROUV\u00C9";
     final radius = BorderRadius.circular(16);
     final commentCount =
         _commentsLoaded ? _comments.length : publication.commentsCount;
@@ -762,7 +762,7 @@ class _PublicationCardState extends State<PublicationCard>
                 ),
                 TextButton(
                   onPressed: _loadComments,
-                  child: const Text("RÃ©essayer"),
+                  child: const Text("R\u00E9essayer"),
                 ),
               ],
             )
@@ -795,7 +795,7 @@ class _PublicationCardState extends State<PublicationCard>
                       minLines: 1,
                       maxLines: 3,
                       decoration: const InputDecoration(
-                        hintText: "Ã‰crire un commentaireâ€¦",
+                        hintText: "\u00C9crire un commentaire\u2026",
                         border: InputBorder.none,
                       ),
                     ),
@@ -927,7 +927,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchWhatsApp(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("NumÃ©ro WhatsApp indisponible");
+      _showSnack("Num\u00E9ro WhatsApp indisponible");
       return;
     }
 
@@ -947,7 +947,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchCall(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("NumÃ©ro d'appel indisponible");
+      _showSnack("Num\u00E9ro d'appel indisponible");
       return;
     }
 
@@ -990,5 +990,6 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 }
+
 
 
