@@ -593,6 +593,7 @@ class _PublicationCardState extends State<PublicationCard>
                     ),
                   ],
                 ),
+              /*
                 if (hasContactOptions) ...[
                   const SizedBox(height: 10),
                   Wrap(
@@ -626,7 +627,7 @@ class _PublicationCardState extends State<PublicationCard>
                         ),
                     ],
                   ),
-                ],
+                ],*/
               ],
             ),
           ),
