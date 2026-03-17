@@ -388,8 +388,16 @@ function fetch_user_likes(PDO $pdo, array $listingIds, int $userId): array
 }
 
 if ($method === 'GET') {
+    if (preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
+        $payload = verify_jwt($matches[1]);
+    }
+
     // Optionnel : ?type=lost|found
     $type = $_GET['type'] ?? null;
+    $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 5;
+    $offset = isset($_GET['offset']) ? (int) $_GET['offset'] : 0;
+    $limit = max(1, min($limit, 50));
+    $offset = max(0, $offset);
 
     $sql = "
         SELECT l.id,
@@ -413,14 +421,19 @@ if ($method === 'GET') {
     $params = [];
 
     if ($type === 'lost' || $type === 'found') {
-        $sql .= " AND type = :type";
+        $sql .= " AND l.type = :type";
         $params[':type'] = $type;
     }
 
-    $sql .= " ORDER BY created_at DESC LIMIT 50";
+    $sql .= " ORDER BY l.created_at DESC, l.id DESC LIMIT :limit OFFSET :offset";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
     $rows = $stmt->fetchAll();
 
     $listingIds = array_map(fn($r) => (int) $r['id'], $rows);

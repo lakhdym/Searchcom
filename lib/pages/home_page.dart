@@ -11,36 +11,59 @@ import 'found_form_page.dart';
 import 'login_page.dart';
 
 /// Home page with action cards, search bar, and recent publications list.
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key, this.showAppBar = true});
 
   final bool showAppBar;
 
-  void _openLost(BuildContext context) {
-    _guardAuthThen(
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<int> _feedRefreshSignal = ValueNotifier<int>(0);
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _feedRefreshSignal.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openLost() async {
+    await _guardAuthThen(
       context,
-      onAllowed: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FoundFormPage(type: "lost")),
-      ),
-      title: "Connexion requise",
-      message: "Vous devez vous connecter pour publier une annonce perdue.",
+      onAllowed: () => _openCreationPage('lost'),
+      title: 'Connexion requise',
+      message: 'Vous devez vous connecter pour publier une annonce perdue.',
     );
   }
 
-  void _openFound(BuildContext context) {
-    _guardAuthThen(
+  Future<void> _openFound() async {
+    await _guardAuthThen(
       context,
-      onAllowed: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FoundFormPage(type: "found")),
-      ),
-      title: "Connexion requise",
-      message: "Vous devez vous connecter pour publier une annonce.",
+      onAllowed: () => _openCreationPage('found'),
+      title: 'Connexion requise',
+      message: 'Vous devez vous connecter pour publier une annonce.',
     );
   }
 
-  void _guardAuthThen(
+  Future<void> _openCreationPage(String type) async {
+    final created = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => FoundFormPage(type: type)));
+    if (!mounted || created != true) return;
+
+    _feedRefreshSignal.value++;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Annonce publiée avec succès')),
+    );
+  }
+
+  Future<void> _guardAuthThen(
     BuildContext context, {
-    required VoidCallback onAllowed,
+    required Future<void> Function() onAllowed,
     required String title,
     required String message,
   }) async {
@@ -51,7 +74,7 @@ class HomePage extends StatelessWidget {
 
     if (storedToken != null && storedToken.isNotEmpty) {
       ApiService.instance.setToken(storedToken);
-      onAllowed();
+      await onAllowed();
       return;
     }
 
@@ -66,11 +89,11 @@ class HomePage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Annuler"),
+            child: const Text('Annuler'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text("Se connecter"),
+            child: const Text('Se connecter'),
           ),
         ],
       ),
@@ -91,7 +114,7 @@ class HomePage extends StatelessWidget {
     final lostCard = HomeActionCard(
       title: "J'ai perdu",
       subtitle:
-          "Signalez un objet perdu pour augmenter vos chances de le retrouver.",
+          'Signalez un objet perdu pour augmenter vos chances de le retrouver.',
       height: 150,
       backgroundColor: const Color(0xFFFFF1F1),
       smallIconBackground: const Color(0xFFFFE4E4),
@@ -99,7 +122,7 @@ class HomePage extends StatelessWidget {
       smallIconColor: const Color(0xFFE53935),
       bigIcon: Icons.search,
       bigIconColor: const Color(0xFFE53935).withValues(alpha: 0.08),
-      onTap: () => _openLost(context),
+      onTap: _openLost,
     );
 
     final foundCard = HomeActionCard(
@@ -112,7 +135,7 @@ class HomePage extends StatelessWidget {
       smallIconColor: const Color(0xFFF9A825),
       bigIcon: Icons.check_circle,
       bigIconColor: const Color(0xFF2E7D32).withValues(alpha: 0.08),
-      onTap: () => _openFound(context),
+      onTap: _openFound,
     );
 
     final cardsSection = isWide
@@ -130,9 +153,10 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FB),
-      appBar: showAppBar ? const TopNavBar() : null,
+      appBar: widget.showAppBar ? const TopNavBar() : null,
       body: SafeArea(
         child: SingleChildScrollView(
+          controller: _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -140,6 +164,8 @@ class HomePage extends StatelessWidget {
               cardsSection,
               const SizedBox(height: 20),
               RecentPublicationsSection(
+                scrollController: _scrollController,
+                refreshListenable: _feedRefreshSignal,
                 headerBuilder: (onSearchChanged) => Column(
                   children: [
                     SearchBarWithFilter(

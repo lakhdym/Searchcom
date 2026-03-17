@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -162,7 +162,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                 content: Text('Paiement confirmé, annonce publiée'),
               ),
             );
-            Navigator.of(context).popUntil((r) => r.isFirst);
+            Navigator.of(context).pop(true);
           },
         );
         if (!mounted) return;
@@ -171,7 +171,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Annonce publiée avec succès')),
         );
-        Navigator.of(context).popUntil((r) => r.isFirst);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (!mounted) return;
