@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart' show ApiService, ApiListingComment;
 import '../image_viewer_page.dart';
@@ -37,6 +37,7 @@ class _PublicationFullDetailsSheetState
   late final PageController _imagePageController;
   late List<ApiListingComment> _comments;
   int _currentImageIndex = 0;
+  bool _canComment = false;
   bool _loadingComments = false;
   bool _commentsLoaded = false;
   String? _commentsError;
@@ -47,7 +48,9 @@ class _PublicationFullDetailsSheetState
     super.initState();
     _imagePageController = PageController();
     _comments = List<ApiListingComment>.from(widget.initialComments);
+    _canComment = ApiService.instance.isAuthenticated;
     _commentsLoaded = _comments.isNotEmpty;
+    _syncCommentAccess();
     if (!_commentsLoaded) {
       _loadComments();
     }
@@ -93,7 +96,9 @@ class _PublicationFullDetailsSheetState
     final text = _commentController.text.trim();
     if (text.isEmpty || _submittingComment) return;
 
-    if (!ApiService.instance.isAuthenticated) {
+    final canComment = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    if (!canComment) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Connectez-vous pour commenter")),
       );
@@ -119,7 +124,7 @@ class _PublicationFullDetailsSheetState
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajouté")));
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajoutÃ©")));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -135,6 +140,12 @@ class _PublicationFullDetailsSheetState
         });
       }
     }
+  }
+
+  Future<void> _syncCommentAccess() async {
+    final canComment = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    setState(() => _canComment = canComment);
   }
 
   Future<void> _openImageViewer(int initialIndex) async {
@@ -379,7 +390,7 @@ class _PublicationFullDetailsSheetState
                           child: Text(
                             publication.status == PublicationStatus.perdu
                                 ? "PERDU"
-                                : "TROUVÉ",
+                                : "TROUVÃ‰",
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -565,43 +576,44 @@ class _PublicationFullDetailsSheetState
                   ],
                 ),
               ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _commentController,
-                          minLines: 1,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            hintText: "Ajouter un commentaire...",
-                            isDense: true,
+              if (_canComment)
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            minLines: 1,
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              hintText: "Ajouter un commentaire...",
+                              isDense: true,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      _submittingComment
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : IconButton(
-                              icon: Icon(
-                                Icons.send,
-                                color: widget.purple,
-                                size: 20,
+                        const SizedBox(width: 8),
+                        _submittingComment
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : IconButton(
+                                icon: Icon(
+                                  Icons.send,
+                                  color: widget.purple,
+                                  size: 20,
+                                ),
+                                onPressed: _addComment,
+                                splashRadius: 20,
                               ),
-                              onPressed: _addComment,
-                              splashRadius: 20,
-                            ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           );
         },
@@ -609,3 +621,5 @@ class _PublicationFullDetailsSheetState
     );
   }
 }
+
+

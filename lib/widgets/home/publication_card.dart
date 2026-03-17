@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/chat/pages/conversations_page.dart';
@@ -38,6 +38,7 @@ class _PublicationCardState extends State<PublicationCard>
   final TextEditingController _commentController = TextEditingController();
   late final PageController _pageController;
   int _currentImage = 0;
+  bool _canComment = false;
   List<ApiListingComment> _comments = [];
   bool _loadingComments = false;
   bool _commentsLoaded = false;
@@ -57,6 +58,8 @@ class _PublicationCardState extends State<PublicationCard>
     _pageController = PageController();
     _liked = widget.publication.likedByMe;
     _likesCount = widget.publication.likesCount;
+    _canComment = ApiService.instance.isAuthenticated;
+    _syncCommentAccess();
   }
 
   @override
@@ -72,6 +75,15 @@ class _PublicationCardState extends State<PublicationCard>
     if (willShow && !_commentsLoaded && !_loadingComments) {
       _loadComments();
     }
+    if (willShow) {
+      _syncCommentAccess();
+    }
+  }
+
+  Future<void> _syncCommentAccess() async {
+    final canComment = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    setState(() => _canComment = canComment);
   }
 
   Future<void> _loadComments() async {
@@ -158,7 +170,7 @@ class _PublicationCardState extends State<PublicationCard>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Impossible de mettre à jour le like"),
+          content: Text("Impossible de mettre Ã  jour le like"),
         ),
       );
     } finally {
@@ -255,7 +267,9 @@ class _PublicationCardState extends State<PublicationCard>
     final text = _commentController.text.trim();
     if (text.isEmpty || _submittingComment) return;
 
-    if (!ApiService.instance.isAuthenticated) {
+    final canComment = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    if (!canComment) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Connectez-vous pour commenter")),
       );
@@ -281,7 +295,7 @@ class _PublicationCardState extends State<PublicationCard>
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajouté")));
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajoutÃ©")));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -367,7 +381,7 @@ class _PublicationCardState extends State<PublicationCard>
         : widget.green;
     final badgeLabel = publication.status == PublicationStatus.perdu
         ? "PERDU"
-        : "TROUVÉ";
+        : "TROUVÃ‰";
     final radius = BorderRadius.circular(16);
     final commentCount =
         _commentsLoaded ? _comments.length : publication.commentsCount;
@@ -748,7 +762,7 @@ class _PublicationCardState extends State<PublicationCard>
                 ),
                 TextButton(
                   onPressed: _loadComments,
-                  child: const Text("Réessayer"),
+                  child: const Text("RÃ©essayer"),
                 ),
               ],
             )
@@ -765,50 +779,52 @@ class _PublicationCardState extends State<PublicationCard>
             )
           else
             ..._comments.map(_buildCommentItem),
-          const SizedBox(height: 6),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    minLines: 1,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: "Écrire un commentaire…",
-                      border: InputBorder.none,
+          if (_canComment) ...[
+            const SizedBox(height: 6),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentController,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: "Ã‰crire un commentaireâ€¦",
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
-                ),
-                _submittingComment
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                  _submittingComment
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton(
+                          icon: Icon(
+                            Icons.send,
+                            color: widget.purple,
+                            size: 20,
+                          ),
+                          onPressed: _addComment,
+                          splashRadius: 20,
                         ),
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : IconButton(
-                        icon: Icon(
-                          Icons.send,
-                          color: widget.purple,
-                          size: 20,
-                        ),
-                        onPressed: _addComment,
-                        splashRadius: 20,
-                      ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -911,7 +927,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchWhatsApp(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("Numéro WhatsApp indisponible");
+      _showSnack("NumÃ©ro WhatsApp indisponible");
       return;
     }
 
@@ -931,7 +947,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchCall(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("Numéro d'appel indisponible");
+      _showSnack("NumÃ©ro d'appel indisponible");
       return;
     }
 
@@ -974,3 +990,5 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 }
+
+

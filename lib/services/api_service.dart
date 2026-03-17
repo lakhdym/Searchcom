@@ -21,6 +21,12 @@ class ApiService {
     _token = (token != null && token.isNotEmpty) ? token : null;
   }
 
+  Future<bool> syncStoredAuthSession() async {
+    final storedToken = await AuthLocalStorage.instance.getToken();
+    setToken(storedToken);
+    return isAuthenticated;
+  }
+
   Future<void> _loadTokenIfNeeded() async {
     if (_token != null && _token!.isNotEmpty) return;
     final stored = await AuthLocalStorage.instance.getToken();
@@ -544,3 +550,4 @@ class CreateListingResult {
     this.currency,
   });
 }
+
