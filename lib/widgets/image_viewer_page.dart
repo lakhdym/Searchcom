@@ -41,6 +41,19 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
     return event.cumulativeBytesLoaded / expected;
   }
 
+  PhotoViewScaleState _scaleStateCycle(PhotoViewScaleState actual) {
+    switch (actual) {
+      case PhotoViewScaleState.initial:
+        return PhotoViewScaleState.covering;
+      case PhotoViewScaleState.covering:
+        return PhotoViewScaleState.originalSize;
+      case PhotoViewScaleState.originalSize:
+      case PhotoViewScaleState.zoomedIn:
+      case PhotoViewScaleState.zoomedOut:
+        return PhotoViewScaleState.initial;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final totalImages = widget.images.length;
@@ -76,6 +89,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
                 minScale: PhotoViewComputedScale.contained,
                 initialScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 3,
+                scaleStateCycle: _scaleStateCycle,
                 errorBuilder: (context, error, stackTrace) {
                   return const Center(
                     child: Column(
@@ -118,7 +132,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      '${_currentIndex + 1}/$totalImages',
+                      '${_currentIndex + 1} / $totalImages',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
