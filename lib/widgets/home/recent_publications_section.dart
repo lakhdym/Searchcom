@@ -30,7 +30,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
   static const _pageSize = 5;
-  static const _prefetchThreshold = 320.0;
+  static const _loadMoreSize = 1;
+  static const _prefetchThreshold = 180.0;
 
   List<Publication> _publications = [];
   bool _loading = true;
@@ -125,7 +126,18 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     );
   }
 
+  void _appendUniquePublications(Iterable<Publication> items) {
+    final existingIds = _publications.map((item) => item.id).toSet();
+    for (final item in items) {
+      if (existingIds.add(item.id)) {
+        _publications.add(item);
+      }
+    }
+  }
+
   Future<void> _loadPublications({bool reset = false}) async {
+    final requestLimit = reset ? _pageSize : _loadMoreSize;
+
     if (reset) {
       setState(() {
         _loading = true;
@@ -148,30 +160,21 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     try {
       final listings = await ApiService.instance.fetchListings(
         type: _selectedType,
-        limit: _pageSize + 1,
+        limit: requestLimit,
         offset: nextOffset,
       );
       if (!mounted || requestId != _requestSerial) return;
 
-      final hasMore = listings.length > _pageSize;
-      final nextItems = listings
-          .take(_pageSize)
-          .map(_mapListing)
-          .toList(growable: false);
+      final nextItems = listings.map(_mapListing).toList(growable: false);
+      final receivedCount = listings.length;
 
       setState(() {
         if (reset) {
-          _publications = nextItems;
-        } else {
-          final existingIds = _publications.map((item) => item.id).toSet();
-          for (final item in nextItems) {
-            if (existingIds.add(item.id)) {
-              _publications.add(item);
-            }
-          }
+          _publications = [];
         }
-        _offset = _publications.length;
-        _hasMore = hasMore;
+        _appendUniquePublications(nextItems);
+        _offset = nextOffset + receivedCount;
+        _hasMore = receivedCount == requestLimit;
         _loading = false;
         _loadingMore = false;
       });
