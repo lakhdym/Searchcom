@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/chat/pages/conversations_page.dart';
 import '../../services/api_service.dart';
+import '../../services/auth_local_storage.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
@@ -778,8 +779,31 @@ class _PublicationCardState extends State<PublicationCard>
                 ),
               ),
             )
-          else
-            ..._comments.map(_buildCommentItem),
+          else ...[
+            ..._comments.take(5).map(_buildCommentItem),
+            if (_comments.length > 5) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: _openFullDetails,
+                  child: const Text(
+                    "Voir plus de commentaires",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
           if (_canComment) ...[
             const SizedBox(height: 6),
             Container(
@@ -899,11 +923,12 @@ class _PublicationCardState extends State<PublicationCard>
   }
 
   Future<void> _showConversationMenu(BuildContext context) async {
+    final isLoggedIn = await AuthLocalStorage.instance.isLoggedIn();
     await PublicationContactMenu.show(
       context: context,
       contactWhatsApp: widget.publication.contactWhatsApp,
       contactCall: widget.publication.contactCall,
-      contactChat: widget.publication.contactChat,
+      contactChat: widget.publication.contactChat && isLoggedIn,
       ownerPhone: widget.publication.ownerPhone,
       purple: widget.purple,
     );

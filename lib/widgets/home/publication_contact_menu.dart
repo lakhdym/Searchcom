@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/chat/pages/conversations_page.dart';
+import '../../services/auth_local_storage.dart';
 import 'publication_menu_row.dart';
 
 class PublicationContactMenu {
@@ -17,6 +18,7 @@ class PublicationContactMenu {
   }) async {
     final phone = ownerPhone?.trim() ?? '';
     final hasPhone = phone.isNotEmpty;
+    final isLoggedIn = await AuthLocalStorage.instance.isLoggedIn();
 
     final items = <PopupMenuEntry<String>>[];
     if (contactWhatsApp && hasPhone) {
@@ -47,7 +49,7 @@ class PublicationContactMenu {
         ),
       );
     }
-    if (contactChat) {
+    if (contactChat && isLoggedIn) {
       items.add(
         PopupMenuItem<String>(
           value: 'chat',
