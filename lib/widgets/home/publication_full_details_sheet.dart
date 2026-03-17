@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart' show ApiService, ApiListingComment;
+import '../image_viewer_page.dart';
 import 'home_models.dart';
 
 class PublicationFullDetailsSheet extends StatefulWidget {
@@ -33,7 +34,9 @@ class PublicationFullDetailsSheet extends StatefulWidget {
 class _PublicationFullDetailsSheetState
     extends State<PublicationFullDetailsSheet> {
   final TextEditingController _commentController = TextEditingController();
+  late final PageController _imagePageController;
   late List<ApiListingComment> _comments;
+  int _currentImageIndex = 0;
   bool _loadingComments = false;
   bool _commentsLoaded = false;
   String? _commentsError;
@@ -42,6 +45,7 @@ class _PublicationFullDetailsSheetState
   @override
   void initState() {
     super.initState();
+    _imagePageController = PageController();
     _comments = List<ApiListingComment>.from(widget.initialComments);
     _commentsLoaded = _comments.isNotEmpty;
     if (!_commentsLoaded) {
@@ -52,6 +56,7 @@ class _PublicationFullDetailsSheetState
   @override
   void dispose() {
     _commentController.dispose();
+    _imagePageController.dispose();
     super.dispose();
   }
 
@@ -132,6 +137,20 @@ class _PublicationFullDetailsSheetState
     }
   }
 
+  Future<void> _openImageViewer(int initialIndex) async {
+    final images = widget.publication.imageUrls;
+    if (images.isEmpty) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ImageViewerPage(
+          images: images,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
   String _formatRelative(DateTime? date) {
     if (date == null) return '';
     final diff = DateTime.now().difference(date);
@@ -142,6 +161,168 @@ class _PublicationFullDetailsSheetState
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return "${date.year}-$month-$day";
+  }
+
+  Widget _buildImageGallery(Publication publication) {
+    final images = publication.imageUrls;
+    if (images.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final hasMultipleImages = images.length > 1;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 220,
+          child: Stack(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: PageView.builder(
+                  controller: _imagePageController,
+                  itemCount: images.length,
+                  onPageChanged: (index) {
+                    if (!mounted) return;
+                    setState(() => _currentImageIndex = index);
+                  },
+                  itemBuilder: (context, index) {
+                    final imageUrl = images[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => _openImageViewer(index),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              loadingBuilder: (
+                                context,
+                                child,
+                                loadingProgress,
+                              ) {
+                                if (loadingProgress == null) {
+                                  return child;
+                                }
+
+                                final expected =
+                                    loadingProgress.expectedTotalBytes;
+                                final progress = expected == null || expected == 0
+                                    ? null
+                                    : loadingProgress.cumulativeBytesLoaded /
+                                        expected;
+
+                                return Container(
+                                  color: Colors.black12,
+                                  alignment: Alignment.center,
+                                  child: SizedBox(
+                                    width: 30,
+                                    height: 30,
+                                    child: CircularProgressIndicator(
+                                      value: progress,
+                                      strokeWidth: 2.4,
+                                    ),
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    color: Colors.grey.shade300,
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.image, size: 48),
+                                  ),
+                            ),
+                            Positioned(
+                              right: 12,
+                              bottom: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      Icons.zoom_in,
+                                      color: Colors.white,
+                                      size: 15,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      "Voir",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (hasMultipleImages)
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${_currentImageIndex + 1} / ${images.length}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (hasMultipleImages) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(images.length, (index) {
+              final isActive = index == _currentImageIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                height: 8,
+                width: isActive ? 18 : 8,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? widget.purple
+                      : widget.mutedGray.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -240,20 +421,7 @@ class _PublicationFullDetailsSheetState
                     ),
                     const SizedBox(height: 12),
                     if (publication.imageUrls.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          publication.imageUrls.first,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            height: 180,
-                            color: Colors.grey.shade300,
-                            child: const Icon(Icons.image, size: 48),
-                          ),
-                        ),
-                      ),
+                      _buildImageGallery(publication),
                     const SizedBox(height: 14),
                     Text(
                       publication.description,
