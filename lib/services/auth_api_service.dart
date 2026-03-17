@@ -56,7 +56,7 @@ class AuthApiService {
   }) async {
     final uri = Uri.parse('$_baseUrl/login.php');
     final resp = await _postJson(uri, {
-      'email': email,
+      'identifier': email,
       'password': password,
     });
     final status = resp['status'] as int?;
