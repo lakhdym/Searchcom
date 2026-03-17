@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;
@@ -72,10 +72,20 @@ class ApiService {
   // -------------------------------------------------------------
   // Listings (public)
   // -------------------------------------------------------------
-  Future<List<ApiListing>> fetchListings({String? type}) async {
+  Future<List<ApiListing>> fetchListings({
+    String? type,
+    int limit = 5,
+    int offset = 0,
+  }) async {
     await _loadTokenIfNeeded(); // pour liked_by_me si token stocké
-    final query = (type != null) ? '?type=$type' : '';
-    final uri = Uri.parse('$_baseUrl/annonces.php$query');
+    final query = <String, String>{
+      'limit': limit.toString(),
+      'offset': offset.toString(),
+      ...?(type == null ? null : <String, String>{'type': type}),
+    };
+    final uri = Uri.parse(
+      '$_baseUrl/annonces.php',
+    ).replace(queryParameters: query);
     final resp = await _client.get(uri, headers: _buildHeaders(withAuth: true));
     if (resp.statusCode != 200) {
       throw Exception(
@@ -84,7 +94,10 @@ class ApiService {
     }
     final data = jsonDecode(resp.body);
     if (data is! List) return [];
-    return data.whereType<Map<String, dynamic>>().map(ApiListing.fromJson).toList();
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(ApiListing.fromJson)
+        .toList();
   }
 
   // -------------------------------------------------------------
@@ -155,7 +168,10 @@ class ApiService {
   // -------------------------------------------------------------
   // Upload photos (listing_photos)
   // -------------------------------------------------------------
-  Future<void> uploadListingPhotos(int listingId, List<ApiPickedImage> images) async {
+  Future<void> uploadListingPhotos(
+    int listingId,
+    List<ApiPickedImage> images,
+  ) async {
     if (images.isEmpty) return;
     await _loadTokenIfNeeded();
     if (!isAuthenticated) throw ApiAuthRequired('User not authenticated');
@@ -166,17 +182,21 @@ class ApiService {
     req.fields['listing_id'] = listingId.toString();
     for (final img in images) {
       if (kIsWeb) {
-        req.files.add(http.MultipartFile.fromBytes(
-          'photos[]',
-          img.bytes,
-          filename: img.file.name,
-        ));
+        req.files.add(
+          http.MultipartFile.fromBytes(
+            'photos[]',
+            img.bytes,
+            filename: img.file.name,
+          ),
+        );
       } else {
-        req.files.add(await http.MultipartFile.fromPath(
-          'photos[]',
-          img.file.path,
-          filename: img.file.name,
-        ));
+        req.files.add(
+          await http.MultipartFile.fromPath(
+            'photos[]',
+            img.file.path,
+            filename: img.file.name,
+          ),
+        );
       }
     }
     final resp = await req.send();
@@ -216,10 +236,7 @@ class ApiService {
     final resp = await _client.post(
       uri,
       headers: _buildHeaders(withAuth: true, json: true),
-      body: jsonEncode({
-        'listing_id': listingId,
-        'content': content,
-      }),
+      body: jsonEncode({'listing_id': listingId, 'content': content}),
     );
 
     if (resp.statusCode != 201 && resp.statusCode != 200) {
@@ -238,11 +255,16 @@ class ApiService {
     final uri = Uri.parse('$_baseUrl/likes.php?listing_id=$listingId');
     final resp = await _client.get(uri, headers: _buildHeaders(withAuth: true));
     if (resp.statusCode != 200) {
-      throw Exception('Erreur chargement likes (${resp.statusCode}): ${resp.body}');
+      throw Exception(
+        'Erreur chargement likes (${resp.statusCode}): ${resp.body}',
+      );
     }
     final data = jsonDecode(resp.body);
     if (data is! List) return [];
-    return data.whereType<Map<String, dynamic>>().map(ApiListingLike.fromJson).toList();
+    return data
+        .whereType<Map<String, dynamic>>()
+        .map(ApiListingLike.fromJson)
+        .toList();
   }
 
   Future<LikeToggleResult> toggleLike(int listingId) async {
@@ -288,7 +310,9 @@ class ApiService {
       body: jsonEncode(body),
     );
     if (resp.statusCode != 200) {
-      throw Exception('Erreur confirmation paiement (${resp.statusCode}): ${resp.body}');
+      throw Exception(
+        'Erreur confirmation paiement (${resp.statusCode}): ${resp.body}',
+      );
     }
   }
 
@@ -319,9 +343,7 @@ class ApiService {
     );
 
     if (resp.statusCode != 200) {
-      throw Exception(
-        'Erreur signalement (${resp.statusCode}): ${resp.body}',
-      );
+      throw Exception('Erreur signalement (${resp.statusCode}): ${resp.body}');
     }
     final data = jsonDecode(resp.body);
     if (data is Map && data['success'] != true) {
@@ -420,7 +442,8 @@ class ApiListing {
       location: json['location']?.toString() ?? json['city']?.toString() ?? '',
       city: json['city']?.toString() ?? '',
       date: json['date']?.toString() ?? '',
-      isBoosted: json['is_boosted'] == 1 ||
+      isBoosted:
+          json['is_boosted'] == 1 ||
           json['is_boosted'] == true ||
           (json['is_boosted']?.toString() == '1'),
       imageUrl: json['imageUrl']?.toString(),
@@ -437,7 +460,9 @@ class ApiListing {
           json['contact_whatsapp'] == true || json['contact_whatsapp'] == 1,
       contactCall: json['contact_call'] == true || json['contact_call'] == 1,
       ownerPhone: () {
-        final raw = (json['owner_phone'] ?? json['phone'] ?? '').toString().trim();
+        final raw = (json['owner_phone'] ?? json['phone'] ?? '')
+            .toString()
+            .trim();
         return raw.isEmpty ? null : raw;
       }(),
     );
@@ -472,8 +497,8 @@ class ApiListingComment {
       userId: json['user_id'] == null
           ? null
           : (json['user_id'] is num
-              ? (json['user_id'] as num).toInt()
-              : int.tryParse(json['user_id'].toString())),
+                ? (json['user_id'] as num).toInt()
+                : int.tryParse(json['user_id'].toString())),
       fullName: json['full_name']?.toString() ?? '',
       content: json['content']?.toString() ?? '',
       status: json['status']?.toString(),
@@ -488,20 +513,25 @@ class ApiListingLike {
   final String fullName;
   final DateTime? createdAt;
 
-  ApiListingLike({this.userId, this.listingId, required this.fullName, this.createdAt});
+  ApiListingLike({
+    this.userId,
+    this.listingId,
+    required this.fullName,
+    this.createdAt,
+  });
 
   factory ApiListingLike.fromJson(Map<String, dynamic> json) {
     return ApiListingLike(
       userId: json['user_id'] == null
           ? null
           : (json['user_id'] is num
-              ? (json['user_id'] as num).toInt()
-              : int.tryParse(json['user_id'].toString())),
+                ? (json['user_id'] as num).toInt()
+                : int.tryParse(json['user_id'].toString())),
       listingId: json['listing_id'] == null
           ? null
           : (json['listing_id'] is num
-              ? (json['listing_id'] as num).toInt()
-              : int.tryParse(json['listing_id'].toString())),
+                ? (json['listing_id'] as num).toInt()
+                : int.tryParse(json['listing_id'].toString())),
       fullName: json['full_name']?.toString() ?? '',
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
     );
@@ -550,4 +580,3 @@ class CreateListingResult {
     this.currency,
   });
 }
-
