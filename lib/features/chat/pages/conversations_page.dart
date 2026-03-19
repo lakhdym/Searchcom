@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import '../data/chat_demo_data.dart';
+import 'dart:async';
+
 import '../models/chat_models.dart';
+import '../../../services/api_service.dart';
+import '../../../services/auth_local_storage.dart';
+import '../../../models/user_model.dart';
 import 'chat_detail_page.dart';
 
 class ConversationsPage extends StatefulWidget {
@@ -11,21 +15,26 @@ class ConversationsPage extends StatefulWidget {
 }
 
 class _ConversationsPageState extends State<ConversationsPage> {
-  late List<ChatConversation> _convs;
+  List<ChatConversation> _convs = [];
   String _query = '';
   final _searchCtrl = TextEditingController();
+  bool _loading = true;
+  String? _error;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _convs = demoConversations();
     _searchCtrl.addListener(() {
       setState(() => _query = _searchCtrl.text.trim().toLowerCase());
     });
+    _loadConversations();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) => _loadConversations(silent: true));
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -35,7 +44,8 @@ class _ConversationsPageState extends State<ConversationsPage> {
     final scheme = Theme.of(context).colorScheme;
     final filtered = _convs.where((c) {
       if (_query.isEmpty) return true;
-      return c.user.name.toLowerCase().contains(_query);
+      return c.user.name.toLowerCase().contains(_query) ||
+          (c.listingTitle?.toLowerCase().contains(_query) ?? false);
     }).toList();
 
     return Scaffold(
@@ -76,34 +86,117 @@ class _ConversationsPageState extends State<ConversationsPage> {
                 ),
               ),
             ),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final conv = filtered[index];
-                  return ConversationTile(
-                    conversation: conv,
-                    onTap: () async {
-                      if (conv.unreadCount > 0) {
-                        setState(() => conv.unreadCount = 0);
-                      }
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatDetailPage(conversation: conv),
-                        ),
-                      );
-                    },
-                  );
-                },
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.only(top: 40),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(_error!, style: TextStyle(color: scheme.error)),
+              )
+            else
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final conv = filtered[index];
+                    return ConversationTile(
+                      conversation: conv,
+                      onTap: () async {
+                        if (conv.unreadCount > 0) {
+                          setState(() => conv.unreadCount = 0);
+                        }
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatDetailPage(conversation: conv),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _loadConversations({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final user = await AuthLocalStorage.instance.getUser();
+      if (user == null) {
+        setState(() {
+          _error = 'Vous devez vous connecter pour voir vos messages.';
+          _convs = [];
+        });
+        return;
+      }
+      final data = await ApiService.instance.getConversations(userId: user.id);
+      final mapped = data.map((m) => _mapApiConv(m, user)).whereType<ChatConversation>().toList();
+      setState(() => _convs = mapped);
+    } catch (e) {
+      if (!silent) setState(() => _error = e.toString());
+    } finally {
+      if (!silent) setState(() => _loading = false);
+    }
+  }
+
+  ChatConversation? _mapApiConv(Map<String, dynamic> json, UserModel me) {
+    try {
+      final otherId = json['other_user_id']?.toString() ?? '';
+      final otherName = json['other_user_name']?.toString() ?? 'Contact';
+      final listingTitle = json['listing_title']?.toString();
+      final lastMsg = json['last_message']?.toString() ?? '';
+      if (lastMsg.trim().isEmpty) {
+        // Conversation sans message : ne pas l'afficher
+        return null;
+      }
+      final lastAtRaw = json['last_message_at']?.toString();
+      DateTime lastAt;
+      try {
+        lastAt = lastAtRaw != null ? DateTime.parse(lastAtRaw) : DateTime.now();
+      } catch (_) {
+        lastAt = DateTime.now();
+      }
+      final unread = int.tryParse(json['unread_count']?.toString() ?? '0') ?? 0;
+
+      return ChatConversation(
+        id: json['id'].toString(),
+        user: ChatUser(
+          id: otherId,
+          name: otherName,
+          avatarColor: _colorFromString(otherId),
+        ),
+        listingTitle: listingTitle,
+        unreadCount: unread,
+        lastMessage: ChatMessage(
+          id: 'last_${json['id']}',
+          conversationId: json['id'].toString(),
+          text: lastMsg,
+          isMe: false,
+          time: lastAt,
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Color _colorFromString(String input) {
+    final hash = input.codeUnits.fold(0, (p, c) => p + c);
+    return Colors.primaries[hash % Colors.primaries.length];
   }
 }
 
@@ -166,7 +259,9 @@ class ConversationTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.lastMessage.text ?? '',
+                            conversation.listingTitle != null && conversation.listingTitle!.isNotEmpty
+                                ? 'À propos de : ${conversation.listingTitle}'
+                                : (conversation.lastMessage.text ?? ''),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../models/user_model.dart';
 import '../services/auth_api_service.dart';
 import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
 import '../state/auth_state.dart';
 import 'email_verification_page.dart';
+import 'phone_verification_page.dart';
 import 'home_shell.dart';
 import 'signup_page.dart';
 
@@ -18,7 +18,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
+  final _identifierCtrl = TextEditingController(); // email ou téléphone
   final _passwordCtrl = TextEditingController();
 
   bool _obscure = true;
@@ -29,14 +29,14 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _emailCtrl.addListener(_updateValid);
+    _identifierCtrl.addListener(_updateValid);
     _passwordCtrl.addListener(_updateValid);
     _restoreSession();
   }
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
+    _identifierCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -58,7 +58,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _updateValid() {
-    final valid = _emailCtrl.text.contains('@') && _passwordCtrl.text.length >= 8;
+    final id = _identifierCtrl.text.trim();
+    final isEmail = id.contains('@');
+    final isPhone = id.replaceAll(RegExp(r'\\D'), '').length >= 6;
+    final valid = (isEmail || isPhone) && _passwordCtrl.text.length >= 8;
     if (valid != _formValid) {
       setState(() => _formValid = valid);
     }
@@ -71,7 +74,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loading = true);
     try {
       final AuthSession session = await AuthApiService.instance.login(
-        email: _emailCtrl.text.trim(),
+        identifier: _identifierCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
       await AuthLocalStorage.instance.saveSession(session.user, session.token);
@@ -88,7 +91,15 @@ class _LoginPageState extends State<LoginPage> {
         SnackBar(content: Text(e.message)),
       );
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: e.email ?? _emailCtrl.text.trim())),
+        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: e.email ?? _identifierCtrl.text.trim())),
+      );
+    } on PhoneVerificationRequiredException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: e.phone ?? _identifierCtrl.text.trim())),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -165,7 +176,7 @@ class _LoginPageState extends State<LoginPage> {
                               children: [
                                 CircleAvatar(
                                   radius: 22,
-                                  backgroundColor: scheme.primary.withValues(alpha: 0.14),
+                                  backgroundColor: scheme.primary.withOpacity(0.14),
                                   child: Icon(Icons.lock_outline, color: scheme.primary),
                                 ),
                                 const SizedBox(width: 12),
@@ -191,15 +202,20 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 24),
                             TextFormField(
-                              controller: _emailCtrl,
+                              controller: _identifierCtrl,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
-                                labelText: 'Email',
-                                hintText: 'vous@example.com',
-                                prefixIcon: Icon(Icons.mail_outlined),
+                                labelText: 'Email ou téléphone',
+                                hintText: 'vous@example.com ou +212...',
+                                prefixIcon: Icon(Icons.person_outline),
                               ),
-                              validator: (v) =>
-                                  (v == null || !v.contains('@')) ? 'Email invalide' : null,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Champ requis';
+                                final id = v.trim();
+                                final isEmail = id.contains('@');
+                                final isPhone = id.replaceAll(RegExp(r'\\D'), '').length >= 6;
+                                return (isEmail || isPhone) ? null : 'Email ou téléphone invalide';
+                              },
                             ),
                             const SizedBox(height: 16),
                             TextFormField(

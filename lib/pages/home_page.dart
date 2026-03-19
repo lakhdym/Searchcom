@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 import 'found_form_page.dart';
 import 'login_page.dart';
 import '../features/chat/pages/conversations_page.dart';
+import '../features/chat/pages/chat_detail_page.dart';
+import '../features/chat/models/chat_models.dart';
 import '../widgets/top_nav_bar.dart';
 import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
@@ -392,6 +394,8 @@ enum PublicationStatus { perdu, trouve }
 
 class Publication {
   final int id;
+  final int ownerId;
+  final String? ownerName;
   final String title;
   final PublicationStatus status;
   final List<String> imageUrls;
@@ -408,6 +412,8 @@ class Publication {
 
   Publication({
     required this.id,
+    required this.ownerId,
+    this.ownerName,
     required this.title,
     required this.status,
     required this.imageUrls,
@@ -483,6 +489,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
         return Publication(
           id: l.id,
+          ownerId: l.ownerId,
+          ownerName: l.ownerName,
           title: l.title,
           status: l.type == 'lost'
               ? PublicationStatus.perdu
@@ -741,6 +749,7 @@ class _PublicationCardState extends State<PublicationCard>
   bool _liked = false;
   int _likesCount = 0;
   bool _likeBusy = false;
+  bool _isOwner = false;
 
   @override
   void initState() {
@@ -748,6 +757,15 @@ class _PublicationCardState extends State<PublicationCard>
     _pageController = PageController();
     _liked = widget.publication.likedByMe;
     _likesCount = widget.publication.likesCount;
+    _loadOwner();
+  }
+
+  Future<void> _loadOwner() async {
+    final me = await AuthLocalStorage.instance.getUser();
+    if (!mounted) return;
+    setState(() {
+      _isOwner = (me != null && me.id == widget.publication.ownerId);
+    });
   }
 
   @override
@@ -1347,7 +1365,8 @@ class _PublicationCardState extends State<PublicationCard>
         ? _comments.length
         : publication.commentsCount;
     final hasPhone = (publication.ownerPhone?.trim().isNotEmpty ?? false);
-    final hasContactOptions = publication.contactChat ||
+    final isOwner = _isOwner;
+    final hasContactOptions = (!isOwner && publication.contactChat) ||
         (publication.contactWhatsApp && hasPhone) ||
         (publication.contactCall && hasPhone);
     final bool longDescription = publication.description.length > 140;
@@ -1887,7 +1906,7 @@ class _PublicationCardState extends State<PublicationCard>
         ),
       );
     }
-    if (pub.contactChat) {
+    if (pub.contactChat && !_isOwner) {
       items.add(
         PopupMenuItem(
           value: 'chat',
@@ -1977,10 +1996,56 @@ class _PublicationCardState extends State<PublicationCard>
     }
   }
 
-  void _openInternalChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ConversationsPage()),
-    );
+  Future<void> _openInternalChat() async {
+    final user = await AuthLocalStorage.instance.getUser();
+    if (!mounted) return;
+    if (user == null) {
+      _showSnack("Vous devez vous connecter pour discuter");
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+      return;
+    }
+    if (widget.publication.ownerId == user.id) {
+      _showSnack("Vous ne pouvez pas chatter avec votre propre annonce");
+      return;
+    }
+    try {
+      final convId = await ApiService.instance
+          .getOrCreateConversation(listingId: widget.publication.id, userId: user.id);
+
+      final otherUser = ChatUser(
+        id: widget.publication.ownerId.toString(),
+        name: widget.publication.ownerName ?? 'Utilisateur',
+        avatarColor: Colors.teal,
+      );
+      final placeholderLast = ChatMessage(
+        id: 'init_$convId',
+        conversationId: convId.toString(),
+        text: '',
+        isMe: false,
+        time: DateTime.now(),
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChatDetailPage(
+            conversation: ChatConversation(
+              id: convId.toString(),
+              user: otherUser,
+              unreadCount: 0,
+              lastMessage: placeholderLast,
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('propre annonce')) {
+        _showSnack("Vous ne pouvez pas chatter avec votre propre annonce");
+      } else {
+        _showSnack('Erreur: $msg');
+      }
+    }
   }
 
   void _showSnack(String message) {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../data/chat_demo_data.dart';
 import '../models/chat_models.dart';
+import '../../../services/api_service.dart';
+import '../../../services/auth_local_storage.dart';
+import '../../../models/user_model.dart';
 
 class ChatDetailPage extends StatefulWidget {
   const ChatDetailPage({super.key, required this.conversation});
@@ -18,18 +21,22 @@ class ChatDetailPage extends StatefulWidget {
 }
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
-  late List<ChatMessage> _messages;
+  List<ChatMessage> _messages = [];
   final _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _showEmoji = false;
   final _imagePicker = ImagePicker();
   ChatMessage? _replyTo;
+  UserModel? _me;
+  bool _loading = true;
+  String? _error;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _messages = List.of(demoMessagesByConv[widget.conversation.id] ?? []);
+    _init();
     _focusNode.addListener(() {
       if (_focusNode.hasFocus && _showEmoji) {
         setState(() => _showEmoji = false);
@@ -37,8 +44,58 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     });
   }
 
+  Future<void> _init() async {
+    try {
+      _me = await AuthLocalStorage.instance.getUser();
+      if (_me == null) {
+        setState(() => _error = 'Vous devez être connecté pour discuter');
+        return;
+      }
+      await _loadMessages();
+      _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadMessages(silent: true));
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMessages({bool silent = false}) async {
+    final me = _me;
+    if (me == null) return;
+    try {
+      final convId = int.tryParse(widget.conversation.id) ?? 0;
+      final items = await ApiService.instance.getMessages(conversationId: convId, userId: me.id);
+      final mapped = items.map((m) {
+        final senderId = m['sender_user_id']?.toString() ?? '';
+        final text = m['content']?.toString();
+        final createdAt = m['created_at']?.toString();
+        DateTime dt;
+        try {
+          dt = createdAt != null ? DateTime.parse(createdAt) : DateTime.now();
+        } catch (_) {
+          dt = DateTime.now();
+        }
+        return ChatMessage(
+          id: m['id'].toString(),
+          conversationId: widget.conversation.id,
+          senderId: senderId,
+          text: text,
+          isMe: senderId == me.id.toString(),
+          time: dt,
+        );
+      }).toList();
+      if (mounted) {
+        setState(() => _messages = mapped);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _focusNode.dispose();
     _scrollController.dispose();
     _messageController.dispose();
@@ -46,26 +103,26 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   }
 
   void _scheduleStatusProgression(ChatMessage msg) {
-    Future.delayed(const Duration(milliseconds: 700), () {
-      final idx = _messages.indexWhere((m) => m.id == msg.id);
-      if (idx != -1 && _messages[idx].status == MessageStatus.sent) {
-        setState(() => _messages[idx].status = MessageStatus.delivered);
-      }
-    });
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      final idx = _messages.indexWhere((m) => m.id == msg.id);
-      if (idx != -1 && _messages[idx].status != MessageStatus.read) {
-        setState(() => _messages[idx].status = MessageStatus.read);
-      }
-    });
+    // placeholders only; backend handles real status
   }
 
   void _sendText() {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
-    final msg = ChatMessage(
-      id: 'local_${_messages.length}',
+    _sendMessage(text);
+  }
+
+  Future<void> _sendMessage(String text) async {
+    final me = _me;
+    if (me == null) {
+      setState(() => _error = 'Session requise');
+      return;
+    }
+    final convId = int.tryParse(widget.conversation.id) ?? 0;
+    final localMsg = ChatMessage(
+      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: widget.conversation.id,
+      senderId: me.id.toString(),
       text: text,
       isMe: true,
       time: DateTime.now(),
@@ -81,14 +138,48 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       : ''),
     );
     setState(() {
-      _messages.add(msg);
+      _messages.add(localMsg);
       widget.conversation.unreadCount = 0;
       _replyTo = null;
       _showEmoji = false;
     });
     _messageController.clear();
-    _scheduleStatusProgression(msg);
     _scrollAfterInsert();
+
+    try {
+      final saved = await ApiService.instance.sendMessage(
+        conversationId: convId,
+        userId: me.id,
+        content: text,
+        messageType: 'text',
+      );
+      final senderId = saved['sender_user_id']?.toString() ?? me.id.toString();
+      final createdAt = saved['created_at']?.toString();
+      DateTime dt;
+      try {
+        dt = createdAt != null ? DateTime.parse(createdAt) : DateTime.now();
+      } catch (_) {
+        dt = DateTime.now();
+      }
+      final confirmed = ChatMessage(
+        id: saved['id'].toString(),
+        conversationId: widget.conversation.id,
+        senderId: senderId,
+        text: saved['content']?.toString() ?? text,
+        isMe: senderId == me.id.toString(),
+        time: dt,
+      );
+      if (mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == localMsg.id);
+          if (idx != -1) {
+            _messages[idx] = confirmed;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
   }
 
   Future<void> _pickImage() async {
@@ -269,6 +360,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: scheme.surface,
+        appBar: AppBar(title: const Text('Discussion')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: scheme.surface,
+        appBar: AppBar(title: const Text('Discussion')),
+        body: Center(child: Text(_error!)),
+      );
+    }
     final textTheme = Theme.of(context).textTheme;
 
     final Map<String, ChatMessage> messageMap = {

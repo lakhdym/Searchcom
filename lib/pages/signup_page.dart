@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_api_service.dart';
 import 'email_verification_page.dart';
+import 'phone_verification_page.dart';
 import 'login_page.dart';
+import 'verification_choice_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -22,16 +24,7 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _obscurePass = true;
   bool _obscureConfirm = true;
   bool _loading = false;
-  bool _formValid = false;
   bool _accepted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    for (final c in [_nameCtrl, _emailCtrl, _phoneCtrl, _passwordCtrl, _confirmCtrl]) {
-      c.addListener(_updateValid);
-    }
-  }
 
   @override
   void dispose() {
@@ -43,33 +36,34 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  void _updateValid() {
-    final valid = _nameCtrl.text.trim().length >= 2 &&
-        _emailCtrl.text.contains('@') &&
-        _phoneCtrl.text.trim().length >= 6 &&
-        _passwordCtrl.text.length >= 8 &&
-        _confirmCtrl.text == _passwordCtrl.text &&
-        _accepted;
-    if (valid != _formValid) setState(() => _formValid = valid);
-  }
+  bool get _isEmailValid => _emailCtrl.text.trim().contains('@');
+  bool get _isPhoneValid => _phoneCtrl.text.replaceAll(RegExp(r'\\D'), '').length >= 6;
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final form = _formKey.currentState;
-    if (form == null || !form.validate() || !_accepted) {
-      if (!_accepted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Veuillez accepter les conditions.')),
-        );
-      }
+    if (form == null || !form.validate()) {
       return;
     }
+    if (!_accepted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Veuillez accepter les conditions.')),
+      );
+      return;
+    }
+    if (!_isEmailValid && !_isPhoneValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Renseignez un email ou un téléphone valide.')),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
     try {
-      final resp = await AuthApiService.instance.registerAndRequestVerification(
+      final resp = await AuthApiService.instance.register(
         fullName: _nameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        email: _isEmailValid ? _emailCtrl.text.trim() : null,
+        phone: _isPhoneValid ? _phoneCtrl.text.trim() : null,
         password: _passwordCtrl.text,
         preferredLang: 'fr',
       );
@@ -77,9 +71,28 @@ class _SignUpPageState extends State<SignUpPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(resp.message.isNotEmpty ? resp.message : 'Compte créé avec succès 🎉')),
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: resp.email)),
-      );
+      final emailVal = resp.email ?? _emailCtrl.text.trim();
+      final phoneVal = resp.phone ?? _phoneCtrl.text.trim();
+
+      if (resp.requiresEmailVerification && resp.requiresPhoneVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => VerificationChoicePage(email: emailVal, phone: phoneVal),
+          ),
+        );
+      } else if (resp.requiresPhoneVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: phoneVal)),
+        );
+      } else if (resp.requiresEmailVerification) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => EmailVerificationPage(email: emailVal)),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+        );
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,9 +127,9 @@ class _SignUpPageState extends State<SignUpPage> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              scheme.primary.withValues(alpha: 0.06),
-              scheme.secondaryContainer.withValues(alpha: 0.04),
-              scheme.surfaceTint.withValues(alpha: 0.03),
+              scheme.primary.withOpacity(0.06),
+              scheme.secondaryContainer.withOpacity(0.04),
+              scheme.surfaceTint.withOpacity(0.03),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -133,7 +146,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   child: Material(
                     elevation: 8,
                     color: scheme.surface,
-                    shadowColor: scheme.shadow.withValues(alpha: 0.14),
+                    shadowColor: scheme.shadow.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(16),
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -148,7 +161,7 @@ class _SignUpPageState extends State<SignUpPage> {
                               children: [
                                 CircleAvatar(
                                   radius: 22,
-                                  backgroundColor: scheme.primary.withValues(alpha: 0.14),
+                                  backgroundColor: scheme.primary.withOpacity(0.14),
                                   child: Icon(Icons.person_add_alt_1, color: scheme.primary),
                                 ),
                                 const SizedBox(width: 12),
@@ -163,7 +176,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                       ),
                                     ),
                                     Text(
-                                      'Rejoignez la communauté',
+                                      'Email ou téléphone, à vous de choisir',
                                       style: textTheme.bodyMedium?.copyWith(
                                         color: scheme.onSurfaceVariant,
                                       ),
@@ -188,24 +201,28 @@ class _SignUpPageState extends State<SignUpPage> {
                               controller: _emailCtrl,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
-                                labelText: 'Email',
+                                labelText: 'Email (optionnel)',
                                 hintText: 'vous@example.com',
                                 prefixIcon: Icon(Icons.mail_outlined),
                               ),
-                              validator: (v) =>
-                                  (v == null || !v.contains('@')) ? 'Email invalide' : null,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return null;
+                                return v.contains('@') ? null : 'Email invalide';
+                              },
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _phoneCtrl,
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
-                                labelText: 'Téléphone',
+                                labelText: 'Téléphone (optionnel)',
                                 hintText: '+212 6 12 34 56 78',
                                 prefixIcon: Icon(Icons.phone_outlined),
                               ),
-                              validator: (v) =>
-                                  (v == null || v.trim().length < 6) ? 'Téléphone invalide' : null,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return null;
+                                return v.replaceAll(RegExp(r'\\D'), '').length >= 6 ? null : 'Téléphone invalide';
+                              },
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -222,8 +239,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                   onPressed: () => setState(() => _obscurePass = !_obscurePass),
                                 ),
                               ),
-                              validator: (v) =>
-                                  (v == null || v.length < 8) ? 'Au moins 8 caractères' : null,
+                              validator: (v) => (v == null || v.length < 8) ? 'Au moins 8 caractères' : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -240,8 +256,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                   onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
                                 ),
                               ),
-                              validator: (v) =>
-                                  (v != _passwordCtrl.text) ? 'Les mots de passe ne correspondent pas' : null,
+                              validator: (v) => (v != _passwordCtrl.text) ? 'Les mots de passe ne correspondent pas' : null,
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -251,7 +266,6 @@ class _SignUpPageState extends State<SignUpPage> {
                                   value: _accepted,
                                   onChanged: (v) {
                                     setState(() => _accepted = v ?? false);
-                                    _updateValid();
                                   },
                                 ),
                                 const SizedBox(width: 8),
@@ -274,11 +288,11 @@ class _SignUpPageState extends State<SignUpPage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: (!_formValid || _loading) ? null : _submit,
+                                onPressed: (_loading) ? null : _submit,
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 200),
                                   child: _loading
@@ -295,37 +309,6 @@ class _SignUpPageState extends State<SignUpPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(child: Divider(color: scheme.outlineVariant)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text('ou', style: textTheme.bodyMedium),
-                                ),
-                                Expanded(child: Divider(color: scheme.outlineVariant)),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            OutlinedButton.icon(
-                              onPressed: () {},
-                              icon: Icon(Icons.g_translate, color: scheme.primary),
-                              label: const Text('Continuer avec Google'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(50),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            OutlinedButton.icon(
-                              onPressed: () {},
-                              icon: Icon(Icons.facebook, color: scheme.primary),
-                              label: const Text('Continuer avec Facebook'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(50),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                            ),
                             const SizedBox(height: 20),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -336,10 +319,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                     if (Navigator.canPop(context)) {
                                       Navigator.pop(context);
                                     } else {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => const LoginPage()),
-                                      );
+                                      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
                                     }
                                   },
                                   child: const Text('Se connecter'),

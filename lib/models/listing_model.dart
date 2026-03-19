@@ -10,12 +10,20 @@ class ListingModel {
   final String? city;
   final String? locationText;
   final String? eventDate;
+  final bool contactChat;
+  final bool contactWhatsApp;
+  final bool contactCall;
   final bool isBoosted;
   final String? publishedAt;
   final String createdAt;
   final String? updatedAt;
   final String? coverPhotoUrl;
   final String? paymentStatus;
+  final List<String> photos;
+  final List<ListingPhoto> photoObjects;
+  final int likesCount;
+  final int commentsCount;
+  final bool likedByMe;
 
   ListingModel({
     required this.id,
@@ -30,11 +38,19 @@ class ListingModel {
     this.city,
     this.locationText,
     this.eventDate,
+    this.contactChat = true,
+    this.contactWhatsApp = true,
+    this.contactCall = true,
     this.isBoosted = false,
     this.publishedAt,
     this.updatedAt,
     this.coverPhotoUrl,
     this.paymentStatus,
+    this.photos = const [],
+    this.photoObjects = const [],
+    this.likesCount = 0,
+    this.commentsCount = 0,
+    this.likedByMe = false,
   });
 
   factory ListingModel.fromJson(Map<String, dynamic> json) {
@@ -68,12 +84,52 @@ class ListingModel {
       city: json['city'] as String?,
       locationText: json['location_text'] as String?,
       eventDate: json['event_date'] as String?,
+      contactChat: (json['contact_chat'] == 1 || json['contact_chat'] == '1' || json['contact_chat'] == true),
+      contactWhatsApp: (json['contact_whatsapp'] == 1 ||
+          json['contact_whatsapp'] == '1' ||
+          json['contact_whatsapp'] == true),
+      contactCall: (json['contact_call'] == 1 || json['contact_call'] == '1' || json['contact_call'] == true),
       isBoosted: boosted,
       publishedAt: json['published_at'] as String?,
       createdAt: json['created_at'] ?? '',
       updatedAt: json['updated_at'] as String?,
       coverPhotoUrl: json['cover_photo_url'] as String?,
+      photoObjects: (json['photos'] as List<dynamic>?)
+              ?.map(ListingPhoto.fromDynamic)
+              .whereType<ListingPhoto>()
+              .toList() ??
+          const [],
+      photos: (json['photos'] as List<dynamic>?)
+              ?.map((e) => e is Map<String, dynamic> ? e['url']?.toString() ?? '' : e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList() ??
+          const [],
+      likesCount: json['likes_count'] is num
+          ? (json['likes_count'] as num).toInt()
+          : int.tryParse(json['likes_count']?.toString() ?? '0') ?? 0,
+      commentsCount: json['comments_count'] is num
+          ? (json['comments_count'] as num).toInt()
+          : int.tryParse(json['comments_count']?.toString() ?? '0') ?? 0,
+      likedByMe: json['liked_by_me'] == 1 || json['liked_by_me'] == true || json['liked_by_me'] == '1',
       paymentStatus: json['payment_status'] as String?,
     );
+  }
+}
+
+class ListingPhoto {
+  final int id;
+  final String url;
+  ListingPhoto({required this.id, required this.url});
+
+  factory ListingPhoto.fromDynamic(dynamic input) {
+    if (input is Map<String, dynamic>) {
+      final idRaw = input['id'];
+      final id = idRaw is int ? idRaw : int.tryParse(idRaw?.toString() ?? '');
+      final url = input['url']?.toString();
+      if (id != null && url != null && url.isNotEmpty) {
+        return ListingPhoto(id: id, url: url);
+      }
+    }
+    return ListingPhoto(id: 0, url: input?.toString() ?? '');
   }
 }
