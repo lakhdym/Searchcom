@@ -29,8 +29,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _green = Color(0xFF34C759);
   static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
-  static const _pageSize = 5;
-  static const _loadMoreSize = 1;
+  static const _pageSize = 4;
+  static const _loadMoreSize = 3;
   static const _prefetchThreshold = 180.0;
 
   List<Publication> _publications = [];
@@ -331,6 +331,20 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (!_hasMore && _publications.isNotEmpty && _query.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  'Vous avez consulté toutes les annonces',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _mutedGray,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             ),
         ],
