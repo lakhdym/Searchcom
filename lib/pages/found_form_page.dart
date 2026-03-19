@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -171,9 +171,13 @@ class _FoundFormPageState extends State<FoundFormPage> {
   Future<void> _createOrUpdateListing() async {
     setState(() => _submitting = true);
     try {
-      if (widget.isEdit && widget.listingId != null) {
+      final isEdit = widget.isEdit && widget.listingId != null;
+      int listingId;
+
+      if (isEdit) {
+        listingId = widget.listingId!;
         await ApiService.instance.updateListing(
-          listingId: widget.listingId!,
+          listingId: listingId,
           title: _titleCtrl.text.trim(),
           description: _descCtrl.text.trim(),
           categoryId: _selectedCategoryId,
@@ -184,19 +188,6 @@ class _FoundFormPageState extends State<FoundFormPage> {
           contactWhatsApp: _contactWhatsApp,
           contactCall: _contactCall,
         );
-        // Supprimer les photos marquées
-        for (final pid in _removedPhotoIds) {
-          await ApiService.instance.deleteListingPhoto(listingId: widget.listingId!, photoId: pid);
-        }
-        // Uploader les nouvelles photos ajoutées
-        if (_images.isNotEmpty) {
-          await ApiService.instance.uploadListingPhotos(widget.listingId!, _images);
-        }
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Annonce mise à jour avec succès')),
-        );
-        Navigator.of(context).pop();
       } else {
         final result = await ApiService.instance.createListing(
           type: widget.type,
@@ -210,17 +201,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
           contactWhatsApp: _contactWhatsApp,
           contactCall: _contactCall,
         );
-        if (!mounted) return;
-        if (_images.isNotEmpty) {
-          await ApiService.instance.uploadListingPhotos(
-            result.listingId,
-            _images,
-          );
-        }
-        if (!mounted) return;
+        listingId = result.listingId;
+
         if (result.requiresPayment) {
-          final priceLabel = "${result.amount ?? ''} ${result.currency ?? ''}"
-              .trim();
+          final priceLabel =
+              "${result.amount ?? ''} ${result.currency ?? ''}".trim();
           await PaymentModal.show(
             context,
             amount: priceLabel.isEmpty ? 'Paiement requis' : priceLabel,
@@ -243,19 +228,33 @@ class _FoundFormPageState extends State<FoundFormPage> {
             },
           );
           if (!mounted) return;
-        } else {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Annonce publiée avec succès')),
-          );
-          Navigator.of(context).popUntil((r) => r.isFirst);
         }
       }
+
+      if (!mounted) return;
+      if (_images.isNotEmpty) {
+        await ApiService.instance.uploadListingPhotos(
+          listingId,
+          _images,
+        );
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isEdit
+                ? 'Annonce mise à jour avec succès'
+                : 'Annonce publiée avec succès',
+          ),
+        ),
+      );
+      Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: $e')),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -647,7 +646,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
               )
             : const Icon(Icons.cloud_upload_outlined),
         label: Text(
-          _submitting ? "Publication..." : "Publier l'annonce",
+          _submitting
+              ? "Publication..."
+              : (widget.isEdit ? "Enregistrer les modifications" : "Publier l'annonce"),
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         style: ElevatedButton.styleFrom(
