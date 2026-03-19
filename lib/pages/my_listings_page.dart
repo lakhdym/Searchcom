@@ -3,7 +3,31 @@ import 'package:flutter/material.dart';
 import '../models/listing_model.dart';
 import '../services/my_listings_api_service.dart';
 import '../services/api_service.dart';
+import '../services/auth_local_storage.dart';
+import 'found_form_page.dart';
 import 'home_page.dart';
+
+const _fallbackListingImage = 'https://via.placeholder.com/600x400?text=Annonce';
+const _uploadsBase = 'https://italents.ma/app/';
+
+String _resolveImageUrl(String? raw) {
+  final placeholder = _fallbackListingImage;
+  if (raw == null) return placeholder;
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return placeholder;
+  if (trimmed.startsWith('http')) return trimmed;
+  // Normalise les chemins relatifs comportant "uploads/..."
+  String cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+  final uploadsIndex = cleaned.indexOf('uploads/');
+  if (uploadsIndex >= 0) {
+    cleaned = cleaned.substring(uploadsIndex); // garde dès "uploads/..."
+  }
+  if (cleaned.startsWith('uploads/')) {
+    return '$_uploadsBase$cleaned';
+  }
+  // cas d'un simple nom de fichier
+  return '${_uploadsBase}uploads/annonces/$cleaned';
+}
 
 class MyListingsPage extends StatefulWidget {
   const MyListingsPage({super.key});
@@ -20,6 +44,11 @@ class _MyListingsPageState extends State<MyListingsPage> {
   @override
   void initState() {
     super.initState();
+    AuthLocalStorage.instance.getToken().then((token) {
+      if (token != null && token.isNotEmpty) {
+        ApiService.instance.setToken(token);
+      }
+    });
     _load();
   }
 
@@ -75,6 +104,35 @@ class _MyListingsPageState extends State<MyListingsPage> {
     }
   }
 
+  Future<void> _openDetails(ListingModel item) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => _ListingDetailsSheet(item: item),
+    );
+  }
+
+  Future<void> _openEdit(ListingModel item) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FoundFormPage(
+          type: item.type,
+          listingId: item.id,
+          initialListing: item,
+          isEdit: true,
+        ),
+      ),
+    );
+    // Rafraîchir la liste après retour
+    if (mounted) {
+      _load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -124,6 +182,8 @@ class _MyListingsPageState extends State<MyListingsPage> {
                     item: e,
                     onDelete: _delete,
                     onBoost: () => _showBoostSheet(e),
+                    onView: () => _openDetails(e),
+                    onEdit: () => _openEdit(e),
                   )),
           ],
         ),
@@ -189,10 +249,14 @@ class _ListingCard extends StatelessWidget {
     required this.item,
     required this.onDelete,
     required this.onBoost,
+    required this.onView,
+    required this.onEdit,
   });
   final ListingModel item;
   final Future<void> Function(int id) onDelete;
   final VoidCallback onBoost;
+  final VoidCallback onView;
+  final VoidCallback onEdit;
 
   Color _typeColor(ColorScheme scheme) => item.type == 'lost' ? Colors.red : Colors.green;
 
@@ -275,8 +339,8 @@ class _ListingCard extends StatelessWidget {
                         child: Text(
                           item.city ?? 'Ville inconnue',
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: textTheme.labelMedium,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -294,6 +358,10 @@ class _ListingCard extends StatelessWidget {
                   await onDelete(item.id);
                 } else if (v == 'boost') {
                   onBoost();
+                } else if (v == 'view') {
+                  onView();
+                } else if (v == 'edit') {
+                  onEdit();
                 }
               },
               itemBuilder: (_) => const [
@@ -303,8 +371,6 @@ class _ListingCard extends StatelessWidget {
                   value: 'boost',
                   child: Row(
                     children: [
-                      // Icon(Icons.rocket_launch_outlined, size: 18 ),
-                      // SizedBox(width: 8),
                       Text('Booster'),
                     ],
                   ),
@@ -343,18 +409,16 @@ class _Cover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final resolvedUrl = _resolveUrl(url);
+    final resolvedUrl = _resolveImageUrl(url);
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
-      child: resolvedUrl != null
-          ? Image.network(
-              resolvedUrl,
-              width: 110,
-              height: 110,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _placeholder(scheme),
-            )
-          : _placeholder(scheme),
+      child: Image.network(
+        resolvedUrl,
+        width: 110,
+        height: 110,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(scheme),
+      ),
     );
   }
 
@@ -364,22 +428,291 @@ class _Cover extends StatelessWidget {
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
         child: Icon(Icons.photo_size_select_actual_outlined, color: scheme.onSurfaceVariant),
       );
+}
 
-  /// Retourne une URL absolue si possible.
-  String? _resolveUrl(String? raw) {
-    final placeholder = 'https://via.placeholder.com/400x300?text=Annonce';
-    if (raw == null) return placeholder;
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return placeholder;
-    if (trimmed.startsWith('http')) return trimmed;
-    // Traite les chemins relatifs: ajoute baseUrlProd et supprime éventuel slash initial
-    final cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
-    // Si déjà sous /uploads, garde le chemin
-    if (cleaned.startsWith('uploads/')) {
-      return '${ApiService.baseUrlProd}/$cleaned';
+class _ListingDetailsSheet extends StatefulWidget {
+  const _ListingDetailsSheet({required this.item});
+  final ListingModel item;
+
+  @override
+  State<_ListingDetailsSheet> createState() => _ListingDetailsSheetState();
+}
+
+class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
+  final TextEditingController _commentCtrl = TextEditingController();
+  List<ApiListingComment> _comments = [];
+  bool _loadingComments = false;
+  String? _commentsError;
+  int _likesCount = 0;
+  bool _liked = false;
+  bool _likeBusy = false;
+  late final PageController _pageCtrl;
+  int _currentImage = 0;
+
+  List<String> get _images {
+    if (widget.item.photoObjects.isNotEmpty) {
+      return widget.item.photoObjects.map((p) => _resolveImageUrl(p.url)).toList();
     }
-    // Si juste un nom de fichier, préfixe par uploads/
-    return '${ApiService.baseUrlProd}/uploads/$cleaned';
+    if (widget.item.photos.isNotEmpty) {
+      return widget.item.photos.map(_resolveImageUrl).toList();
+    }
+    return [_resolveImageUrl(widget.item.coverPhotoUrl)];
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+    _loadComments();
+    _likesCount = widget.item.likesCount;
+    _liked = widget.item.likedByMe;
+  }
+
+  Future<void> _loadComments() async {
+    setState(() {
+      _loadingComments = true;
+      _commentsError = null;
+    });
+    try {
+      final comments = await ApiService.instance.fetchComments(widget.item.id);
+      if (mounted) {
+        setState(() {
+          _comments = comments;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _commentsError = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loadingComments = false);
+    }
+  }
+
+  Future<void> _addComment() async {
+    final text = _commentCtrl.text.trim();
+    if (text.isEmpty) return;
+    try {
+      await ApiService.instance.addComment(listingId: widget.item.id, content: text);
+      _commentCtrl.clear();
+      await _loadComments();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible d\'ajouter le commentaire: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleLike() async {
+    if (_likeBusy) return;
+    setState(() => _likeBusy = true);
+    try {
+      final LikeToggleResult res = await ApiService.instance.toggleLike(widget.item.id);
+      if (mounted) {
+        setState(() {
+          _liked = res.liked;
+          _likesCount = res.likesCount;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Impossible de liker: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _likeBusy = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _commentCtrl.dispose();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.9,
+      minChildSize: 0.6,
+      maxChildSize: 0.95,
+      builder: (ctx, controller) {
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            children: [
+              Center(
+                child: Container(
+                  width: 46,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: scheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 240,
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    PageView.builder(
+                      controller: _pageCtrl,
+                      onPageChanged: (i) => setState(() => _currentImage = i),
+                      itemCount: _images.length,
+                      itemBuilder: (_, i) => ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          _images[i],
+                          fit: BoxFit.cover,
+                          loadingBuilder: (ctx, child, progress) {
+                            if (progress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: progress.expectedTotalBytes != null
+                                    ? progress.cumulativeBytesLoaded / (progress.expectedTotalBytes ?? 1)
+                                    : null,
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => Container(
+                            color: scheme.surfaceContainerHighest,
+                            child: Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_images.length > 1)
+                      Positioned(
+                        bottom: 10,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(_images.length, (i) {
+                            final active = i == _currentImage;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              height: 8,
+                              width: active ? 16 : 8,
+                              decoration: BoxDecoration(
+                                color: active
+                                    ? scheme.surface
+                                    : scheme.surface.withValues(alpha: 0.6),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                widget.item.title,
+                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _Badge(label: widget.item.type == 'lost' ? "J'ai perdu" : "J'ai trouvé", color: widget.item.type == 'lost' ? Colors.red : Colors.green),
+                  const SizedBox(width: 6),
+                  _Badge(label: _statusLabel(widget.item.status), color: scheme.primary),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.place, size: 16),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(widget.item.city ?? 'Ville inconnue', style: textTheme.bodyMedium)),
+                  const SizedBox(width: 10),
+                  const Icon(Icons.calendar_today, size: 14),
+                  const SizedBox(width: 4),
+                  Text(widget.item.eventDate ?? widget.item.createdAt, style: textTheme.bodyMedium),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(widget.item.description, style: textTheme.bodyMedium),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _likeBusy ? null : _toggleLike,
+                    icon: Icon(_liked ? Icons.favorite : Icons.favorite_border, color: _liked ? scheme.primary : scheme.onSurfaceVariant),
+                  ),
+                  Text('$_likesCount'),
+                  const SizedBox(width: 16),
+                  const Icon(Icons.comment_outlined, size: 20),
+                  const SizedBox(width: 6),
+                  Text('${_comments.length}'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text('Commentaires', style: textTheme.titleMedium),
+              const SizedBox(height: 8),
+              if (_loadingComments)
+                const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+              else if (_commentsError != null)
+                Text(_commentsError!, style: TextStyle(color: scheme.error))
+              else if (_comments.isEmpty)
+                Text('Aucun commentaire pour le moment', style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
+              else
+                ..._comments.map((c) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: scheme.primary.withOpacity(0.1),
+                        child: Text(c.fullName.isNotEmpty ? c.fullName[0].toUpperCase() : '?'),
+                      ),
+                      title: Text(c.fullName, style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      subtitle: Text(c.content),
+                    )),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _commentCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Ajouter un commentaire',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.send),
+                    onPressed: _addComment,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'draft':
+        return 'Brouillon';
+      case 'pending_payment':
+        return 'En attente';
+      case 'published':
+        return 'Publiée';
+      case 'hidden':
+        return 'Cachée';
+      case 'archived':
+        return 'Archivée';
+      default:
+        return status;
+    }
   }
 }
 

@@ -74,6 +74,8 @@ function map_listing_row(
 
     return [
         'id' => $listingId,
+        'user_id' => (int) $row['user_id'],
+        'owner_name' => $row['owner_name'] ?? null,
         'type' => $row['type'], // lost | found
         'status' => $row['status'],
         'title' => $row['title'],
@@ -394,6 +396,7 @@ if ($method === 'GET') {
     $sql = "
         SELECT l.id,
                l.user_id,
+               u.full_name AS owner_name,
                l.type,
                l.status,
                l.title,

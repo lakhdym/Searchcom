@@ -25,6 +25,7 @@ class ChatUser {
 class ChatMessage {
   final String id;
   final String conversationId;
+  final String senderId;
   final String? text;
   final String? imagePath;
   final String? fileName;
@@ -42,6 +43,7 @@ class ChatMessage {
   ChatMessage({
     required this.id,
     required this.conversationId,
+    this.senderId = '',
     this.text,
     this.imagePath,
     this.fileName,
@@ -64,12 +66,14 @@ class ChatMessage {
 class ChatConversation {
   final String id;
   final ChatUser user;
+  final String? listingTitle;
   int unreadCount;
   ChatMessage lastMessage;
 
   ChatConversation({
     required this.id,
     required this.user,
+    this.listingTitle,
     required this.unreadCount,
     required this.lastMessage,
   });

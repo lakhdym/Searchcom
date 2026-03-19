@@ -96,7 +96,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   items: const [
                     _StatItem(label: 'Publications actives', value: '0', icon: Icons.campaign_outlined),
                     _StatItem(label: 'Publications résolues', value: '0', icon: Icons.verified_outlined),
-                    _StatItem(label: 'Messages', value: '0', icon: Icons.chat_bubble_outline),
                   ],
                 ),
                 const SizedBox(height: 24),

@@ -24,12 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['Authorization'] ?? '');
-if (!preg_match('/Bearer\\s+(.*)$/i', $auth, $m)) {
-    json_response(['success' => false, 'message' => 'token manquant'], 401);
-}
-$payload = verify_jwt($m[1]);
-if ($payload === null) {
-    json_response(['success' => false, 'message' => 'token invalide'], 401);
+$payload = null;
+if ($auth && preg_match('/Bearer\\s+(.*)$/i', $auth, $m)) {
+    $payload = verify_jwt($m[1]);
 }
 
 $pdo = get_pdo();
@@ -43,11 +40,31 @@ if (!$stmt->fetchColumn()) {
 }
 
 $listingId = isset($_POST['listing_id']) ? (int) $_POST['listing_id'] : 0;
+$userId = isset($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
 if ($listingId <= 0) {
     json_response(['success' => false, 'message' => 'listing_id requis'], 400);
 }
 if (!isset($_FILES['photos'])) {
     json_response(['success' => false, 'message' => 'Aucun fichier'], 400);
+}
+
+// Vérification propriétaire : via JWT (sub) ou user_id fourni
+$owner = $pdo->prepare('SELECT user_id FROM listings WHERE id = ? LIMIT 1');
+$owner->execute([$listingId]);
+$ownerId = (int)$owner->fetchColumn();
+if (!$ownerId) {
+    json_response(['success' => false, 'message' => 'Annonce introuvable'], 404);
+}
+if ($payload !== null) {
+    if ((int)($payload['sub'] ?? 0) !== $ownerId) {
+        json_response(['success' => false, 'message' => 'token invalide'], 401);
+    }
+} elseif ($userId > 0) {
+    if ($userId !== $ownerId) {
+        json_response(['success' => false, 'message' => 'Accès refusé'], 403);
+    }
+} else {
+    json_response(['success' => false, 'message' => 'token ou user_id requis'], 401);
 }
 
 $uploadDir = __DIR__ . '/../uploads/annonces';

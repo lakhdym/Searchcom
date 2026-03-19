@@ -4,6 +4,7 @@ import '../features/chat/pages/conversations_page.dart';
 import '../state/auth_state.dart';
 import '../widgets/top_nav_bar.dart';
 import 'home_page.dart';
+import 'found_form_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
 
@@ -28,8 +29,8 @@ class _HomeShellState extends State<HomeShell> {
     ),
     _NavPage(
       title: 'Créer',
-      icon: Icons.campaign_outlined,
-      builder: () => const _PlaceholderPage(title: 'Créer une publicité'),
+      icon: Icons.add_circle_outline,
+      builder: () => const _PlaceholderPage(title: 'Créer une publication'),
     ),
     _NavPage(
       title: 'Accueil',
@@ -64,20 +65,90 @@ class _HomeShellState extends State<HomeShell> {
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             height: 70,
-            backgroundColor: scheme.surface,
-            indicatorColor: scheme.primary.withValues(alpha: 0.12),
-            surfaceTintColor: scheme.surfaceTint,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            destinations: _pages
-                .map(
-                  (p) => NavigationDestination(
-                    icon: Icon(p.icon, color: scheme.onSurfaceVariant),
-                    selectedIcon: Icon(p.icon, color: scheme.primary),
+          backgroundColor: scheme.surface,
+          indicatorColor: scheme.primary.withValues(alpha: 0.12),
+          surfaceTintColor: scheme.surfaceTint,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (i) async {
+            // Intercepte le bouton "Créer" pour ouvrir le choix rapide
+            if (i == 1) {
+              await _showCreateSheet();
+              return;
+            }
+            setState(() => _index = i);
+          },
+          destinations: _pages
+              .map(
+                (p) => NavigationDestination(
+                  icon: Icon(p.icon, color: scheme.onSurfaceVariant),
+                  selectedIcon: Icon(p.icon, color: scheme.primary),
                     label: p.title,
                   ),
                 )
                 .toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showCreateSheet() async {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    await showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Créer une publication', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text(
+                  'Choisissez le type d’annonce à publier.',
+                  style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const FoundFormPage(type: 'lost'),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.search_off_outlined),
+                  label: const Text("J'ai perdu"),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const FoundFormPage(type: 'found'),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.volunteer_activism_outlined),
+                  label: const Text("J'ai trouvé"),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

@@ -15,12 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/send_verification_email.php';
+require_once __DIR__ . '/helpers/whatsapp_sender.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['success' => false, 'message' => 'Method not allowed'], 405);
 }
-
-require_once __DIR__ . '/send_verification_email.php';
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -34,8 +34,17 @@ $errors = [];
 if (mb_strlen($fullName) < 2) {
     $errors[] = 'Nom complet invalide';
 }
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+if (!$email && !$phone) {
+    $errors[] = 'Email ou téléphone requis';
+}
+if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $errors[] = 'Email invalide';
+}
+if ($phone) {
+    $digits = preg_replace('/\D+/', '', $phone);
+    if (strlen($digits) < 6) {
+        $errors[] = 'Téléphone invalide';
+    }
 }
 if (strlen($password) < 8) {
     $errors[] = 'Mot de passe trop court (min 8)';
@@ -52,25 +61,34 @@ if ($errors) {
 try {
     $pdo = get_pdo();
 
-    // Email unique
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-    $stmt->execute([$email]);
-    if ($stmt->fetch()) {
-        json_response(['success' => false, 'message' => 'Email déjà utilisé'], 409);
+    // Vérifier unicité email / phone
+    if ($email) {
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+        $stmt->execute([$email]);
+        if ($stmt->fetch()) {
+            json_response(['success' => false, 'message' => 'Email déjà utilisé'], 409);
+        }
+    }
+    if ($phone) {
+        $stmt = $pdo->prepare('SELECT id FROM users WHERE phone = ? LIMIT 1');
+        $stmt->execute([$phone]);
+        if ($stmt->fetch()) {
+            json_response(['success' => false, 'message' => 'Téléphone déjà utilisé'], 409);
+        }
     }
 
     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
     $now = date('Y-m-d H:i:s');
 
     $stmt = $pdo->prepare(
-        'INSERT INTO users (role, full_name, email, phone, password_hash, preferred_lang, is_banned, email_verified_at, created_at, updated_at)
-         VALUES (:role, :full_name, :email, :phone, :password_hash, :preferred_lang, 0, NULL, :created_at, :updated_at)'
+        'INSERT INTO users (role, full_name, email, phone, password_hash, preferred_lang, is_banned, email_verified_at, phone_verified_at, created_at, updated_at)
+         VALUES (:role, :full_name, :email, :phone, :password_hash, :preferred_lang, 0, NULL, NULL, :created_at, :updated_at)'
     );
 
     $stmt->execute([
         ':role' => 'user',
         ':full_name' => $fullName,
-        ':email' => $email,
+        ':email' => $email ?: null,
         ':phone' => $phone ?: null,
         ':password_hash' => $passwordHash,
         ':preferred_lang' => $preferredLang,
@@ -80,24 +98,41 @@ try {
 
     $userId = (int)$pdo->lastInsertId();
 
-    // Générer un code OTP 6 chiffres et l'enregistrer
-    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    $expiresAt = date('Y-m-d H:i:s', time() + 600); // 10 minutes
+    $requiresEmail = false;
+    $requiresPhone = false;
 
-    $stmt = $pdo->prepare('INSERT INTO email_verifications (user_id, email, verification_code, expires_at) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$userId, $email, $code, $expiresAt]);
+    if ($email) {
+        $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $expiresAt = date('Y-m-d H:i:s', time() + 600);
+        $stmt = $pdo->prepare('INSERT INTO email_verifications (user_id, email, verification_code, expires_at) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$userId, $email, $code, $expiresAt]);
+        send_verification_email($email, $fullName, $code);
+        $requiresEmail = true;
+    }
 
-    // Envoyer l'email (erreurs non bloquantes)
-    send_verification_email($email, $fullName, $code);
+    if ($phone) {
+        $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $expiresAt = date('Y-m-d H:i:s', time() + 600);
+        // certains schémas n'ont pas la colonne channel : on cible uniquement les colonnes sûres
+        $stmt = $pdo->prepare('INSERT INTO phone_verifications (user_id, phone, verification_code, expires_at) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$userId, $phone, $code, $expiresAt]);
+        send_whatsapp_otp($phone, $code);
+        $requiresPhone = true;
+    }
 
     json_response([
         'success' => true,
-        'message' => 'Compte créé avec succès. Vérifiez votre email.',
-        'requires_email_verification' => true,
+        'message' => $requiresPhone
+            ? 'Compte créé. Vérifiez votre numéro via WhatsApp.'
+            : 'Compte créé. Vérifiez votre email.',
+        'requires_email_verification' => $requiresEmail,
+        'requires_phone_verification' => $requiresPhone,
         'user_id' => $userId,
         'email' => $email,
+        'phone' => $phone,
     ]);
 } catch (Throwable $e) {
+    error_log('[register.php] '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine());
     json_response([
         'success' => false,
         'message' => 'Erreur serveur : ' . $e->getMessage(),

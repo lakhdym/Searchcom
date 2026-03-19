@@ -8,10 +8,21 @@ import '../theme/app_theme.dart';
 import '../widgets/top_nav_bar.dart';
 import '../widgets/payment_modal.dart';
 import 'login_page.dart';
+import '../models/listing_model.dart';
+import '../services/auth_local_storage.dart';
 
 class FoundFormPage extends StatefulWidget {
   final String type; // 'lost' ou 'found'
-  const FoundFormPage({super.key, required this.type});
+  final int? listingId;
+  final ListingModel? initialListing;
+  final bool isEdit;
+  const FoundFormPage({
+    super.key,
+    required this.type,
+    this.listingId,
+    this.initialListing,
+    this.isEdit = false,
+  });
 
   @override
   State<FoundFormPage> createState() => _FoundFormPageState();
@@ -31,6 +42,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
 
   final ImagePicker _picker = ImagePicker();
   List<ApiPickedImage> _images = [];
+  final List<int> _removedPhotoIds = [];
 
   List<ApiCategory> _categories = [];
   int? _selectedCategoryId;
@@ -38,10 +50,48 @@ class _FoundFormPageState extends State<FoundFormPage> {
   String? _catsError;
   bool _submitting = false;
 
+  void _prefill(ListingModel listing) {
+    _titleCtrl.text = listing.title;
+    _descCtrl.text = listing.description;
+    _cityCtrl.text = listing.city ?? '';
+    _locationCtrl.text = listing.locationText ?? '';
+    _eventDate = listing.eventDate != null && listing.eventDate!.isNotEmpty
+        ? DateTime.tryParse(listing.eventDate!)
+        : null;
+    _contactChat = listing.contactChat;
+    _contactWhatsApp = listing.contactWhatsApp;
+    _contactCall = listing.contactCall;
+    _selectedCategoryId = listing.categoryId;
+  }
+
+  String _resolveImageUrl(String? raw) {
+    const uploadsBase = 'https://italents.ma/app/';
+    const placeholder = 'https://via.placeholder.com/600x400?text=Annonce';
+    if (raw == null) return placeholder;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return placeholder;
+    if (trimmed.startsWith('http')) return trimmed;
+    String cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+    final idx = cleaned.indexOf('uploads/');
+    if (idx >= 0) cleaned = cleaned.substring(idx);
+    if (cleaned.startsWith('uploads/')) {
+      return '$uploadsBase$cleaned';
+    }
+    return '${uploadsBase}uploads/annonces/$cleaned';
+  }
+
   @override
   void initState() {
     super.initState();
+    AuthLocalStorage.instance.getToken().then((token) {
+      if (token != null && token.isNotEmpty) {
+        ApiService.instance.setToken(token);
+      }
+    });
     _loadCategories();
+    if (widget.isEdit && widget.initialListing != null) {
+      _prefill(widget.initialListing!);
+    }
   }
 
   @override
@@ -115,63 +165,91 @@ class _FoundFormPageState extends State<FoundFormPage> {
       );
       return;
     }
-    _createListing();
+    _createOrUpdateListing();
   }
 
-  Future<void> _createListing() async {
+  Future<void> _createOrUpdateListing() async {
     setState(() => _submitting = true);
     try {
-      final result = await ApiService.instance.createListing(
-        type: widget.type,
-        title: _titleCtrl.text.trim(),
-        description: _descCtrl.text.trim(),
-        categoryId: _selectedCategoryId,
-        city: _cityCtrl.text.trim(),
-        locationText: _locationCtrl.text.trim(),
-        eventDate: _eventDate,
-        contactChat: _contactChat,
-        contactWhatsApp: _contactWhatsApp,
-        contactCall: _contactCall,
-      );
-      if (!mounted) return;
-      if (_images.isNotEmpty) {
-        await ApiService.instance.uploadListingPhotos(
-          result.listingId,
-          _images,
+      if (widget.isEdit && widget.listingId != null) {
+        await ApiService.instance.updateListing(
+          listingId: widget.listingId!,
+          title: _titleCtrl.text.trim(),
+          description: _descCtrl.text.trim(),
+          categoryId: _selectedCategoryId,
+          city: _cityCtrl.text.trim(),
+          locationText: _locationCtrl.text.trim(),
+          eventDate: _eventDate,
+          contactChat: _contactChat,
+          contactWhatsApp: _contactWhatsApp,
+          contactCall: _contactCall,
         );
-      }
-      if (!mounted) return;
-      if (result.requiresPayment) {
-        final priceLabel = "${result.amount ?? ''} ${result.currency ?? ''}"
-            .trim();
-        await PaymentModal.show(
-          context,
-          amount: priceLabel.isEmpty ? 'Paiement requis' : priceLabel,
-          onPay: (_) async {
-            await ApiService.instance.confirmPublishPayment(
-              paymentId: result.paymentId ?? 0,
-              listingId: result.listingId,
-              provider: 'cmi',
-            );
-            return true;
-          },
-          onPaymentSuccess: () {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Paiement confirmé, annonce publiée'),
-              ),
-            );
-            Navigator.of(context).popUntil((r) => r.isFirst);
-          },
-        );
-        if (!mounted) return;
-      } else {
+        // Supprimer les photos marquées
+        for (final pid in _removedPhotoIds) {
+          await ApiService.instance.deleteListingPhoto(listingId: widget.listingId!, photoId: pid);
+        }
+        // Uploader les nouvelles photos ajoutées
+        if (_images.isNotEmpty) {
+          await ApiService.instance.uploadListingPhotos(widget.listingId!, _images);
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Annonce publiée avec succès')),
+          const SnackBar(content: Text('Annonce mise à jour avec succès')),
         );
-        Navigator.of(context).popUntil((r) => r.isFirst);
+        Navigator.of(context).pop();
+      } else {
+        final result = await ApiService.instance.createListing(
+          type: widget.type,
+          title: _titleCtrl.text.trim(),
+          description: _descCtrl.text.trim(),
+          categoryId: _selectedCategoryId,
+          city: _cityCtrl.text.trim(),
+          locationText: _locationCtrl.text.trim(),
+          eventDate: _eventDate,
+          contactChat: _contactChat,
+          contactWhatsApp: _contactWhatsApp,
+          contactCall: _contactCall,
+        );
+        if (!mounted) return;
+        if (_images.isNotEmpty) {
+          await ApiService.instance.uploadListingPhotos(
+            result.listingId,
+            _images,
+          );
+        }
+        if (!mounted) return;
+        if (result.requiresPayment) {
+          final priceLabel = "${result.amount ?? ''} ${result.currency ?? ''}"
+              .trim();
+          await PaymentModal.show(
+            context,
+            amount: priceLabel.isEmpty ? 'Paiement requis' : priceLabel,
+            onPay: (_) async {
+              await ApiService.instance.confirmPublishPayment(
+                paymentId: result.paymentId ?? 0,
+                listingId: result.listingId,
+                provider: 'cmi',
+              );
+              return true;
+            },
+            onPaymentSuccess: () {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Paiement confirmé, annonce publiée'),
+                ),
+              );
+              Navigator.of(context).popUntil((r) => r.isFirst);
+            },
+          );
+          if (!mounted) return;
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Annonce publiée avec succès')),
+          );
+          Navigator.of(context).popUntil((r) => r.isFirst);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -286,22 +364,25 @@ class _FoundFormPageState extends State<FoundFormPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.type == 'lost'
-                  ? "Publier un objet perdu"
-                  : "Publier un objet trouvé",
+              widget.isEdit
+                  ? "Modifier l'annonce"
+                  : (widget.type == 'lost'
+                      ? "Publier un objet perdu"
+                      : "Publier un objet trouvé"),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
               ),
             ),
-            Text(
-              widget.type == 'lost'
-                  ? "Paiement requis avant publication"
-                  : "Publication gratuite",
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
-            ),
+            if (!widget.isEdit)
+              Text(
+                widget.type == 'lost'
+                    ? "Paiement requis avant publication"
+                    : "Publication gratuite",
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
+              ),
           ],
         ),
       ],
@@ -318,6 +399,43 @@ class _FoundFormPageState extends State<FoundFormPage> {
           spacing: 8,
           runSpacing: 8,
           children: [
+            if (widget.isEdit && widget.initialListing?.photoObjects.isNotEmpty == true)
+              ...widget.initialListing!.photoObjects.map(
+                (p) => Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        _resolveImageUrl(p.url),
+                        width: 95,
+                        height: 95,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _removedPhotoIds.add(p.id);
+                            widget.initialListing!.photoObjects.remove(p);
+                          });
+                        },
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black54,
+                          ),
+                          padding: const EdgeInsets.all(4),
+                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ..._images.map(
               (img) => Stack(
                 children: [

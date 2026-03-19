@@ -146,6 +146,74 @@ class ApiService {
     );
   }
 
+  Future<void> updateListing({
+    required int listingId,
+    required String title,
+    required String description,
+    required String city,
+    String? locationText,
+    int? categoryId,
+    DateTime? eventDate,
+    bool contactChat = true,
+    bool contactWhatsApp = true,
+    bool contactCall = true,
+  }) async {
+    await _loadTokenIfNeeded();
+    final user = await AuthLocalStorage.instance.getUser();
+    final uri = Uri.parse('$_baseUrl/update_listing.php');
+    final body = <String, dynamic>{
+      'listing_id': listingId,
+      if (user != null) 'user_id': user.id,
+      'title': title,
+      'description': description,
+      'city': city,
+      'location_text': locationText,
+      'category_id': categoryId,
+      'event_date': eventDate?.toIso8601String().split('T').first,
+      'contact_chat': contactChat ? 1 : 0,
+      'contact_whatsapp': contactWhatsApp ? 1 : 0,
+      'contact_call': contactCall ? 1 : 0,
+    };
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true),
+      body: jsonEncode(body),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Erreur update (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] != true) {
+      throw Exception(data['message'] ?? 'Erreur lors de la mise à jour');
+    }
+  }
+
+  Future<void> deleteListingPhoto({
+    required int listingId,
+    required int photoId,
+  }) async {
+    await _loadTokenIfNeeded();
+    final user = await AuthLocalStorage.instance.getUser();
+    final uri = Uri.parse('$_baseUrl/delete_listing_photo.php');
+    final body = <String, dynamic>{
+      'listing_id': listingId,
+      'photo_id': photoId,
+      if (user != null) 'user_id': user.id,
+    };
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true),
+      body: jsonEncode(body),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Erreur suppression photo (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    if (data['success'] != true) {
+      throw Exception(data['message'] ?? 'Erreur lors de la suppression de la photo');
+    }
+  }
+
   // -------------------------------------------------------------
   // Upload photos (listing_photos)
   // -------------------------------------------------------------
@@ -257,6 +325,102 @@ class ApiService {
   }
 
   // -------------------------------------------------------------
+  // Conversations / Chat
+  // -------------------------------------------------------------
+  Future<int> getOrCreateConversation({
+    required int listingId,
+    required int userId,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/get_or_create_conversation.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({
+        'listing_id': listingId,
+        'user_id': userId,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Conversation (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true) {
+      final conv = data['conversation'] ?? {};
+      final cid = conv['id'] ?? conv['conversation_id'];
+      if (cid != null) return int.tryParse(cid.toString()) ?? (cid as int);
+    }
+    throw Exception(data['message'] ?? 'Impossible de créer la conversation');
+  }
+
+  Future<List<Map<String, dynamic>>> getConversations({required int userId}) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/get_conversations.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({'user_id': userId}),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Conversations (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true && data['items'] is List) {
+      return List<Map<String, dynamic>>.from(data['items']);
+    }
+    throw Exception(data['message'] ?? 'Impossible de charger les conversations');
+  }
+
+  Future<List<Map<String, dynamic>>> getMessages({
+    required int conversationId,
+    required int userId,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/get_messages.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({'conversation_id': conversationId, 'user_id': userId}),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Messages (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true && data['items'] is List) {
+      return List<Map<String, dynamic>>.from(data['items']);
+    }
+    throw Exception(data['message'] ?? 'Impossible de charger les messages');
+  }
+
+  Future<Map<String, dynamic>> sendMessage({
+    required int conversationId,
+    required int userId,
+    required String content,
+    String messageType = 'text',
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/send_message.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({
+        'conversation_id': conversationId,
+        'user_id': userId,
+        'content': content,
+        'message_type': messageType,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Envoi message (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true && data['message'] is Map) {
+      return Map<String, dynamic>.from(data['message']);
+    }
+    throw Exception(data['message'] ?? 'Impossible d\'envoyer le message');
+  }
+
+  // -------------------------------------------------------------
   // Paiement publication
   // -------------------------------------------------------------
   Future<void> confirmPublishPayment({
@@ -362,6 +526,8 @@ class ApiCategory {
 
 class ApiListing {
   final int id;
+  final int ownerId;
+  final String? ownerName;
   final String type;
   final String status;
   final String title;
@@ -382,6 +548,8 @@ class ApiListing {
 
   ApiListing({
     required this.id,
+    required this.ownerId,
+    this.ownerName,
     required this.type,
     required this.status,
     required this.title,
@@ -407,6 +575,12 @@ class ApiListing {
         : <String>[];
     return ApiListing(
       id: (json['id'] as num).toInt(),
+      ownerId: json['user_id'] is num
+          ? (json['user_id'] as num).toInt()
+          : int.tryParse(json['user_id']?.toString() ?? '0') ?? 0,
+      ownerName: (json['owner_name'] ?? json['user_name'] ?? '').toString().trim().isNotEmpty
+          ? (json['owner_name'] ?? json['user_name']).toString()
+          : null,
       type: json['type']?.toString() ?? 'lost',
       status: json['status']?.toString() ?? '',
       title: json['title']?.toString() ?? '',

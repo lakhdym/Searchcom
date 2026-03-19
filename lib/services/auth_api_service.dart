@@ -12,7 +12,6 @@ class ApiException implements Exception {
   final String message;
   final int? statusCode;
   ApiException(this.message, {this.statusCode});
-
   @override
   String toString() => 'ApiException($statusCode): $message';
 }
@@ -20,6 +19,12 @@ class ApiException implements Exception {
 class EmailVerificationRequiredException extends ApiException {
   final String? email;
   EmailVerificationRequiredException(String message, {this.email, int? statusCode})
+      : super(message, statusCode: statusCode);
+}
+
+class PhoneVerificationRequiredException extends ApiException {
+  final String? phone;
+  PhoneVerificationRequiredException(String message, {this.phone, int? statusCode})
       : super(message, statusCode: statusCode);
 }
 
@@ -32,13 +37,17 @@ class AuthSession {
 class RegisterResponse {
   final bool success;
   final String message;
-  final String email;
+  final String? email;
+  final String? phone;
   final bool requiresEmailVerification;
+  final bool requiresPhoneVerification;
   RegisterResponse({
     required this.success,
     required this.message,
-    required this.email,
-    required this.requiresEmailVerification,
+    this.email,
+    this.phone,
+    this.requiresEmailVerification = false,
+    this.requiresPhoneVerification = false,
   });
 }
 
@@ -49,14 +58,14 @@ class AuthApiService {
   final String _baseUrl = ApiService.baseUrlProd;
   final http.Client _client = http.Client();
 
-  // ----------------------- AUTH -----------------------
+  // ---------- LOGIN ----------
   Future<AuthSession> login({
-    required String email,
+    required String identifier, // email OU phone
     required String password,
   }) async {
     final uri = Uri.parse('$_baseUrl/login.php');
     final resp = await _postJson(uri, {
-      'email': email,
+      'identifier': identifier,
       'password': password,
     });
     final status = resp['status'] as int?;
@@ -65,22 +74,29 @@ class AuthApiService {
       if (resp['requires_email_verification'] == true) {
         throw EmailVerificationRequiredException(
           resp['message']?.toString() ?? 'Veuillez vérifier votre adresse email.',
-          email: resp['email']?.toString() ?? email,
+          email: resp['email']?.toString(),
+          statusCode: status,
+        );
+      }
+      if (resp['requires_phone_verification'] == true) {
+        throw PhoneVerificationRequiredException(
+          resp['message']?.toString() ?? 'Veuillez vérifier votre numéro.',
+          phone: resp['phone']?.toString(),
           statusCode: status,
         );
       }
       throw ApiException(resp['message']?.toString() ?? 'Erreur inconnue', statusCode: status);
     }
-
     final userJson = resp['user'] as Map<String, dynamic>?;
     if (userJson == null) throw ApiException('Réponse invalide du serveur', statusCode: status);
     final token = (resp['token'] ?? '').toString();
     return AuthSession(user: UserModel.fromJson(userJson), token: token);
   }
 
-  Future<RegisterResponse> registerAndRequestVerification({
+  // ---------- REGISTER ----------
+  Future<RegisterResponse> register({
     required String fullName,
-    required String email,
+    String? email,
     String? phone,
     required String password,
     String preferredLang = 'fr',
@@ -100,10 +116,31 @@ class AuthApiService {
       success: true,
       message: resp['message']?.toString() ?? 'Compte créé',
       email: resp['email']?.toString() ?? email,
+      phone: resp['phone']?.toString() ?? phone,
       requiresEmailVerification: resp['requires_email_verification'] == true,
+      requiresPhoneVerification: resp['requires_phone_verification'] == true,
     );
   }
 
+  Future<void> sendPhoneOtp({required String phone}) async {
+    final uri = Uri.parse('$_baseUrl/send_phone_verification_code.php');
+    final resp = await _postJson(uri, {'phone': phone});
+    if (resp['success'] != true) {
+      throw ApiException(resp['message']?.toString() ?? 'Envoi impossible', statusCode: resp['status']);
+    }
+  }
+
+  Future<void> verifyPhoneOtp({required String phone, required String code}) async {
+    final uri = Uri.parse('$_baseUrl/verify_phone_code.php');
+    final resp = await _postJson(uri, {'phone': phone, 'code': code});
+    if (resp['success'] != true) {
+      throw ApiException(resp['message']?.toString() ?? 'Code invalide', statusCode: resp['status']);
+    }
+  }
+
+  Future<void> resendPhoneOtp({required String phone}) => sendPhoneOtp(phone: phone);
+
+  // Email (inchangé)
   Future<void> verifyEmail({required String email, required String code}) async {
     final uri = Uri.parse('$_baseUrl/verify_email.php');
     final resp = await _postJson(uri, {'email': email, 'code': code});
@@ -120,6 +157,7 @@ class AuthApiService {
     }
   }
 
+  // Profile / password (inchangé)
   Future<UserModel> updateProfile({
     required int userId,
     required String fullName,
@@ -166,7 +204,7 @@ class AuthApiService {
     logoutUser();
   }
 
-  // ----------------------- Helpers -----------------------
+  // Helpers
   Future<Map<String, dynamic>> _postJson(Uri uri, Map<String, dynamic> payload,
       {Map<String, String>? headers}) async {
     try {
