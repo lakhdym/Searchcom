@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../services/auth_local_storage.dart';
+import '../models/listing_model.dart';
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -595,6 +596,96 @@ class ApiService {
       throw Exception(data['message']?.toString() ?? 'Signalement refusé');
     }
   }
+
+  // -------------------------------------------------------------
+  // Notifications (likes / comments)
+  // -------------------------------------------------------------
+  Future<List<ApiNotification>> fetchNotifications({
+    required int userId,
+    DateTime? since,
+    bool countOnly = false,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/get_notifications.php');
+    final body = <String, dynamic>{
+      'user_id': userId,
+      if (since != null) 'since': since.toIso8601String(),
+      if (countOnly) 'count_only': 1,
+    };
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode(body),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Notifications (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (countOnly) {
+      if (data is Map && data['success'] == true) {
+        final c = data['count'];
+        final count = c is num ? c.toInt() : (int.tryParse(c?.toString() ?? '0') ?? 0);
+        return List<ApiNotification>.filled(count, ApiNotification.empty(), growable: false);
+      }
+      throw Exception(data['message'] ?? 'Impossible de compter les notifications');
+    }
+    if (data is Map && data['success'] == true && data['items'] is List) {
+      return List<Map<String, dynamic>>.from(data['items'])
+          .map(ApiNotification.fromJson)
+          .toList();
+    }
+    throw Exception(data['message'] ?? 'Impossible de charger les notifications');
+  }
+
+  Future<int> fetchNotificationsCount({
+    required int userId,
+    DateTime? since,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/get_notifications_count.php');
+    final body = <String, dynamic>{
+      'user_id': userId,
+      if (since != null) 'since': since.toIso8601String(),
+    };
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode(body),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('NotifCount (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true) {
+      final c = data['count'];
+      return c is num ? c.toInt() : (int.tryParse(c?.toString() ?? '0') ?? 0);
+    }
+    throw Exception(data['message'] ?? 'Impossible de compter les notifications');
+  }
+
+  Future<ListingModel> fetchListingById({
+    required int listingId,
+    int? userId,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/get_listing.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({
+        'listing_id': listingId,
+        if (userId != null) 'user_id': userId,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Listing (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true && data['listing'] is Map) {
+      return ListingModel.fromJson(Map<String, dynamic>.from(data['listing']));
+    }
+    throw Exception(data['message'] ?? 'Impossible de charger l\'annonce');
+  }
 }
 
 class ApiCategory {
@@ -789,6 +880,43 @@ class ApiListingLike {
                 : int.tryParse(json['listing_id'].toString())),
       fullName: json['full_name']?.toString() ?? '',
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
+    );
+  }
+}
+
+class ApiNotification {
+  final String type; // like | comment
+  final int listingId;
+  final String listingTitle;
+  final String actorName;
+  final String? content;
+  final DateTime createdAt;
+
+  ApiNotification({
+    required this.type,
+    required this.listingId,
+    required this.listingTitle,
+    required this.actorName,
+    required this.createdAt,
+    this.content,
+  });
+
+  factory ApiNotification.empty() => ApiNotification(
+        type: 'like',
+        listingId: 0,
+        listingTitle: '',
+        actorName: '',
+        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+      );
+
+  factory ApiNotification.fromJson(Map<String, dynamic> json) {
+    return ApiNotification(
+      type: json['type']?.toString() ?? 'like',
+      listingId: int.tryParse(json['listing_id']?.toString() ?? '0') ?? 0,
+      listingTitle: json['listing_title']?.toString() ?? '',
+      actorName: json['actor_name']?.toString() ?? 'Utilisateur',
+      content: json['content']?.toString(),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }

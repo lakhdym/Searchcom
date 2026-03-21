@@ -12,6 +12,7 @@ class AuthLocalStorage {
   static const _kUserKey = 'auth_user';
   static const _kLoggedIn = 'auth_logged_in';
   static const _kToken = 'auth_token';
+  static const _kNotifSeen = 'notif_last_seen';
 
   Future<void> saveSession(UserModel user, String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -56,5 +57,18 @@ class AuthLocalStorage {
     await prefs.remove(_kUserKey);
     await prefs.remove(_kLoggedIn);
     await prefs.remove(_kToken);
+    await prefs.remove(_kNotifSeen);
+  }
+
+  Future<void> setLastNotifSeen(DateTime dt) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kNotifSeen, dt.toIso8601String());
+  }
+
+  Future<DateTime?> getLastNotifSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kNotifSeen);
+    if (raw == null) return null;
+    return DateTime.tryParse(raw);
   }
 }
