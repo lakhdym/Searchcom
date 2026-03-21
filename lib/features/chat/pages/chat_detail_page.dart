@@ -24,8 +24,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   List<ChatMessage> _messages = [];
   final _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _showEmoji = false;
+  bool _searchMode = false;
+  String _searchQuery = '';
+  bool _isBlocked = false;
+  bool _blockedByOther = false;
   final _imagePicker = ImagePicker();
   ChatMessage? _replyTo;
   UserModel? _me;
@@ -65,11 +70,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     if (me == null) return;
     try {
       final convId = int.tryParse(widget.conversation.id) ?? 0;
-      final items = await ApiService.instance.getMessages(conversationId: convId, userId: me.id);
+      final result = await ApiService.instance.getMessages(conversationId: convId, userId: me.id);
+      final items = (result['items'] as List<Map<String, dynamic>>);
       final mapped = items.map((m) {
         final senderId = m['sender_user_id']?.toString() ?? '';
         final text = m['content']?.toString();
         final createdAt = m['created_at']?.toString();
+        final replyId = m['reply_to_message_id']?.toString();
+        final rawDeleted = m['is_deleted_for_all'];
+        final isDeleted = rawDeleted == true ||
+            rawDeleted == 1 ||
+            rawDeleted == '1' ||
+            rawDeleted == 'true' ||
+            (m['message_type']?.toString() == 'system' && (text == '[deleted]' || text?.toLowerCase() == 'message supprimé'));
+        final deletedText = m['deleted_text']?.toString() ?? 'Message supprimé';
         DateTime dt;
         try {
           dt = createdAt != null ? DateTime.parse(createdAt) : DateTime.now();
@@ -83,13 +97,25 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           text: text,
           isMe: senderId == me.id.toString(),
           time: dt,
+          replyToMessageId: replyId,
+          isDeletedForEveryone: isDeleted,
+          deletedText: deletedText,
         );
       }).toList();
       if (mounted) {
-        setState(() => _messages = mapped);
+        setState(() {
+          _messages = mapped;
+          _isBlocked = result['blocked'] == true;
+          _blockedByOther = result['blockedByOther'] == true;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        final msg = e.toString();
+        setState(() {
+          _error = msg;
+        });
+      }
     }
   }
 
@@ -99,6 +125,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     _focusNode.dispose();
     _scrollController.dispose();
     _messageController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -106,7 +133,112 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     // placeholders only; backend handles real status
   }
 
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searchMode = !_searchMode;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+  }
+
+  Future<void> _reportConversationBackend() async {
+    final me = _me;
+    if (me == null) {
+      _showSnack('Session requise');
+      return;
+    }
+    final reasons = [
+      "Spam ou publicité",
+      "Discours haineux",
+      "Arnaque / fraude",
+      "Contenu inapproprié",
+      "Autre"
+    ];
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 8, bottom: 4),
+              child: Text("Signaler la conversation", style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+            ...reasons.map(
+              (r) => ListTile(
+                leading: const Icon(Icons.flag_outlined),
+                title: Text(r),
+                onTap: () => Navigator.pop(ctx, r),
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+    if (choice == null) return;
+    try {
+      final convId = int.tryParse(widget.conversation.id) ?? 0;
+      await ApiService.instance.reportConversation(
+        conversationId: convId,
+        userId: me.id,
+        reason: choice,
+      );
+      _showSnack("Signalement enregistré et utilisateur bloqué");
+    } catch (e) {
+      _showSnack(e.toString());
+    }
+  }
+
+  Future<void> _reportConversation() async => _reportConversationBackend();
+
+  Future<void> _toggleBlock() async {
+    if (_blockedByOther) {
+      _showSnack("Vous êtes bloqué dans cette conversation.");
+      return;
+    }
+    final me = _me;
+    if (me == null) {
+      _showSnack('Session requise');
+      return;
+    }
+    try {
+      final convId = int.tryParse(widget.conversation.id) ?? 0;
+      final next = !_isBlocked;
+      final blocked = await ApiService.instance.toggleBlockConversation(
+        conversationId: convId,
+        userId: me.id,
+        block: next,
+      );
+      setState(() {
+        _isBlocked = blocked;
+        if (!blocked) _error = null;
+      });
+      if (!blocked) {
+        _loadMessages(silent: true);
+      }
+      _showSnack(blocked ? 'Utilisateur bloqué' : 'Blocage retiré');
+    } catch (e) {
+      _showSnack(e.toString());
+    }
+  }
+
   void _sendText() {
+    if (_isBlocked) {
+      _showSnack("Vous êtes bloqué dans cette conversation.");
+      return;
+    }
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     _sendMessage(text);
@@ -118,6 +250,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       setState(() => _error = 'Session requise');
       return;
     }
+    final replyTarget = _replyTo;
     final convId = int.tryParse(widget.conversation.id) ?? 0;
     final localMsg = ChatMessage(
       id: 'local_${DateTime.now().millisecondsSinceEpoch}',
@@ -127,13 +260,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       isMe: true,
       time: DateTime.now(),
       status: MessageStatus.sent,
-      replyToMessageId: _replyTo?.id,
-      replyExcerpt: _replyTo?.text ??
-          (_replyTo == null
+      replyToMessageId: replyTarget?.id,
+      replyExcerpt: replyTarget?.text ??
+          (replyTarget == null
               ? null
-              : _replyTo!.isImage
+              : replyTarget.isImage
                   ? '[Image]'
-                  : _replyTo!.isFile
+                  : replyTarget.isFile
                       ? '[Fichier]'
                       : ''),
     );
@@ -152,6 +285,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         userId: me.id,
         content: text,
         messageType: 'text',
+        replyToMessageId: replyTarget?.id,
       );
       final senderId = saved['sender_user_id']?.toString() ?? me.id.toString();
       final createdAt = saved['created_at']?.toString();
@@ -168,6 +302,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         text: saved['content']?.toString() ?? text,
         isMe: senderId == me.id.toString(),
         time: dt,
+        replyToMessageId: replyTarget?.id,
       );
       if (mounted) {
         setState(() {
@@ -178,7 +313,18 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        final msg = e.toString();
+        final blocked = msg.toLowerCase().contains('bloqu');
+        setState(() {
+          _error = msg;
+          _isBlocked = blocked ? true : _isBlocked;
+          if (blocked) _blockedByOther = true;
+        });
+        if (blocked) {
+          _showSnack("Vous êtes bloqué dans cette conversation.");
+        }
+      }
     }
   }
 
@@ -337,9 +483,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       ),
     );
 
+    if (choice == null) return;
+    final me = _me;
+    final messageId = int.tryParse(msg.id);
+    final deleteForAll = choice == 'all' && isMine;
+
+    // Snapshot for rollback en cas d'échec réseau
+    final previous = List<ChatMessage>.from(_messages);
+
     if (choice == 'me') {
       setState(() => _messages.removeWhere((m) => m.id == msg.id));
-    } else if (choice == 'all' && isMine) {
+    } else if (deleteForAll) {
       final idx = _messages.indexWhere((m) => m.id == msg.id);
       if (idx != -1) {
         setState(() {
@@ -353,6 +507,26 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             status: msg.status,
           );
         });
+      }
+    }
+
+    if (messageId != null && me != null) {
+      try {
+        await ApiService.instance.deleteMessage(
+          messageId: messageId,
+          userId: me.id,
+          deleteForAll: deleteForAll,
+        );
+      } catch (e) {
+        if (!mounted) return;
+        // rollback UI
+        setState(() {
+          _messages = previous;
+          _error = "Suppression échouée : ${e.toString()}";
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Échec de suppression, réessayez.")),
+        );
       }
     }
   }
@@ -375,6 +549,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       );
     }
     final textTheme = Theme.of(context).textTheme;
+    final filteredMessages = (_searchMode && _searchQuery.isNotEmpty)
+        ? _messages
+            .where((m) =>
+                !m.isDeletedForEveryone &&
+                (m.text ?? '').toLowerCase().contains(_searchQuery.toLowerCase()))
+            .toList()
+        : _messages;
 
     final Map<String, ChatMessage> messageMap = {
       for (final m in _messages) m.id: m,
@@ -390,56 +571,99 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: widget.conversation.user.avatarColor.withValues(alpha: 0.15),
-              child: Text(
-                widget.conversation.user.initials,
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: widget.conversation.user.avatarColor,
+        title: _searchMode
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Rechercher dans la conversation',
+                  border: InputBorder.none,
                 ),
+                onChanged: (value) => setState(() => _searchQuery = value),
+              )
+            : Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: widget.conversation.user.avatarColor.withValues(alpha: 0.15),
+                    child: Text(
+                      widget.conversation.user.initials,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: widget.conversation.user.avatarColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    widget.conversation.user.name,
+                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              widget.conversation.user.name,
-              style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.call_outlined),
-            color: scheme.onSurface,
-            onPressed: () {},
+            icon: Icon(_searchMode ? Icons.close : Icons.search, color: scheme.onSurface),
+            onPressed: _toggleSearch,
           ),
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            color: scheme.onSurface,
-            onPressed: () {},
-          ),
-          const SizedBox(width: 6),
+          if (!_blockedByOther) ...[
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: scheme.onSurface),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onSelected: (value) {
+                switch (value) {
+                  case 'search':
+                    _toggleSearch();
+                    break;
+                  case 'report':
+                    _reportConversation();
+                    break;
+                  case 'block':
+                    _toggleBlock();
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'report',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.flag_outlined, color: scheme.error),
+                    title: Text('Signaler et bloquer'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'block',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.block, color: scheme.error),
+                    title: Text(_isBlocked ? 'Débloquer' : 'Bloquer'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 6),
+          ],
         ],
       ),
       body: SafeArea(
         child: Column(
           children: [
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final msg = _messages[index];
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              itemCount: filteredMessages.length,
+              itemBuilder: (context, index) {
+                final msg = filteredMessages[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Align(
                       alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
                       child: GestureDetector(
-                        onLongPress: () => _onLongPressMessage(msg),
+                        onLongPress: msg.isDeletedForEveryone ? null : () => _onLongPressMessage(msg),
+                        behavior: HitTestBehavior.opaque,
                         child: MessageBubble(
                           message: msg,
                           repliedTo: msg.replyToMessageId != null
@@ -452,33 +676,47 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 },
               ),
             ),
-            if (_replyTo != null)
-              ReplyPreviewBar(
-                message: _replyTo!,
-                onCancel: () => setState(() => _replyTo = null),
+            if (_isBlocked)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                color: scheme.surfaceVariant,
+                child: Text(
+                  _blockedByOther
+                      ? "Vous êtes bloqué par ce contact. Vous ne pouvez pas envoyer de messages."
+                      : "Conversation bloquée. Débloquez pour reprendre.",
+                  style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              )
+            else ...[
+              if (_replyTo != null)
+                ReplyPreviewBar(
+                  message: _replyTo!,
+                  onCancel: () => setState(() => _replyTo = null),
+                ),
+              ChatInputBar(
+                controller: _messageController,
+                focusNode: _focusNode,
+                onSend: _sendText,
+                onPickImage: _pickImage,
+                onPickFile: _pickFile,
+                onToggleEmoji: () {
+                  FocusScope.of(context).unfocus();
+                  setState(() => _showEmoji = !_showEmoji);
+                },
               ),
-            ChatInputBar(
-              controller: _messageController,
-              focusNode: _focusNode,
-              onSend: _sendText,
-              onPickImage: _pickImage,
-              onPickFile: _pickFile,
-              onToggleEmoji: () {
-                FocusScope.of(context).unfocus();
-                setState(() => _showEmoji = !_showEmoji);
-              },
-            ),
-            if (_showEmoji)
-              SizedBox(
-                height: 250,
-                child: EmojiPicker(
-                  onEmojiSelected: (category, emoji) => _insertEmoji(emoji.emoji),
-                  config: const Config(
-                    columns: 7,
-                    emojiSizeMax: 32,
+              if (_showEmoji)
+                SizedBox(
+                  height: 250,
+                  child: EmojiPicker(
+                    onEmojiSelected: (category, emoji) => _insertEmoji(emoji.emoji),
+                    config: const Config(
+                      columns: 7,
+                      emojiSizeMax: 32,
+                    ),
                   ),
                 ),
-              ),
+            ],
           ],
         ),
       ),
@@ -497,8 +735,12 @@ class MessageBubble extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final isMe = message.isMe;
+    final isDeleted = message.isDeletedForEveryone;
+    // Fond identique aux bulles normales (demandé) ; texte peut rester plus neutre.
     final bg = isMe ? scheme.primary : scheme.surfaceVariant;
-    final fg = isMe ? scheme.onPrimary : scheme.onSurface;
+    final fg = isDeleted
+        ? (isMe ? scheme.onPrimary.withValues(alpha: 0.85) : scheme.onSurfaceVariant)
+        : (isMe ? scheme.onPrimary : scheme.onSurface);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 320),
@@ -525,11 +767,11 @@ class MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (message.isDeletedForEveryone) ...[
+              if (isDeleted) ...[
                 Text(
                   message.deletedText,
                   style: textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                    color: fg.withValues(alpha: 0.85),
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -638,7 +880,7 @@ class MessageBubble extends StatelessWidget {
                       color: fg.withValues(alpha: 0.7),
                     ),
                   ),
-                  if (message.showStatus) ...[
+                  if (!isDeleted && message.showStatus) ...[
                     const SizedBox(width: 6),
                     _StatusTicks(status: message.status!, color: fg),
                   ],
@@ -837,3 +1079,10 @@ class ChatInputBar extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+

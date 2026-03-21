@@ -399,7 +399,7 @@ class ApiService {
     throw Exception(data['message'] ?? 'Impossible de charger les conversations');
   }
 
-  Future<List<Map<String, dynamic>>> getMessages({
+  Future<Map<String, dynamic>> getMessages({
     required int conversationId,
     required int userId,
   }) async {
@@ -415,7 +415,12 @@ class ApiService {
     }
     final data = jsonDecode(resp.body);
     if (data is Map && data['success'] == true && data['items'] is List) {
-      return List<Map<String, dynamic>>.from(data['items']);
+      return {
+        'items': List<Map<String, dynamic>>.from(data['items']),
+        'blocked': data['blocked'] == true,
+        'blockedByMe': data['blocked_by_me'] == true,
+        'blockedByOther': data['blocked_by_other'] == true,
+      };
     }
     throw Exception(data['message'] ?? 'Impossible de charger les messages');
   }
@@ -425,6 +430,7 @@ class ApiService {
     required int userId,
     required String content,
     String messageType = 'text',
+    String? replyToMessageId,
   }) async {
     await _loadTokenIfNeeded();
     final uri = Uri.parse('$_baseUrl/send_message.php');
@@ -436,6 +442,7 @@ class ApiService {
         'user_id': userId,
         'content': content,
         'message_type': messageType,
+        if (replyToMessageId != null) 'reply_to_message_id': replyToMessageId,
       }),
     );
     if (resp.statusCode != 200) {
@@ -446,6 +453,80 @@ class ApiService {
       return Map<String, dynamic>.from(data['message']);
     }
     throw Exception(data['message'] ?? 'Impossible d\'envoyer le message');
+  }
+
+  Future<void> deleteMessage({
+    required int messageId,
+    required int userId,
+    bool deleteForAll = false,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/delete_message.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({
+        'message_id': messageId,
+        'user_id': userId,
+        'delete_for_all': deleteForAll ? 1 : 0,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Suppression (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true) return;
+    throw Exception(data['message'] ?? 'Impossible de supprimer le message');
+  }
+
+  Future<void> reportConversation({
+    required int conversationId,
+    required int userId,
+    required String reason,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/report_conversation.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({
+        'conversation_id': conversationId,
+        'user_id': userId,
+        'reason': reason,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Signalement (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true) return;
+    throw Exception(data['message'] ?? 'Impossible de signaler la conversation');
+  }
+
+  Future<bool> toggleBlockConversation({
+    required int conversationId,
+    required int userId,
+    required bool block,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/block_conversation.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({
+        'conversation_id': conversationId,
+        'user_id': userId,
+        'block': block ? 1 : 0,
+      }),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Blocage (${resp.statusCode}): ${resp.body}');
+    }
+    final data = jsonDecode(resp.body);
+    if (data is Map && data['success'] == true) {
+      return data['blocked'] == true;
+    }
+    throw Exception(data['message'] ?? 'Impossible de modifier le blocage');
   }
 
   // -------------------------------------------------------------

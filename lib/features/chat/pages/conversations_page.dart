@@ -171,6 +171,8 @@ class _ConversationsPageState extends State<ConversationsPage> {
         lastAt = DateTime.now();
       }
       final unread = int.tryParse(json['unread_count']?.toString() ?? '0') ?? 0;
+      final blockedByMe = json['blocked_by_me'] == 1 || json['blocked_by_me'] == true;
+      final blockedByOther = json['blocked_by_other'] == 1 || json['blocked_by_other'] == true;
 
       return ChatConversation(
         id: json['id'].toString(),
@@ -188,6 +190,8 @@ class _ConversationsPageState extends State<ConversationsPage> {
           isMe: false,
           time: lastAt,
         ),
+        blockedByMe: blockedByMe,
+        blockedByOther: blockedByOther,
       );
     } catch (_) {
       return null;
@@ -200,11 +204,27 @@ class _ConversationsPageState extends State<ConversationsPage> {
   }
 }
 
-class ConversationTile extends StatelessWidget {
+class ConversationTile extends StatefulWidget {
   const ConversationTile({super.key, required this.conversation, this.onTap});
 
   final ChatConversation conversation;
   final VoidCallback? onTap;
+
+  @override
+  State<ConversationTile> createState() => _ConversationTileState();
+}
+
+class _ConversationTileState extends State<ConversationTile> {
+  bool _busy = false;
+  late bool _isBlocked;
+  late bool _blockedByOther;
+
+  @override
+  void initState() {
+    super.initState();
+    _isBlocked = widget.conversation.blockedByMe;
+    _blockedByOther = widget.conversation.blockedByOther;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,19 +236,19 @@ class ConversationTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
+        onTap: widget.onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: conversation.user.avatarColor.withValues(alpha: 0.15),
+                backgroundColor: widget.conversation.user.avatarColor.withValues(alpha: 0.15),
                 child: Text(
-                  conversation.user.initials,
+                  widget.conversation.user.initials,
                   style: textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: conversation.user.avatarColor,
+                    color: widget.conversation.user.avatarColor,
                   ),
                 ),
               ),
@@ -241,7 +261,7 @@ class ConversationTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.user.name,
+                            widget.conversation.user.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -249,7 +269,7 @@ class ConversationTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          _formatTime(conversation.lastMessage.time),
+                          _formatTime(widget.conversation.lastMessage.time),
                           style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                       ],
@@ -259,15 +279,16 @@ class ConversationTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.listingTitle != null && conversation.listingTitle!.isNotEmpty
-                                ? 'À propos de : ${conversation.listingTitle}'
-                                : (conversation.lastMessage.text ?? ''),
+                            widget.conversation.listingTitle != null &&
+                                    widget.conversation.listingTitle!.isNotEmpty
+                                ? 'À propos de : ${widget.conversation.listingTitle}'
+                                : (widget.conversation.lastMessage.text ?? ''),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
                           ),
                         ),
-                        if (conversation.unreadCount > 0) ...[
+                        if (widget.conversation.unreadCount > 0) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -276,7 +297,7 @@ class ConversationTile extends StatelessWidget {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              '${conversation.unreadCount}',
+                              '${widget.conversation.unreadCount}',
                               style: textTheme.labelSmall?.copyWith(
                                 color: scheme.onPrimary,
                                 fontWeight: FontWeight.w700,
@@ -289,6 +310,52 @@ class ConversationTile extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 4),
+              if (!_blockedByOther)
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'open':
+                        widget.onTap?.call();
+                        break;
+                      case 'block':
+                        _toggleBlock(!_isBlocked);
+                        break;
+                      case 'report':
+                        _report();
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'open',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.open_in_new),
+                        title: Text('Ouvrir'),
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'block',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(_isBlocked ? Icons.lock_open : Icons.block),
+                        title: Text(_isBlocked ? 'Débloquer' : 'Bloquer'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'report',
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.flag_outlined),
+                        title: Text('Signaler'),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -308,5 +375,61 @@ class ConversationTile extends StatelessWidget {
     } else {
       return '${time.day}/${time.month}/${time.year}';
     }
+  }
+
+  Future<void> _toggleBlock(bool block) async {
+    if (_blockedByOther) {
+      _showSnack("Vous avez été bloqué dans cette conversation.");
+      return;
+    }
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final me = await AuthLocalStorage.instance.getUser();
+      if (me == null) {
+        _showSnack("Connectez-vous");
+        return;
+      }
+      final convId = int.tryParse(widget.conversation.id) ?? 0;
+      await ApiService.instance.toggleBlockConversation(
+        conversationId: convId,
+        userId: me.id,
+        block: block,
+      );
+      setState(() => _isBlocked = block);
+      _showSnack(block ? "Conversation bloquée" : "Blocage retiré");
+    } catch (e) {
+      _showSnack(e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _report() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final me = await AuthLocalStorage.instance.getUser();
+      if (me == null) {
+        _showSnack("Connectez-vous");
+        return;
+      }
+      final convId = int.tryParse(widget.conversation.id) ?? 0;
+      await ApiService.instance.reportConversation(
+        conversationId: convId,
+        userId: me.id,
+        reason: "Signalé depuis la liste",
+      );
+      _showSnack("Conversation signalée");
+    } catch (e) {
+      _showSnack(e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

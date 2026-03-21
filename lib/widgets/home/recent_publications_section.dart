@@ -108,6 +108,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
     return Publication(
       id: listing.id,
+      ownerId: listing.ownerId,
       title: listing.title,
       status: listing.type == 'lost'
           ? PublicationStatus.perdu

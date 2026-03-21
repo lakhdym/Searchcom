@@ -69,6 +69,8 @@ class ChatConversation {
   final String? listingTitle;
   int unreadCount;
   ChatMessage lastMessage;
+  final bool blockedByMe;
+  final bool blockedByOther;
 
   ChatConversation({
     required this.id,
@@ -76,5 +78,7 @@ class ChatConversation {
     this.listingTitle,
     required this.unreadCount,
     required this.lastMessage,
+    this.blockedByMe = false,
+    this.blockedByOther = false,
   });
 }

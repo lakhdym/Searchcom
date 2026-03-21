@@ -6,6 +6,7 @@ typedef HeaderBuilder = Widget Function(ValueChanged<String> onSearchChanged);
 
 class Publication {
   final int id;
+  final int ownerId;
   final String title;
   final PublicationStatus status;
   final List<String> imageUrls;
@@ -23,6 +24,7 @@ class Publication {
 
   Publication({
     required this.id,
+    required this.ownerId,
     required this.title,
     required this.status,
     required this.imageUrls,
