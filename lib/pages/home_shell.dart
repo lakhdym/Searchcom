@@ -8,6 +8,7 @@ import 'home_page.dart';
 import 'found_form_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
+import 'notifications_page.dart';
 import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
 
@@ -24,6 +25,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   late int _index = widget.initialIndex.clamp(0, 4);
   int _unreadCount = 0;
+  int _notifCount = 0;
   Timer? _badgeTimer;
 
   late final List<_NavPage> _pages = [
@@ -74,7 +76,18 @@ class _HomeShellState extends State<HomeShell> {
       builder: (context, loggedIn, _) {
         return Scaffold(
           backgroundColor: scheme.surface,
-          appBar: const TopNavBar(),
+          appBar: TopNavBar(
+            notificationCount: _notifCount,
+            onNotifications: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NotificationsPage()),
+              );
+              // après ouverture, on considère tout comme vu
+              await AuthLocalStorage.instance.setLastNotifSeen(DateTime.now());
+              if (mounted) setState(() => _notifCount = 0);
+              _loadUnreadCount(); // rafraîchit immédiatement le badge
+            },
+          ),
           body: IndexedStack(
             index: _index,
             children: _pages.map((p) => p.builder()).toList(),
@@ -214,14 +227,19 @@ class _HomeShellState extends State<HomeShell> {
 
   void _startBadgePolling() {
     _loadUnreadCount();
-    _badgeTimer = Timer.periodic(const Duration(seconds: 6), (_) => _loadUnreadCount());
+    _badgeTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadUnreadCount());
   }
 
   Future<void> _loadUnreadCount() async {
     try {
       final user = await AuthLocalStorage.instance.getUser();
       if (user == null) {
-        if (_unreadCount != 0) setState(() => _unreadCount = 0);
+        if (_unreadCount != 0 || _notifCount != 0) {
+          setState(() {
+            _unreadCount = 0;
+            _notifCount = 0;
+          });
+        }
         return;
       }
       final convs = await ApiService.instance.getConversations(userId: user.id);
@@ -229,8 +247,22 @@ class _HomeShellState extends State<HomeShell> {
         final raw = c['unread_count'] ?? 0;
         return p + (raw is num ? raw.toInt() : int.tryParse(raw.toString()) ?? 0);
       });
-      if (mounted && total != _unreadCount) {
-        setState(() => _unreadCount = total);
+      int notifTotal = 0;
+      try {
+        final lastSeen = await AuthLocalStorage.instance.getLastNotifSeen();
+        notifTotal = await ApiService.instance.fetchNotificationsCount(
+          userId: user.id,
+          since: lastSeen, // null => toutes; sinon seulement après lastSeen
+        );
+      } catch (_) {
+        // on ignore les erreurs de notif pour ne pas bloquer le badge chat
+      }
+
+      if (mounted && (total != _unreadCount || notifTotal != _notifCount)) {
+        setState(() {
+          _unreadCount = total;
+          _notifCount = notifTotal;
+        });
       }
     } catch (_) {
       // on ignore pour ne pas casser l'UI

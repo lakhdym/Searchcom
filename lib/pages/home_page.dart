@@ -8,6 +8,7 @@ import '../widgets/home/home_action_card.dart';
 import '../widgets/home/home_search_bar.dart';
 import '../widgets/home/recent_publications_section.dart';
 import '../widgets/top_nav_bar.dart';
+import 'notifications_page.dart';
 import 'found_form_page.dart';
 import 'login_page.dart';
 
@@ -153,7 +154,15 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FB),
-      appBar: widget.showAppBar ? const TopNavBar() : null,
+      appBar: widget.showAppBar
+          ? TopNavBar(
+              onNotifications: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificationsPage()),
+                );
+              },
+            )
+          : null,
       body: SafeArea(
         child: SingleChildScrollView(
           controller: _scrollController,
