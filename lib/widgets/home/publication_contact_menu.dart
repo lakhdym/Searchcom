@@ -23,7 +23,6 @@ class PublicationContactMenu {
   }) async {
     final phone = ownerPhone?.trim() ?? '';
     final hasPhone = phone.isNotEmpty;
-    final isLoggedIn = await AuthLocalStorage.instance.isLoggedIn();
 
     final items = <PopupMenuEntry<String>>[];
     if (contactWhatsApp && hasPhone) {
@@ -54,7 +53,7 @@ class PublicationContactMenu {
         ),
       );
     }
-    if (contactChat && isLoggedIn) {
+    if (contactChat) {
       items.add(
         PopupMenuItem<String>(
           value: 'chat',

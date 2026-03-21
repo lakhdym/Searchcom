@@ -37,7 +37,53 @@ try {
         json_response(['success' => false, 'message' => 'Accès refusé à cette conversation'], 403);
     }
 
-    $stmt = $pdo->prepare('SELECT id, conversation_id, sender_user_id, message_type, content, media_url, created_at FROM messages WHERE conversation_id = :cid ORDER BY created_at ASC');
+    // Vérifier blocage
+    $pdo->exec("CREATE TABLE IF NOT EXISTS conversation_blocks (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        conversation_id BIGINT NOT NULL,
+        blocker_user_id BIGINT NOT NULL,
+        blocked_user_id BIGINT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_block (conversation_id, blocker_user_id, blocked_user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    // Statut de blocage détaillé
+    $blockStmt = $pdo->prepare('SELECT blocker_user_id, blocked_user_id FROM conversation_blocks WHERE conversation_id = :cid');
+    $blockStmt->execute([':cid' => $conversationId]);
+    $rows = $blockStmt->fetchAll(PDO::FETCH_ASSOC);
+    $isBlocked = !empty($rows);
+    $blockedByMe = false;
+    $blockedByOther = false;
+    foreach ($rows as $r) {
+        if ((int)$r['blocker_user_id'] === $userId) {
+            $blockedByMe = true;
+        } else {
+            $blockedByOther = true;
+        }
+    }
+
+    // Vérifier si la colonne reply_to_message_id existe
+    $hasReply = false;
+    $cols = $pdo->query("SHOW COLUMNS FROM messages LIKE 'reply_to_message_id'")->fetchAll(PDO::FETCH_ASSOC);
+    if ($cols) {
+        $hasReply = true;
+    }
+
+    $select = "SELECT 
+            id,
+            conversation_id,
+            sender_user_id,
+            message_type,
+            content,
+            media_url,
+            created_at,
+            CASE WHEN message_type = 'system' AND content = '[deleted]' THEN 1 ELSE 0 END AS is_deleted_for_all,
+            CASE WHEN message_type = 'system' AND content = '[deleted]' THEN 'Message supprimé' ELSE NULL END AS deleted_text";
+    if ($hasReply) {
+        $select .= ", reply_to_message_id";
+    }
+    $select .= " FROM messages WHERE conversation_id = :cid ORDER BY created_at ASC";
+
+    $stmt = $pdo->prepare($select);
     $stmt->execute([':cid' => $conversationId]);
     $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -45,7 +91,13 @@ try {
     $update = $pdo->prepare('UPDATE conversation_participants SET last_read_at = NOW() WHERE conversation_id = :cid AND user_id = :uid');
     $update->execute([':cid' => $conversationId, ':uid' => $userId]);
 
-    json_response(['success' => true, 'items' => $messages]);
+    json_response([
+        'success' => true,
+        'items' => $messages,
+        'blocked' => $isBlocked,
+        'blocked_by_me' => $blockedByMe,
+        'blocked_by_other' => $blockedByOther,
+    ]);
 } catch (Exception $e) {
     json_response(['success' => false, 'message' => $e->getMessage()], 500);
 }

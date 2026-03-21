@@ -40,6 +40,7 @@ class _PublicationCardState extends State<PublicationCard>
   late final PageController _pageController;
   int _currentImage = 0;
   bool _canComment = false;
+  int? _meId;
   List<ApiListingComment> _comments = [];
   bool _loadingComments = false;
   bool _commentsLoaded = false;
@@ -61,6 +62,7 @@ class _PublicationCardState extends State<PublicationCard>
     _likesCount = widget.publication.likesCount;
     _canComment = ApiService.instance.isAuthenticated;
     _syncCommentAccess();
+    _loadMe();
   }
 
   @override
@@ -687,7 +689,7 @@ class _PublicationCardState extends State<PublicationCard>
                   ),
                 ),
                 const Spacer(),
-                if (hasContactOptions)
+                if (hasContactOptions && !_isOwner)
                   Builder(
                     builder: (buttonContext) {
                       return Material(
@@ -923,7 +925,6 @@ class _PublicationCardState extends State<PublicationCard>
   }
 
   Future<void> _showConversationMenu(BuildContext context) async {
-    final isLoggedIn = await AuthLocalStorage.instance.isLoggedIn();
     await PublicationContactMenu.show(
       context: context,
       listingId: widget.publication.id,
@@ -931,7 +932,7 @@ class _PublicationCardState extends State<PublicationCard>
       ownerName: widget.publication.ownerName,
       contactWhatsApp: widget.publication.contactWhatsApp,
       contactCall: widget.publication.contactCall,
-      contactChat: widget.publication.contactChat && isLoggedIn,
+      contactChat: widget.publication.contactChat,
       ownerPhone: widget.publication.ownerPhone,
       purple: widget.purple,
     );
@@ -953,7 +954,20 @@ class _PublicationCardState extends State<PublicationCard>
     return cleaned.isEmpty ? null : cleaned;
   }
 
+  Future<void> _loadMe() async {
+    final user = await AuthLocalStorage.instance.getUser();
+    if (!mounted) return;
+    setState(() => _meId = user?.id);
+  }
+
+  bool get _isOwner =>
+      _meId != null && widget.publication.ownerId == _meId;
+
   Future<void> _launchWhatsApp(String rawPhone) async {
+    if (_isOwner) {
+      _showSnack("Vos coordonnées WhatsApp sont déjà visibles pour les autres utilisateurs.");
+      return;
+    }
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
       _showSnack("Num\u00E9ro WhatsApp indisponible");
@@ -974,6 +988,10 @@ class _PublicationCardState extends State<PublicationCard>
   }
 
   Future<void> _launchCall(String rawPhone) async {
+    if (_isOwner) {
+      _showSnack("Votre numéro est déjà visible pour les autres utilisateurs.");
+      return;
+    }
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
       _showSnack("Num\u00E9ro d'appel indisponible");
@@ -993,7 +1011,16 @@ class _PublicationCardState extends State<PublicationCard>
     }
   }
 
-  void _openInternalChat() {
+  Future<void> _openInternalChat() async {
+    if (_isOwner) {
+      _showSnack("Vous êtes le propriétaire : le chat n'est pas nécessaire.");
+      return;
+    }
+    final loggedIn = await AuthLocalStorage.instance.isLoggedIn();
+    if (!loggedIn) {
+      _showSnack("Connectez-vous pour discuter avec le propriétaire.");
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ConversationsPage()),
     );

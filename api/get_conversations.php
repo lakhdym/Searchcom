@@ -27,6 +27,15 @@ if ($userId <= 0) {
 
 try {
     $pdo = get_pdo();
+    // S'assure que la table de blocage existe pour les sous-requêtes
+    $pdo->exec("CREATE TABLE IF NOT EXISTS conversation_blocks (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        conversation_id BIGINT NOT NULL,
+        blocker_user_id BIGINT NOT NULL,
+        blocked_user_id BIGINT NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_block (conversation_id, blocker_user_id, blocked_user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
     $sql = "
         SELECT
@@ -48,7 +57,14 @@ try {
                 WHERE m.conversation_id = c.id
                   AND m.sender_user_id <> :uid
                   AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
-            ), 0) AS unread_count
+            ), 0) AS unread_count,
+            -- blocage
+            (SELECT CASE WHEN EXISTS(
+                SELECT 1 FROM conversation_blocks b WHERE b.conversation_id = c.id AND b.blocker_user_id = :uid
+            ) THEN 1 ELSE 0 END) AS blocked_by_me,
+            (SELECT CASE WHEN EXISTS(
+                SELECT 1 FROM conversation_blocks b WHERE b.conversation_id = c.id AND b.blocker_user_id <> :uid
+            ) THEN 1 ELSE 0 END) AS blocked_by_other
         FROM conversations c
         JOIN conversation_participants cp ON cp.conversation_id = c.id
         LEFT JOIN listings l ON l.id = c.listing_id
