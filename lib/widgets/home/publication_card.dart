@@ -41,6 +41,7 @@ class _PublicationCardState extends State<PublicationCard>
   int _currentImage = 0;
   bool _canComment = false;
   int? _meId;
+  bool _meLoaded = false;
   List<ApiListingComment> _comments = [];
   bool _loadingComments = false;
   bool _commentsLoaded = false;
@@ -689,7 +690,7 @@ class _PublicationCardState extends State<PublicationCard>
                   ),
                 ),
                 const Spacer(),
-                if (hasContactOptions && !_isOwner)
+                if (hasContactOptions && _meLoaded && !_isOwner)
                   Builder(
                     builder: (buttonContext) {
                       return Material(
@@ -957,7 +958,10 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _loadMe() async {
     final user = await AuthLocalStorage.instance.getUser();
     if (!mounted) return;
-    setState(() => _meId = user?.id);
+    setState(() {
+      _meId = user?.id;
+      _meLoaded = true;
+    });
   }
 
   bool get _isOwner =>
