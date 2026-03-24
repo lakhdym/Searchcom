@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 header('Content-Type: application/json; charset=UTF-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
@@ -21,9 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : (int)($body['user_id'] ?? 0);
-$sinceRaw = $_GET['since'] ?? ($body['since'] ?? null); // ISO datetime optionnel
 $countOnly = !empty($_GET['count_only']) || (!empty($body['count_only']));
-
 if ($userId <= 0) {
     json_response(['success' => false, 'message' => 'user_id requis'], 400);
 }
@@ -31,14 +29,20 @@ if ($userId <= 0) {
 try {
     $pdo = get_pdo();
 
-    $params = [':uid' => $userId];
-    $sinceClause = '';
-    if (!empty($sinceRaw)) {
-        $sinceClause = "AND ev.created_at > :since";
-        $params[':since'] = $sinceRaw;
-    }
+    // table last_seen
+    $pdo->exec("CREATE TABLE IF NOT EXISTS notification_reads (
+        user_id BIGINT PRIMARY KEY,
+        last_seen_at DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-    // Construction d'un flux unifié likes + commentaires
+    $stmt = $pdo->prepare('SELECT last_seen_at FROM notification_reads WHERE user_id = :uid');
+    $stmt->execute([':uid' => $userId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $lastSeen = $row['last_seen_at'] ?? '1970-01-01 00:00:00';
+
+    $params = [':uid' => $userId, ':lastSeen' => $lastSeen];
+
     $sql = "
         SELECT * FROM (
             SELECT 
@@ -51,7 +55,7 @@ try {
             FROM listing_likes ll
             JOIN listings l ON l.id = ll.listing_id
             JOIN users u ON u.id = ll.user_id
-            WHERE l.user_id = :uid AND u.id <> :uid
+            WHERE l.user_id = :uid AND u.id <> :uid AND ll.created_at > :lastSeen
             UNION ALL
             SELECT 
                 'comment' AS type,
@@ -63,10 +67,8 @@ try {
             FROM listing_comments c
             JOIN listings l ON l.id = c.listing_id
             JOIN users u ON u.id = c.user_id
-            WHERE l.user_id = :uid AND u.id <> :uid
+            WHERE l.user_id = :uid AND u.id <> :uid AND c.created_at > :lastSeen
         ) ev
-        WHERE 1=1
-        {$sinceClause}
         ORDER BY ev.created_at DESC
         LIMIT 200
     ";
@@ -76,29 +78,7 @@ try {
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if ($countOnly) {
-        $countSql = "
-            SELECT COUNT(*) AS cnt FROM (
-                SELECT 
-                    ll.created_at
-                FROM listing_likes ll
-                JOIN listings l ON l.id = ll.listing_id
-                JOIN users u ON u.id = ll.user_id
-                WHERE l.user_id = :uid AND u.id <> :uid
-                UNION ALL
-                SELECT 
-                    c.created_at
-                FROM listing_comments c
-                JOIN listings l ON l.id = c.listing_id
-                JOIN users u ON u.id = c.user_id
-                WHERE l.user_id = :uid AND u.id <> :uid
-            ) ev
-            WHERE 1=1
-            {$sinceClause}
-        ";
-        $cStmt = $pdo->prepare($countSql);
-        $cStmt->execute($params);
-        $cnt = (int)($cStmt->fetchColumn() ?: 0);
-        json_response(['success' => true, 'count' => $cnt]);
+        json_response(['success' => true, 'count' => count($items)]);
     }
 
     // Ajouter titres d'annonces
@@ -110,8 +90,8 @@ try {
     if (!empty($listingIds)) {
         $in = implode(',', array_map('intval', $listingIds));
         $tStmt = $pdo->query("SELECT id, title FROM listings WHERE id IN ($in)");
-        foreach ($tStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $titles[(int)$row['id']] = $row['title'];
+        foreach ($tStmt->fetchAll(PDO::FETCH_ASSOC) as $rowT) {
+            $titles[(int)$rowT['id']] = $rowT['title'];
         }
     }
 
@@ -119,6 +99,10 @@ try {
         $lid = isset($it['listing_id']) ? (int)$it['listing_id'] : 0;
         $it['listing_title'] = $titles[$lid] ?? '';
     }
+
+    // marquer comme lu maintenant
+    $pdo->prepare('REPLACE INTO notification_reads (user_id, last_seen_at) VALUES (:uid, NOW())')
+        ->execute([':uid' => $userId]);
 
     json_response(['success' => true, 'items' => $items]);
 } catch (Exception $e) {

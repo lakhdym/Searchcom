@@ -104,7 +104,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      notificationCount > 99 ? '99+' : '$notificationCount',
+                      notificationCount > 9 ? '+9' : '$notificationCount',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,

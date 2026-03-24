@@ -7,6 +7,7 @@ import 'email_verification_page.dart';
 import 'phone_verification_page.dart';
 import 'home_shell.dart';
 import 'signup_page.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -114,6 +115,9 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _openForgotPassword() {
   }
 
   @override
@@ -239,7 +243,11 @@ class _LoginPageState extends State<LoginPage> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {},
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const ForgotPasswordPage()),
+                                  );
+                                },
                                 child: const Text('Mot de passe oublié ?'),
                               ),
                             ),

@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import 'api_service.dart';
 import 'auth_local_storage.dart';
 import '../state/auth_state.dart';
+import '../models/listing_model.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -73,14 +74,14 @@ class AuthApiService {
     if (!success) {
       if (resp['requires_email_verification'] == true) {
         throw EmailVerificationRequiredException(
-          resp['message']?.toString() ?? 'Veuillez vérifier votre adresse email.',
+          resp['message']?.toString() ?? 'Veuillez vÃ©rifier votre adresse email.',
           email: resp['email']?.toString(),
           statusCode: status,
         );
       }
       if (resp['requires_phone_verification'] == true) {
         throw PhoneVerificationRequiredException(
-          resp['message']?.toString() ?? 'Veuillez vérifier votre numéro.',
+          resp['message']?.toString() ?? 'Veuillez vÃ©rifier votre numÃ©ro.',
           phone: resp['phone']?.toString(),
           statusCode: status,
         );
@@ -88,7 +89,7 @@ class AuthApiService {
       throw ApiException(resp['message']?.toString() ?? 'Erreur inconnue', statusCode: status);
     }
     final userJson = resp['user'] as Map<String, dynamic>?;
-    if (userJson == null) throw ApiException('Réponse invalide du serveur', statusCode: status);
+    if (userJson == null) throw ApiException('RÃ©ponse invalide du serveur', statusCode: status);
     final token = (resp['token'] ?? '').toString();
     return AuthSession(user: UserModel.fromJson(userJson), token: token);
   }
@@ -114,12 +115,47 @@ class AuthApiService {
     }
     return RegisterResponse(
       success: true,
-      message: resp['message']?.toString() ?? 'Compte créé',
+      message: resp['message']?.toString() ?? 'Compte crÃ©Ã©',
       email: resp['email']?.toString() ?? email,
       phone: resp['phone']?.toString() ?? phone,
       requiresEmailVerification: resp['requires_email_verification'] == true,
       requiresPhoneVerification: resp['requires_phone_verification'] == true,
     );
+  }
+
+  // ---------- FORGOT PASSWORD (OTP) ----------
+  Future<void> forgotPassword({required String identifier}) async {
+    final uri = Uri.parse('$_baseUrl/forgot_password.php');
+    final resp = await _postJson(uri, {'identifier': identifier});
+    if (resp['success'] != true) {
+      throw ApiException(resp['message']?.toString() ?? 'Impossible d\'envoyer le code');
+    }
+  }
+
+  Future<String> verifyResetOtp({required String identifier, required String otp}) async {
+    final uri = Uri.parse('$_baseUrl/verify_otp.php');
+    final resp = await _postJson(uri, {
+      'identifier': identifier,
+      'otp': otp,
+    });
+    if (resp['success'] != true || resp['reset_token'] == null) {
+      throw ApiException(resp['message']?.toString() ?? 'Code invalide', statusCode: resp['status']);
+    }
+    return resp['reset_token'].toString();
+  }
+
+  Future<void> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/reset_password.php');
+    final resp = await _postJson(uri, {
+      'token': token,
+      'new_password': newPassword,
+    });
+    if (resp['success'] != true) {
+      throw ApiException(resp['message']?.toString() ?? 'Impossible de rÃ©initialiser le mot de passe');
+    }
   }
 
   Future<void> sendPhoneOtp({required String phone}) async {
@@ -140,7 +176,7 @@ class AuthApiService {
 
   Future<void> resendPhoneOtp({required String phone}) => sendPhoneOtp(phone: phone);
 
-  // Email (inchangé)
+  // Email (inchangÃ©)
   Future<void> verifyEmail({required String email, required String code}) async {
     final uri = Uri.parse('$_baseUrl/verify_email.php');
     final resp = await _postJson(uri, {'email': email, 'code': code});
@@ -157,7 +193,7 @@ class AuthApiService {
     }
   }
 
-  // Profile / password (inchangé)
+  // Profile / password (inchangÃ©)
   Future<UserModel> updateProfile({
     required int userId,
     required String fullName,
@@ -176,10 +212,10 @@ class AuthApiService {
       'avatar_url': avatarUrl,
     });
     if (resp['success'] != true) {
-      throw ApiException(resp['message']?.toString() ?? 'Mise à jour impossible', statusCode: resp['status']);
+      throw ApiException(resp['message']?.toString() ?? 'Mise Ã  jour impossible', statusCode: resp['status']);
     }
     final userJson = resp['user'] as Map<String, dynamic>?;
-    if (userJson == null) throw ApiException('Réponse invalide du serveur', statusCode: resp['status']);
+    if (userJson == null) throw ApiException('RÃ©ponse invalide du serveur', statusCode: resp['status']);
     return UserModel.fromJson(userJson);
   }
 
@@ -223,9 +259,9 @@ class AuthApiService {
       data['status'] = response.statusCode;
       return data;
     } on SocketException {
-      throw ApiException('Connexion réseau impossible. Vérifiez votre connexion internet.');
+      throw ApiException('Connexion rÃ©seau impossible. VÃ©rifiez votre connexion internet.');
     } on FormatException {
-      throw ApiException('Réponse serveur invalide.');
+      throw ApiException('RÃ©ponse serveur invalide.');
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -233,3 +269,4 @@ class AuthApiService {
     }
   }
 }
+
