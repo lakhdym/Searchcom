@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
-import '../../services/api_service.dart' show ApiService, ApiListingComment;
+import '../../services/api_service.dart' show ApiListingComment, ApiService;
+import '../../services/l10n_helper.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 
@@ -70,8 +71,9 @@ class _PublicationFullDetailsSheetState
     });
 
     try {
-      final comments =
-          await ApiService.instance.fetchComments(widget.publication.id);
+      final comments = await ApiService.instance.fetchComments(
+        widget.publication.id,
+      );
       if (!mounted) return;
       setState(() {
         _comments = comments;
@@ -80,14 +82,10 @@ class _PublicationFullDetailsSheetState
       widget.onCommentsChanged?.call(List<ApiListingComment>.from(_comments));
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentsError = e.toString();
-      });
+      setState(() => _commentsError = e.toString());
     } finally {
       if (mounted) {
-        setState(() {
-          _loadingComments = false;
-        });
+        setState(() => _loadingComments = false);
       }
     }
   }
@@ -99,9 +97,9 @@ class _PublicationFullDetailsSheetState
     final canComment = await ApiService.instance.syncStoredAuthSession();
     if (!mounted) return;
     if (!canComment) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Connectez-vous pour commenter")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_comment'))));
       return;
     }
 
@@ -124,20 +122,16 @@ class _PublicationFullDetailsSheetState
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajout\u00E9")));
+      ).showSnackBar(SnackBar(content: Text(t('comment_added'))));
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentsError = e.toString();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Impossible d'envoyer le commentaire")),
-      );
+      setState(() => _commentsError = e.toString());
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('comment_error'))));
     } finally {
       if (mounted) {
-        setState(() {
-          _submittingComment = false;
-        });
+        setState(() => _submittingComment = false);
       }
     }
   }
@@ -154,10 +148,8 @@ class _PublicationFullDetailsSheetState
 
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ImageViewerPage(
-          images: images,
-          initialIndex: initialIndex,
-        ),
+        builder: (_) =>
+            ImageViewerPage(images: images, initialIndex: initialIndex),
       ),
     );
   }
@@ -165,13 +157,19 @@ class _PublicationFullDetailsSheetState
   String _formatRelative(DateTime? date) {
     if (date == null) return '';
     final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return "A l'instant";
-    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
-    if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
-    if (diff.inDays < 7) return "Il y a ${diff.inDays} j";
+    if (diff.inMinutes < 1) return t('just_now');
+    if (diff.inMinutes < 60) {
+      return t('minutes_ago').replaceFirst('{count}', '${diff.inMinutes}');
+    }
+    if (diff.inHours < 24) {
+      return t('hours_ago').replaceFirst('{count}', '${diff.inHours}');
+    }
+    if (diff.inDays < 7) {
+      return t('days_ago').replaceFirst('{count}', '${diff.inDays}');
+    }
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
-    return "${date.year}-$month-$day";
+    return '${date.year}-$month-$day';
   }
 
   Widget _buildImageGallery(Publication publication) {
@@ -209,35 +207,34 @@ class _PublicationFullDetailsSheetState
                             Image.network(
                               imageUrl,
                               fit: BoxFit.cover,
-                              loadingBuilder: (
-                                context,
-                                child,
-                                loadingProgress,
-                              ) {
-                                if (loadingProgress == null) {
-                                  return child;
-                                }
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) {
+                                      return child;
+                                    }
 
-                                final expected =
-                                    loadingProgress.expectedTotalBytes;
-                                final progress = expected == null || expected == 0
-                                    ? null
-                                    : loadingProgress.cumulativeBytesLoaded /
-                                        expected;
+                                    final expected =
+                                        loadingProgress.expectedTotalBytes;
+                                    final progress =
+                                        expected == null || expected == 0
+                                        ? null
+                                        : loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              expected;
 
-                                return Container(
-                                  color: Colors.black12,
-                                  alignment: Alignment.center,
-                                  child: SizedBox(
-                                    width: 30,
-                                    height: 30,
-                                    child: CircularProgressIndicator(
-                                      value: progress,
-                                      strokeWidth: 2.4,
-                                    ),
-                                  ),
-                                );
-                              },
+                                    return Container(
+                                      color: Colors.black12,
+                                      alignment: Alignment.center,
+                                      child: SizedBox(
+                                        width: 30,
+                                        height: 30,
+                                        child: CircularProgressIndicator(
+                                          value: progress,
+                                          strokeWidth: 2.4,
+                                        ),
+                                      ),
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) =>
                                   Container(
                                     color: Colors.grey.shade300,
@@ -259,16 +256,16 @@ class _PublicationFullDetailsSheetState
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: const [
-                                    Icon(
+                                  children: [
+                                    const Icon(
                                       Icons.zoom_in,
                                       color: Colors.white,
                                       size: 15,
                                     ),
-                                    SizedBox(width: 6),
+                                    const SizedBox(width: 6),
                                     Text(
-                                      "Voir",
-                                      style: TextStyle(
+                                      t('see'),
+                                      style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
@@ -338,6 +335,7 @@ class _PublicationFullDetailsSheetState
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final publication = widget.publication;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
@@ -370,9 +368,7 @@ class _PublicationFullDetailsSheetState
                         Expanded(
                           child: Text(
                             publication.title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -389,8 +385,8 @@ class _PublicationFullDetailsSheetState
                           ),
                           child: Text(
                             publication.status == PublicationStatus.perdu
-                                ? "PERDU"
-                                : "TROUV\u00C9",
+                                ? t('lost_badge')
+                                : t('found_badge'),
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
@@ -445,9 +441,9 @@ class _PublicationFullDetailsSheetState
                     const SizedBox(height: 18),
                     Row(
                       children: [
-                        const Text(
-                          "Commentaires",
-                          style: TextStyle(
+                        Text(
+                          t('comments'),
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                           ),
@@ -464,7 +460,7 @@ class _PublicationFullDetailsSheetState
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              "${_comments.length}",
+                              '${_comments.length}',
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Color(0xFF4B5563),
@@ -494,16 +490,16 @@ class _PublicationFullDetailsSheetState
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          "Erreur: $_commentsError",
+                          '${t('error')}: $_commentsError',
                           style: const TextStyle(color: Colors.red),
                         ),
                       )
                     else if (_comments.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          "Aucun commentaire pour l'instant.",
-                          style: TextStyle(
+                          t('no_comments'),
+                          style: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF6B7280),
                           ),
@@ -520,10 +516,9 @@ class _PublicationFullDetailsSheetState
                           final comment = _comments[index];
                           final author = comment.fullName.isNotEmpty
                               ? comment.fullName
-                              : ((comment.userId != null &&
-                                      comment.userId != 0)
-                                  ? "Utilisateur #${comment.userId}"
-                                  : "Utilisateur");
+                              : ((comment.userId != null && comment.userId != 0)
+                                    ? '${t('guest_user')} #${comment.userId}'
+                                    : t('guest_user'));
                           final timeLabel = _formatRelative(comment.createdAt);
 
                           return ListTile(
@@ -588,8 +583,8 @@ class _PublicationFullDetailsSheetState
                             controller: _commentController,
                             minLines: 1,
                             maxLines: 3,
-                            decoration: const InputDecoration(
-                              hintText: "Ajouter un commentaire...",
+                            decoration: InputDecoration(
+                              hintText: t('write_comment'),
                               isDense: true,
                             ),
                           ),
@@ -599,7 +594,9 @@ class _PublicationFullDetailsSheetState
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : IconButton(
                                 icon: Icon(
@@ -621,6 +618,3 @@ class _PublicationFullDetailsSheetState
     );
   }
 }
-
-
-

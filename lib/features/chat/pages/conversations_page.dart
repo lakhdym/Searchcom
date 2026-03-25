@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
 
-import '../models/chat_models.dart';
+import 'package:flutter/material.dart';
+
+import '../../../models/user_model.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
-import '../../../models/user_model.dart';
+import '../../../services/l10n_helper.dart';
+import '../models/chat_models.dart';
 import 'chat_detail_page.dart';
 
 class ConversationsPage extends StatefulWidget {
@@ -29,7 +31,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
       setState(() => _query = _searchCtrl.text.trim().toLowerCase());
     });
     _loadConversations();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) => _loadConversations(silent: true));
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _loadConversations(silent: true),
+    );
   }
 
   @override
@@ -41,11 +46,12 @@ class _ConversationsPageState extends State<ConversationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
-    final filtered = _convs.where((c) {
+    final filtered = _convs.where((conversation) {
       if (_query.isEmpty) return true;
-      return c.user.name.toLowerCase().contains(_query) ||
-          (c.listingTitle?.toLowerCase().contains(_query) ?? false);
+      return conversation.user.name.toLowerCase().contains(_query) ||
+          (conversation.listingTitle?.toLowerCase().contains(_query) ?? false);
     }).toList();
 
     return Scaffold(
@@ -54,8 +60,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
         backgroundColor: scheme.surface,
         elevation: 0.4,
         title: Text(
-          'Messages',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          t('messages'),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
       body: SafeArea(
@@ -66,7 +74,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
               child: TextField(
                 controller: _searchCtrl,
                 decoration: InputDecoration(
-                  hintText: 'Rechercher...',
+                  hintText: t('search_placeholder'),
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
                   fillColor: scheme.surfaceVariant.withValues(alpha: 0.7),
@@ -82,7 +90,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide(color: scheme.primary, width: 1.4),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
               ),
             ),
@@ -99,7 +110,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
             else
               Expanded(
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
@@ -138,13 +152,16 @@ class _ConversationsPageState extends State<ConversationsPage> {
       final user = await AuthLocalStorage.instance.getUser();
       if (user == null) {
         setState(() {
-          _error = 'Vous devez vous connecter pour voir vos messages.';
+          _error = t('sign_in_to_view_messages');
           _convs = [];
         });
         return;
       }
       final data = await ApiService.instance.getConversations(userId: user.id);
-      final mapped = data.map((m) => _mapApiConv(m, user)).whereType<ChatConversation>().toList();
+      final mapped = data
+          .map((item) => _mapApiConv(item, user))
+          .whereType<ChatConversation>()
+          .toList();
       setState(() => _convs = mapped);
     } catch (e) {
       if (!silent) setState(() => _error = e.toString());
@@ -156,11 +173,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
   ChatConversation? _mapApiConv(Map<String, dynamic> json, UserModel me) {
     try {
       final otherId = json['other_user_id']?.toString() ?? '';
-      final otherName = json['other_user_name']?.toString() ?? 'Contact';
+      final otherName = json['other_user_name']?.toString() ?? t('contact');
       final listingTitle = json['listing_title']?.toString();
       final lastMsg = json['last_message']?.toString() ?? '';
       if (lastMsg.trim().isEmpty) {
-        // Conversation sans message : ne pas l'afficher
         return null;
       }
       final lastAtRaw = json['last_message_at']?.toString();
@@ -195,7 +211,7 @@ class _ConversationsPageState extends State<ConversationsPage> {
   }
 
   Color _colorFromString(String input) {
-    final hash = input.codeUnits.fold(0, (p, c) => p + c);
+    final hash = input.codeUnits.fold(0, (previous, code) => previous + code);
     return Colors.primaries[hash % Colors.primaries.length];
   }
 }
@@ -208,6 +224,7 @@ class ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -223,7 +240,9 @@ class ConversationTile extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: conversation.user.avatarColor.withValues(alpha: 0.15),
+                backgroundColor: conversation.user.avatarColor.withValues(
+                  alpha: 0.15,
+                ),
                 child: Text(
                   conversation.user.initials,
                   style: textTheme.titleMedium?.copyWith(
@@ -244,13 +263,17 @@ class ConversationTile extends StatelessWidget {
                             conversation.user.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           _formatTime(conversation.lastMessage.time),
-                          style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                          style: textTheme.labelMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -259,18 +282,24 @@ class ConversationTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.listingTitle != null && conversation.listingTitle!.isNotEmpty
-                                ? 'À propos de : ${conversation.listingTitle}'
+                            conversation.listingTitle != null &&
+                                    conversation.listingTitle!.isNotEmpty
+                                ? '${t('about_listing')}: ${conversation.listingTitle}'
                                 : (conversation.lastMessage.text ?? ''),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                         if (conversation.unreadCount > 0) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: scheme.primary,
                               borderRadius: BorderRadius.circular(999),
@@ -303,10 +332,10 @@ class ConversationTile extends StatelessWidget {
       final hh = time.hour.toString().padLeft(2, '0');
       final mm = time.minute.toString().padLeft(2, '0');
       return '$hh:$mm';
-    } else if (diff.inDays == 1) {
-      return 'Hier';
-    } else {
-      return '${time.day}/${time.month}/${time.year}';
     }
+    if (diff.inDays == 1) {
+      return t('yesterday');
+    }
+    return '${time.day}/${time.month}/${time.year}';
   }
 }

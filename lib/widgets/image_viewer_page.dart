@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 
+import '../services/l10n_helper.dart';
+
 class ImageViewerPage extends StatefulWidget {
   const ImageViewerPage({
     super.key,
@@ -56,6 +58,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final totalImages = widget.images.length;
 
     return Scaffold(
@@ -91,19 +94,19 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
                 maxScale: PhotoViewComputedScale.covered * 3,
                 scaleStateCycle: _scaleStateCycle,
                 errorBuilder: (context, error, stackTrace) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.broken_image_outlined,
                           color: Colors.white70,
                           size: 44,
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text(
-                          "Impossible de charger l'image",
-                          style: TextStyle(color: Colors.white70),
+                          t('image_load_error'),
+                          style: const TextStyle(color: Colors.white70),
                         ),
                       ],
                     ),
@@ -151,10 +154,7 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
 }
 
 class _ViewerButton extends StatelessWidget {
-  const _ViewerButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _ViewerButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;

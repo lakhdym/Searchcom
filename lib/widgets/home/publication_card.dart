@@ -1,13 +1,11 @@
-﻿import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/material.dart';
 
-import '../../features/chat/pages/conversations_page.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
+import '../../services/l10n_helper.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
-import 'publication_contact_chip.dart';
 import 'publication_contact_menu.dart';
 import 'publication_full_details_sheet.dart';
 
@@ -104,14 +102,10 @@ class _PublicationCardState extends State<PublicationCard>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentsError = e.toString();
-      });
+      setState(() => _commentsError = e.toString());
     } finally {
       if (mounted) {
-        setState(() {
-          _loadingComments = false;
-        });
+        setState(() => _loadingComments = false);
       }
     }
   }
@@ -132,14 +126,10 @@ class _PublicationCardState extends State<PublicationCard>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _likesError = e.toString();
-      });
+      setState(() => _likesError = e.toString());
     } finally {
       if (mounted) {
-        setState(() {
-          _likesLoading = false;
-        });
+        setState(() => _likesLoading = false);
       }
     }
   }
@@ -148,18 +138,18 @@ class _PublicationCardState extends State<PublicationCard>
     if (_likeBusy) return;
 
     if (!ApiService.instance.isAuthenticated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Connectez-vous pour liker cette annonce"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_like'))));
       return;
     }
 
     setState(() => _likeBusy = true);
 
     try {
-      final result = await ApiService.instance.toggleLike(widget.publication.id);
+      final result = await ApiService.instance.toggleLike(
+        widget.publication.id,
+      );
       if (!mounted) return;
       setState(() {
         _liked = result.liked;
@@ -169,11 +159,9 @@ class _PublicationCardState extends State<PublicationCard>
       });
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Impossible de mettre \u00E0 jour le like"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('like_update_error'))));
     } finally {
       if (mounted) {
         setState(() => _likeBusy = false);
@@ -188,9 +176,9 @@ class _PublicationCardState extends State<PublicationCard>
     if (!mounted) return;
 
     if (_likesError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Impossible de charger les likes")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('likes_load_error'))));
       return;
     }
 
@@ -198,6 +186,7 @@ class _PublicationCardState extends State<PublicationCard>
       context: context,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       builder: (context) {
+        watchLanguage(context);
         if (_likesLoading) {
           return const Padding(
             padding: EdgeInsets.all(24),
@@ -212,11 +201,11 @@ class _PublicationCardState extends State<PublicationCard>
         }
 
         if (_likes.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
+          return Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
-              "Aucun like pour l'instant.",
-              style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              t('no_likes_yet'),
+              style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
             ),
           );
         }
@@ -230,8 +219,8 @@ class _PublicationCardState extends State<PublicationCard>
             final name = like.fullName.isNotEmpty
                 ? like.fullName
                 : ((like.userId != null && like.userId != 0)
-                    ? "Utilisateur #${like.userId}"
-                    : "Utilisateur");
+                      ? '${t('guest_user')} #${like.userId}'
+                      : t('guest_user'));
             return ListTile(
               dense: true,
               leading: CircleAvatar(
@@ -271,9 +260,9 @@ class _PublicationCardState extends State<PublicationCard>
     final canComment = await ApiService.instance.syncStoredAuthSession();
     if (!mounted) return;
     if (!canComment) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Connectez-vous pour commenter")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_comment'))));
       return;
     }
 
@@ -296,20 +285,16 @@ class _PublicationCardState extends State<PublicationCard>
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajout\u00E9")));
+      ).showSnackBar(SnackBar(content: Text(t('comment_added'))));
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentsError = e.toString();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Impossible d'envoyer le commentaire")),
-      );
+      setState(() => _commentsError = e.toString());
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('comment_error'))));
     } finally {
       if (mounted) {
-        setState(() {
-          _submittingComment = false;
-        });
+        setState(() => _submittingComment = false);
       }
     }
   }
@@ -365,29 +350,38 @@ class _PublicationCardState extends State<PublicationCard>
   String _formatRelative(DateTime? date) {
     if (date == null) return '';
     final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return "A l'instant";
-    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
-    if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
-    if (diff.inDays < 7) return "Il y a ${diff.inDays} j";
+    if (diff.inMinutes < 1) return t('just_now');
+    if (diff.inMinutes < 60) {
+      return t('minutes_ago').replaceFirst('{count}', '${diff.inMinutes}');
+    }
+    if (diff.inHours < 24) {
+      return t('hours_ago').replaceFirst('{count}', '${diff.inHours}');
+    }
+    if (diff.inDays < 7) {
+      return t('days_ago').replaceFirst('{count}', '${diff.inDays}');
+    }
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
-    return "${date.year}-$month-$day";
+    return '${date.year}-$month-$day';
   }
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final publication = widget.publication;
     final badgeColor = publication.status == PublicationStatus.perdu
         ? widget.red
         : widget.green;
     final badgeLabel = publication.status == PublicationStatus.perdu
-        ? "PERDU"
-        : "TROUV\u00C9";
+        ? t('lost_badge')
+        : t('found_badge');
     final radius = BorderRadius.circular(16);
-    final commentCount =
-        _commentsLoaded ? _comments.length : publication.commentsCount;
+    final commentCount = _commentsLoaded
+        ? _comments.length
+        : publication.commentsCount;
     final hasPhone = publication.ownerPhone?.trim().isNotEmpty ?? false;
-    final hasContactOptions = publication.contactChat ||
+    final hasContactOptions =
+        publication.contactChat ||
         (publication.contactWhatsApp && hasPhone) ||
         (publication.contactCall && hasPhone);
     final longDescription = publication.description.length > 140;
@@ -408,7 +402,8 @@ class _PublicationCardState extends State<PublicationCard>
                 width: double.infinity,
                 child: PageView.builder(
                   controller: _pageController,
-                  onPageChanged: (index) => setState(() => _currentImage = index),
+                  onPageChanged: (index) =>
+                      setState(() => _currentImage = index),
                   itemCount: publication.imageUrls.length,
                   itemBuilder: (context, index) {
                     final image = publication.imageUrls[index];
@@ -438,7 +433,9 @@ class _PublicationCardState extends State<PublicationCard>
                   right: 0,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(publication.imageUrls.length, (index) {
+                    children: List.generate(publication.imageUrls.length, (
+                      index,
+                    ) {
                       final active = index == _currentImage;
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
@@ -572,7 +569,7 @@ class _PublicationCardState extends State<PublicationCard>
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       onPressed: _openFullDetails,
-                      child: const Text("Lire la suite"),
+                      child: Text(t('read_more')),
                     ),
                   ),
                 const SizedBox(height: 8),
@@ -594,41 +591,6 @@ class _PublicationCardState extends State<PublicationCard>
                     ),
                   ],
                 ),
-              /*
-                if (hasContactOptions) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (publication.contactWhatsApp && hasPhone)
-                        _buildContactChip(
-                          icon: Icons.chat_bubble,
-                          label: "WhatsApp",
-                          color: const Color(0xFF25D366),
-                          bg: const Color(0xFFE8F8EF),
-                          onTap: () =>
-                              _launchWhatsApp(publication.ownerPhone ?? ''),
-                        ),
-                      if (publication.contactCall && hasPhone)
-                        _buildContactChip(
-                          icon: Icons.call,
-                          label: "Appeler",
-                          color: const Color(0xFF2563EB),
-                          bg: const Color(0xFFE8ECFF),
-                          onTap: () => _launchCall(publication.ownerPhone ?? ''),
-                        ),
-                      if (publication.contactChat)
-                        _buildContactChip(
-                          icon: Icons.chat_bubble_outline,
-                          label: "Chat",
-                          color: widget.purple,
-                          bg: const Color(0xFFF1E9FF),
-                          onTap: _openInternalChat,
-                        ),
-                    ],
-                  ),
-                ],*/
               ],
             ),
           ),
@@ -656,7 +618,7 @@ class _PublicationCardState extends State<PublicationCard>
                         ),
                       const SizedBox(width: 4),
                       Text(
-                        "$_likesCount",
+                        '$_likesCount',
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF111827),
@@ -677,7 +639,7 @@ class _PublicationCardState extends State<PublicationCard>
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        "$commentCount",
+                        '$commentCount',
                         style: const TextStyle(
                           fontSize: 13,
                           color: Color(0xFF111827),
@@ -716,7 +678,9 @@ class _PublicationCardState extends State<PublicationCard>
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             alignment: Alignment.topCenter,
-            child: _showComments ? _buildCommentsSection() : const SizedBox.shrink(),
+            child: _showComments
+                ? _buildCommentsSection()
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -745,9 +709,9 @@ class _PublicationCardState extends State<PublicationCard>
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Impossible de charger les commentaires.",
-                  style: TextStyle(
+                Text(
+                  t('comments_load_error'),
+                  style: const TextStyle(
                     fontSize: 13,
                     color: Color(0xFF6B7280),
                   ),
@@ -762,21 +726,15 @@ class _PublicationCardState extends State<PublicationCard>
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
-                TextButton(
-                  onPressed: _loadComments,
-                  child: const Text("R\u00E9essayer"),
-                ),
+                TextButton(onPressed: _loadComments, child: Text(t('retry'))),
               ],
             )
           else if (_comments.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(
-                "Aucun commentaire",
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
+                t('no_comments'),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
               ),
             )
           else ...[
@@ -792,9 +750,9 @@ class _PublicationCardState extends State<PublicationCard>
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   onPressed: _openFullDetails,
-                  child: const Text(
-                    "Voir plus de commentaires",
-                    style: TextStyle(
+                  child: Text(
+                    t('view_more_comments'),
+                    style: const TextStyle(
                       fontSize: 13,
                       color: Color(0xFF6B7280),
                       fontWeight: FontWeight.w500,
@@ -819,8 +777,8 @@ class _PublicationCardState extends State<PublicationCard>
                       controller: _commentController,
                       minLines: 1,
                       maxLines: 3,
-                      decoration: const InputDecoration(
-                        hintText: "\u00C9crire un commentaire\u2026",
+                      decoration: InputDecoration(
+                        hintText: t('write_comment'),
                         border: InputBorder.none,
                       ),
                     ),
@@ -859,8 +817,8 @@ class _PublicationCardState extends State<PublicationCard>
     final author = comment.fullName.isNotEmpty
         ? comment.fullName
         : ((comment.userId != null && comment.userId != 0)
-            ? "Utilisateur #${comment.userId}"
-            : "Utilisateur");
+              ? '${t('guest_user')} #${comment.userId}'
+              : t('guest_user'));
     final initial = author.isNotEmpty ? author[0] : '?';
     final timeLabel = _formatRelative(comment.createdAt);
 
@@ -943,82 +901,4 @@ class _PublicationCardState extends State<PublicationCard>
       publication: widget.publication,
     );
   }
-
-  String? _normalizedPhone(String raw) {
-    if (raw.isEmpty) return null;
-    var cleaned = raw.replaceAll(RegExp(r'[^0-9+]'), '');
-    if (cleaned.startsWith('00')) {
-      cleaned = cleaned.substring(2);
-    }
-    return cleaned.isEmpty ? null : cleaned;
-  }
-
-  Future<void> _launchWhatsApp(String rawPhone) async {
-    final normalized = _normalizedPhone(rawPhone);
-    if (normalized == null) {
-      _showSnack("Num\u00E9ro WhatsApp indisponible");
-      return;
-    }
-
-    final uri = Uri.parse('https://wa.me/$normalized');
-    try {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        _showSnack("Impossible d'ouvrir WhatsApp");
-      }
-    } catch (_) {
-      if (mounted) {
-        _showSnack("Impossible d'ouvrir WhatsApp");
-      }
-    }
-  }
-
-  Future<void> _launchCall(String rawPhone) async {
-    final normalized = _normalizedPhone(rawPhone);
-    if (normalized == null) {
-      _showSnack("Num\u00E9ro d'appel indisponible");
-      return;
-    }
-
-    final uri = Uri(scheme: 'tel', path: normalized);
-    try {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        _showSnack("Impossible d'ouvrir le composeur");
-      }
-    } catch (_) {
-      if (mounted) {
-        _showSnack("Impossible d'ouvrir le composeur");
-      }
-    }
-  }
-
-  void _openInternalChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ConversationsPage()),
-    );
-  }
-
-  void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Widget _buildContactChip({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color? color,
-    Color? bg,
-  }) {
-    return PublicationContactChip(
-      icon: icon,
-      label: label,
-      onTap: onTap,
-      color: color ?? widget.purple,
-      bg: bg ?? Colors.grey.shade100,
-    );
-  }
 }
-
-
-

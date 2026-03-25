@@ -5,6 +5,7 @@ import '../../features/chat/models/chat_models.dart';
 import '../../features/chat/pages/chat_detail_page.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
+import '../../services/l10n_helper.dart';
 import 'publication_menu_row.dart';
 
 class PublicationContactMenu {
@@ -35,7 +36,7 @@ class PublicationContactMenu {
             bg: const Color(0xFFE8F8EF),
             icon: Icons.chat_bubble,
             iconColor: const Color(0xFF25D366),
-            label: "WhatsApp",
+            label: 'WhatsApp',
           ),
         ),
       );
@@ -49,7 +50,7 @@ class PublicationContactMenu {
             bg: const Color(0xFFE8ECFF),
             icon: Icons.call,
             iconColor: const Color(0xFF2563EB),
-            label: "Appeler",
+            label: t('phone_call'),
           ),
         ),
       );
@@ -63,16 +64,16 @@ class PublicationContactMenu {
             bg: const Color(0xFFF1E9FF),
             icon: Icons.chat_bubble_outline,
             iconColor: purple,
-            label: "Chat interne",
+            label: t('internal_chat'),
           ),
         ),
       );
     }
 
     if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Aucun moyen de contact disponible")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('no_contact_method'))));
       return;
     }
 
@@ -124,7 +125,7 @@ class PublicationContactMenu {
   static Future<void> _launchWhatsApp(BuildContext context, String raw) async {
     final normalized = _normalizedPhone(raw);
     if (normalized == null) {
-      _showSnack(context, "Numéro WhatsApp indisponible");
+      _showSnack(context, t('whatsapp_unavailable'));
       return;
     }
 
@@ -132,11 +133,11 @@ class PublicationContactMenu {
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (context.mounted && !ok) {
-        _showSnack(context, "Impossible d'ouvrir WhatsApp");
+        _showSnack(context, t('cannot_open_whatsapp'));
       }
     } catch (_) {
       if (context.mounted) {
-        _showSnack(context, "Impossible d'ouvrir WhatsApp");
+        _showSnack(context, t('cannot_open_whatsapp'));
       }
     }
   }
@@ -144,7 +145,7 @@ class PublicationContactMenu {
   static Future<void> _launchCall(BuildContext context, String raw) async {
     final normalized = _normalizedPhone(raw);
     if (normalized == null) {
-      _showSnack(context, "Numéro d'appel indisponible");
+      _showSnack(context, t('call_unavailable'));
       return;
     }
 
@@ -152,11 +153,11 @@ class PublicationContactMenu {
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (context.mounted && !ok) {
-        _showSnack(context, "Impossible d'ouvrir le composeur");
+        _showSnack(context, t('cannot_open_dialer'));
       }
     } catch (_) {
       if (context.mounted) {
-        _showSnack(context, "Impossible d'ouvrir le composeur");
+        _showSnack(context, t('cannot_open_dialer'));
       }
     }
   }
@@ -170,7 +171,7 @@ class PublicationContactMenu {
   }) async {
     final user = await AuthLocalStorage.instance.getUser();
     if (user == null) {
-      _showSnack(context, "Connectez-vous pour discuter");
+      _showSnack(context, t('sign_in_to_chat'));
       return;
     }
     try {
@@ -178,8 +179,9 @@ class PublicationContactMenu {
         listingId: listingId,
         userId: user.id,
       );
-      final otherName =
-          (ownerName != null && ownerName.trim().isNotEmpty) ? ownerName : 'Propriétaire';
+      final otherName = (ownerName != null && ownerName.trim().isNotEmpty)
+          ? ownerName
+          : t('owner');
       final conversation = ChatConversation(
         id: convId.toString(),
         user: ChatUser(
@@ -208,11 +210,13 @@ class PublicationContactMenu {
         ),
       );
     } catch (e) {
-      _showSnack(context, "Impossible d'ouvrir le chat : $e");
+      _showSnack(context, '${t('cannot_open_chat')}: $e');
     }
   }
 
   static void _showSnack(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
