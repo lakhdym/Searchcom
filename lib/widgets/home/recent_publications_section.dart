@@ -29,8 +29,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _green = Color(0xFF34C759);
   static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
-  static const _pageSize = 3;
-  static const _loadMoreSize = 2;
+  static const _pageSize = 5;
+  static const _loadMoreSize = 5;
   static const _prefetchThreshold = 180.0;
 
   List<Publication> _publications = [];
