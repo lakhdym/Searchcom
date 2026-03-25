@@ -26,7 +26,7 @@ class LanguageService extends ChangeNotifier {
   static String? _memoryLanguageCode;
 
   static const List<LanguageOption> supportedLanguages = [
-    LanguageOption(code: 'fr', name: 'French', nativeName: 'Francais'),
+    LanguageOption(code: 'fr', name: 'French', nativeName: 'Français'),
     LanguageOption(code: 'en', name: 'English', nativeName: 'English'),
     LanguageOption(code: 'ar', name: 'Arabic', nativeName: 'العربية'),
   ];
@@ -165,7 +165,7 @@ class LanguageService extends ChangeNotifier {
         await AuthLocalStorage.instance.saveSession(remoteUser, token);
       }
     } catch (_) {
-      // La synchro reseau est best-effort. L'UI reste immediate avec la copie locale.
+      // La synchro reseau reste best-effort. L'UI locale ne doit pas attendre.
     }
   }
 

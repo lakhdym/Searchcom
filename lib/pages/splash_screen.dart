@@ -45,6 +45,8 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
+    if (!mounted) return;
+
     if (_languageService.hasStoredLanguage) {
       Navigator.of(
         context,
@@ -58,8 +60,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: Image.asset(
           'assets/images/splash.png',
@@ -69,14 +73,10 @@ class _SplashScreenState extends State<SplashScreen> {
               width: 200,
               height: 200,
               decoration: BoxDecoration(
-                color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                color: scheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(
-                Icons.image,
-                size: 80,
-                color: Color(0xFF7C3AED),
-              ),
+              child: Icon(Icons.image, size: 80, color: scheme.primary),
             );
           },
         ),

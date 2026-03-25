@@ -99,10 +99,10 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: scheme.shadow.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -150,10 +150,10 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
               resolvedTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
+                color: scheme.onSurface,
               ),
             ),
           ),
@@ -217,7 +217,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                     height: 34,
                     width: 34,
                     decoration: BoxDecoration(
-                      color: Colors.black,
+                      color: scheme.primary,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: const Icon(

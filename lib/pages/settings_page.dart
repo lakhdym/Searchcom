@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
 import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
+import '../services/theme_service.dart';
 import '../state/auth_state.dart';
 import 'change_password_page.dart';
 import 'edit_profile_page.dart';
@@ -55,6 +56,7 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final languageService = watchLanguage(context);
+    final themeService = watchTheme(context);
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -112,11 +114,14 @@ class SettingsPage extends StatelessWidget {
                     ),
                     onTap: () => _showLanguagePicker(context),
                   ),
-                  SettingsTile(
+                  SettingsToggleTile(
                     icon: Icons.brightness_6_outlined,
                     title: t('theme'),
-                    subtitle: t('system_light_dark'),
-                    onTap: () => _showComingSoon(context),
+                    subtitle: t(
+                      themeService.isDark ? 'dark_mode' : 'light_mode',
+                    ),
+                    value: themeService.isDark,
+                    onChanged: themeService.toggleTheme,
                   ),
                   SettingsTile(
                     icon: Icons.notifications_none,
@@ -206,7 +211,7 @@ class SettingsPage extends StatelessWidget {
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection({required this.tiles});
 
-  final List<SettingsTile> tiles;
+  final List<Widget> tiles;
 
   @override
   Widget build(BuildContext context) {
@@ -295,6 +300,52 @@ class SettingsTile extends StatelessWidget {
           : null,
       trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
       onTap: onTap,
+    );
+  }
+}
+
+class SettingsToggleTile extends StatelessWidget {
+  const SettingsToggleTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    watchLanguage(context);
+    watchTheme(context);
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return ListTile(
+      leading: Icon(icon, color: scheme.primary),
+      title: Text(
+        title,
+        style: textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurface,
+        ),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            )
+          : null,
+      trailing: Switch.adaptive(value: value, onChanged: onChanged),
+      onTap: () => onChanged(!value),
     );
   }
 }

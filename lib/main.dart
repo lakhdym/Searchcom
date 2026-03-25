@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'pages/splash_screen.dart';
 import 'services/l10n_helper.dart';
 import 'services/language_service.dart';
+import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -17,10 +18,17 @@ void main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
+  await ThemeService.instance.initFromStorage();
   await LanguageService.instance.initFromStorage();
 
   runApp(
-    AppLocaleScope(notifier: LanguageService.instance, child: const MyApp()),
+    AppThemeScope(
+      notifier: ThemeService.instance,
+      child: AppLocaleScope(
+        notifier: LanguageService.instance,
+        child: const MyApp(),
+      ),
+    ),
   );
 }
 
@@ -29,12 +37,15 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeService = watchTheme(context);
     final languageService = watchLanguage(context);
 
     return MaterialApp(
       title: t('app_title'),
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.getTheme(),
+      themeMode: themeService.themeMode,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
       locale: languageService.currentLocale,
       supportedLocales: LanguageService.supportedLocales,
       localizationsDelegates: const [
