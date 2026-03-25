@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_api_service.dart';
+import '../services/l10n_helper.dart';
+import '../services/language_service.dart';
 import 'email_verification_page.dart';
-import 'phone_verification_page.dart';
 import 'login_page.dart';
+import 'phone_verification_page.dart';
 import 'verification_choice_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -37,7 +39,8 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   bool get _isEmailValid => _emailCtrl.text.trim().contains('@');
-  bool get _isPhoneValid => _phoneCtrl.text.replaceAll(RegExp(r'\\D'), '').length >= 6;
+  bool get _isPhoneValid =>
+      _phoneCtrl.text.replaceAll(RegExp(r'\D'), '').length >= 6;
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
@@ -46,14 +49,14 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
     if (!_accepted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez accepter les conditions.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('please_accept_terms'))));
       return;
     }
     if (!_isEmailValid && !_isPhoneValid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Renseignez un email ou un téléphone valide.')),
+        SnackBar(content: Text(t('provide_valid_email_or_phone'))),
       );
       return;
     }
@@ -65,11 +68,17 @@ class _SignUpPageState extends State<SignUpPage> {
         email: _isEmailValid ? _emailCtrl.text.trim() : null,
         phone: _isPhoneValid ? _phoneCtrl.text.trim() : null,
         password: _passwordCtrl.text,
-        preferredLang: 'fr',
+        preferredLang: LanguageService.instance.currentLanguageCode,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(resp.message.isNotEmpty ? resp.message : 'Compte créé avec succès 🎉')),
+        SnackBar(
+          content: Text(
+            resp.message.isNotEmpty
+                ? resp.message
+                : t('account_created_success'),
+          ),
+        ),
       );
       final emailVal = resp.email ?? _emailCtrl.text.trim();
       final phoneVal = resp.phone ?? _phoneCtrl.text.trim();
@@ -77,32 +86,37 @@ class _SignUpPageState extends State<SignUpPage> {
       if (resp.requiresEmailVerification && resp.requiresPhoneVerification) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => VerificationChoicePage(email: emailVal, phone: phoneVal),
+            builder: (_) =>
+                VerificationChoicePage(email: emailVal, phone: phoneVal),
           ),
         );
       } else if (resp.requiresPhoneVerification) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: phoneVal)),
+          MaterialPageRoute(
+            builder: (_) => PhoneVerificationPage(phone: phoneVal),
+          ),
         );
       } else if (resp.requiresEmailVerification) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => EmailVerificationPage(email: emailVal)),
+          MaterialPageRoute(
+            builder: (_) => EmailVerificationPage(email: emailVal),
+          ),
         );
       } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
       }
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur lors de la création du compte.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('account_creation_error'))));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -110,6 +124,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -127,9 +142,9 @@ class _SignUpPageState extends State<SignUpPage> {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              scheme.primary.withOpacity(0.06),
-              scheme.secondaryContainer.withOpacity(0.04),
-              scheme.surfaceTint.withOpacity(0.03),
+              scheme.primary.withValues(alpha: 0.06),
+              scheme.secondaryContainer.withValues(alpha: 0.04),
+              scheme.surfaceTint.withValues(alpha: 0.03),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -146,7 +161,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   child: Material(
                     elevation: 8,
                     color: scheme.surface,
-                    shadowColor: scheme.shadow.withOpacity(0.14),
+                    shadowColor: scheme.shadow.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(16),
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -161,22 +176,27 @@ class _SignUpPageState extends State<SignUpPage> {
                               children: [
                                 CircleAvatar(
                                   radius: 22,
-                                  backgroundColor: scheme.primary.withOpacity(0.14),
-                                  child: Icon(Icons.person_add_alt_1, color: scheme.primary),
+                                  backgroundColor: scheme.primary.withValues(
+                                    alpha: 0.14,
+                                  ),
+                                  child: Icon(
+                                    Icons.person_add_alt_1,
+                                    color: scheme.primary,
+                                  ),
                                 ),
                                 const SizedBox(width: 12),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Créer un compte',
+                                      t('create_account'),
                                       style: textTheme.titleLarge?.copyWith(
                                         fontWeight: FontWeight.w700,
                                         color: scheme.onSurface,
                                       ),
                                     ),
                                     Text(
-                                      'Email ou téléphone, à vous de choisir',
+                                      t('sign_up_subtitle'),
                                       style: textTheme.bodyMedium?.copyWith(
                                         color: scheme.onSurfaceVariant,
                                       ),
@@ -188,26 +208,30 @@ class _SignUpPageState extends State<SignUpPage> {
                             const SizedBox(height: 24),
                             TextFormField(
                               controller: _nameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Nom complet',
-                                hintText: 'Jean Dupont',
-                                prefixIcon: Icon(Icons.person_outline),
+                              decoration: InputDecoration(
+                                labelText: t('full_name'),
+                                hintText: t('full_name_hint'),
+                                prefixIcon: const Icon(Icons.person_outline),
                               ),
                               validator: (v) =>
-                                  (v == null || v.trim().length < 2) ? 'Nom requis (min 2 caractères)' : null,
+                                  (v == null || v.trim().length < 2)
+                                  ? t('min_2_chars')
+                                  : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _emailCtrl,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
-                                labelText: 'Email (optionnel)',
+                                labelText: 'Email',
                                 hintText: 'vous@example.com',
                                 prefixIcon: Icon(Icons.mail_outlined),
-                              ),
+                              ).copyWith(labelText: t('email_optional')),
                               validator: (v) {
                                 if (v == null || v.trim().isEmpty) return null;
-                                return v.contains('@') ? null : 'Email invalide';
+                                return v.contains('@')
+                                    ? null
+                                    : t('invalid_email');
                               },
                             ),
                             const SizedBox(height: 16),
@@ -215,13 +239,15 @@ class _SignUpPageState extends State<SignUpPage> {
                               controller: _phoneCtrl,
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
-                                labelText: 'Téléphone (optionnel)',
                                 hintText: '+212 6 12 34 56 78',
                                 prefixIcon: Icon(Icons.phone_outlined),
-                              ),
+                              ).copyWith(labelText: t('phone_optional')),
                               validator: (v) {
                                 if (v == null || v.trim().isEmpty) return null;
-                                return v.replaceAll(RegExp(r'\\D'), '').length >= 6 ? null : 'Téléphone invalide';
+                                return v.replaceAll(RegExp(r'\D'), '').length >=
+                                        6
+                                    ? null
+                                    : t('invalid_phone');
                               },
                             ),
                             const SizedBox(height: 16),
@@ -229,34 +255,48 @@ class _SignUpPageState extends State<SignUpPage> {
                               controller: _passwordCtrl,
                               obscureText: _obscurePass,
                               decoration: InputDecoration(
-                                labelText: 'Mot de passe',
-                                hintText: '********',
+                                labelText: t('full_password'),
+                                hintText: t('password_hint'),
                                 prefixIcon: const Icon(Icons.lock_outline),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _obscurePass ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                    _obscurePass
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
                                   ),
-                                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
+                                  onPressed: () => setState(
+                                    () => _obscurePass = !_obscurePass,
+                                  ),
                                 ),
                               ),
-                              validator: (v) => (v == null || v.length < 8) ? 'Au moins 8 caractères' : null,
+                              validator: (v) => (v == null || v.length < 8)
+                                  ? t('at_least_8_chars')
+                                  : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _confirmCtrl,
                               obscureText: _obscureConfirm,
                               decoration: InputDecoration(
-                                labelText: 'Confirmer le mot de passe',
-                                hintText: '********',
-                                prefixIcon: const Icon(Icons.lock_reset_outlined),
+                                labelText: t('confirm_password'),
+                                hintText: t('password_hint'),
+                                prefixIcon: const Icon(
+                                  Icons.lock_reset_outlined,
+                                ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _obscureConfirm ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                    _obscureConfirm
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
                                   ),
-                                  onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                                  onPressed: () => setState(
+                                    () => _obscureConfirm = !_obscureConfirm,
+                                  ),
                                 ),
                               ),
-                              validator: (v) => (v != _passwordCtrl.text) ? 'Les mots de passe ne correspondent pas' : null,
+                              validator: (v) => (v != _passwordCtrl.text)
+                                  ? t('password_mismatch')
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -272,11 +312,13 @@ class _SignUpPageState extends State<SignUpPage> {
                                 Expanded(
                                   child: Text.rich(
                                     TextSpan(
-                                      style: textTheme.bodyMedium?.copyWith(color: scheme.onSurface),
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        color: scheme.onSurface,
+                                      ),
                                       children: [
-                                        const TextSpan(text: 'J’accepte les '),
+                                        TextSpan(text: t('accept_terms')),
                                         TextSpan(
-                                          text: 'Conditions d’utilisation',
+                                          text: ' ${t('terms_of_use')}',
                                           style: TextStyle(
                                             color: scheme.primary,
                                             fontWeight: FontWeight.w600,
@@ -292,7 +334,7 @@ class _SignUpPageState extends State<SignUpPage> {
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: (_loading) ? null : _submit,
+                                onPressed: _loading ? null : _submit,
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 200),
                                   child: _loading
@@ -302,10 +344,16 @@ class _SignUpPageState extends State<SignUpPage> {
                                           height: 22,
                                           child: CircularProgressIndicator(
                                             strokeWidth: 2.4,
-                                            valueColor: AlwaysStoppedAnimation<Color>(scheme.onPrimary),
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  scheme.onPrimary,
+                                                ),
                                           ),
                                         )
-                                      : const Text('Créer un compte', key: ValueKey('text')),
+                                      : Text(
+                                          t('create_account'),
+                                          key: const ValueKey('text'),
+                                        ),
                                 ),
                               ),
                             ),
@@ -313,16 +361,21 @@ class _SignUpPageState extends State<SignUpPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('Vous avez déjà un compte ? '),
+                                Text(t('have_account_login')),
                                 TextButton(
                                   onPressed: () {
                                     if (Navigator.canPop(context)) {
                                       Navigator.pop(context);
                                     } else {
-                                      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const LoginPage(),
+                                        ),
+                                      );
                                     }
                                   },
-                                  child: const Text('Se connecter'),
+                                  child: Text(t('sign_in')),
                                 ),
                               ],
                             ),

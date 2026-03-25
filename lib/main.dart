@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'theme/app_theme.dart';
-import 'services/language_service.dart';
-import 'pages/splash_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-void main() {
+import 'pages/splash_screen.dart';
+import 'services/l10n_helper.dart';
+import 'services/language_service.dart';
+import 'theme/app_theme.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   SystemChrome.setPreferredOrientations([
@@ -14,7 +17,11 @@ void main() {
     DeviceOrientation.landscapeRight,
   ]);
 
-  runApp(const MyApp());
+  await LanguageService.instance.initFromStorage();
+
+  runApp(
+    AppLocaleScope(notifier: LanguageService.instance, child: const MyApp()),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -22,18 +29,26 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final languageService = LanguageService();
-    return ListenableBuilder(
-      listenable: languageService,
-      builder: (context, _) {
-        return MaterialApp(
-          title: 'Objets Perdus & Retrouvés',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.getTheme(),
-          locale: languageService.currentLocale,
-          home: const SplashScreen(),
+    final languageService = watchLanguage(context);
+
+    return MaterialApp(
+      title: t('app_title'),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.getTheme(),
+      locale: languageService.currentLocale,
+      supportedLocales: LanguageService.supportedLocales,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      builder: (context, child) {
+        return Directionality(
+          textDirection: languageService.textDirection,
+          child: child ?? const SizedBox.shrink(),
         );
       },
+      home: const SplashScreen(),
     );
   }
 }

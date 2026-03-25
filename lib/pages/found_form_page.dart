@@ -1,21 +1,19 @@
-import 'dart:typed_data';
+﻿
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/listing_model.dart';
 import '../services/api_service.dart';
+import '../services/auth_local_storage.dart';
+import '../services/l10n_helper.dart';
+import '../services/language_service.dart';
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
-import '../widgets/top_nav_bar.dart';
 import '../widgets/payment_modal.dart';
+import '../widgets/top_nav_bar.dart';
 import 'login_page.dart';
-import '../models/listing_model.dart';
-import '../services/auth_local_storage.dart';
 
 class FoundFormPage extends StatefulWidget {
-  final String type; // 'lost' ou 'found'
-  final int? listingId;
-  final ListingModel? initialListing;
-  final bool isEdit;
   const FoundFormPage({
     super.key,
     required this.type,
@@ -23,6 +21,11 @@ class FoundFormPage extends StatefulWidget {
     this.initialListing,
     this.isEdit = false,
   });
+
+  final String type;
+  final int? listingId;
+  final ListingModel? initialListing;
+  final bool isEdit;
 
   @override
   State<FoundFormPage> createState() => _FoundFormPageState();
@@ -50,36 +53,6 @@ class _FoundFormPageState extends State<FoundFormPage> {
   String? _catsError;
   bool _submitting = false;
 
-  void _prefill(ListingModel listing) {
-    _titleCtrl.text = listing.title;
-    _descCtrl.text = listing.description;
-    _cityCtrl.text = listing.city ?? '';
-    _locationCtrl.text = listing.locationText ?? '';
-    _eventDate = listing.eventDate != null && listing.eventDate!.isNotEmpty
-        ? DateTime.tryParse(listing.eventDate!)
-        : null;
-    _contactChat = listing.contactChat;
-    _contactWhatsApp = listing.contactWhatsApp;
-    _contactCall = listing.contactCall;
-    _selectedCategoryId = listing.categoryId;
-  }
-
-  String _resolveImageUrl(String? raw) {
-    const uploadsBase = 'https://italents.ma/app/';
-    const placeholder = 'https://via.placeholder.com/600x400?text=Annonce';
-    if (raw == null) return placeholder;
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) return placeholder;
-    if (trimmed.startsWith('http')) return trimmed;
-    String cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
-    final idx = cleaned.indexOf('uploads/');
-    if (idx >= 0) cleaned = cleaned.substring(idx);
-    if (cleaned.startsWith('uploads/')) {
-      return '$uploadsBase$cleaned';
-    }
-    return '${uploadsBase}uploads/annonces/$cleaned';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -103,15 +76,45 @@ class _FoundFormPageState extends State<FoundFormPage> {
     super.dispose();
   }
 
+  void _prefill(ListingModel listing) {
+    _titleCtrl.text = listing.title;
+    _descCtrl.text = listing.description;
+    _cityCtrl.text = listing.city ?? '';
+    _locationCtrl.text = listing.locationText ?? '';
+    _eventDate = listing.eventDate != null && listing.eventDate!.isNotEmpty
+        ? DateTime.tryParse(listing.eventDate!)
+        : null;
+    _contactChat = listing.contactChat;
+    _contactWhatsApp = listing.contactWhatsApp;
+    _contactCall = listing.contactCall;
+    _selectedCategoryId = listing.categoryId;
+  }
+
+  String _resolveImageUrl(String? raw) {
+    const uploadsBase = 'https://italents.ma/app/';
+    const placeholder = 'https://via.placeholder.com/600x400?text=Annonce';
+    if (raw == null) return placeholder;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return placeholder;
+    if (trimmed.startsWith('http')) return trimmed;
+    var cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+    final idx = cleaned.indexOf('uploads/');
+    if (idx >= 0) cleaned = cleaned.substring(idx);
+    if (cleaned.startsWith('uploads/')) {
+      return '$uploadsBase$cleaned';
+    }
+    return '${uploadsBase}uploads/annonces/$cleaned';
+  }
+
   Future<void> _loadCategories() async {
     setState(() => _loadingCats = true);
     try {
-      final cats = await ApiService.instance.fetchCategories();
+      final categories = await ApiService.instance.fetchCategories();
       if (!mounted) return;
       setState(() {
-        _categories = cats;
-        if (cats.isNotEmpty) {
-          _selectedCategoryId = cats.first.id;
+        _categories = categories;
+        if (categories.isNotEmpty) {
+          _selectedCategoryId ??= categories.first.id;
           _catsError = null;
         }
       });
@@ -127,21 +130,20 @@ class _FoundFormPageState extends State<FoundFormPage> {
     final picked = await _picker.pickMultiImage(imageQuality: 80);
     if (picked.isEmpty) return;
     final additions = <ApiPickedImage>[];
-    for (final x in picked) {
-      final Uint8List bytes = await x.readAsBytes();
-      additions.add(ApiPickedImage(file: x, bytes: bytes));
+    for (final image in picked) {
+      final bytes = await image.readAsBytes();
+      additions.add(ApiPickedImage(file: image, bytes: bytes));
     }
     setState(() => _images = [..._images, ...additions]);
   }
 
   void _onSubmit() {
-    debugPrint('FoundFormPage onSubmit called');
     final isLoggedIn =
         currentUser.value != null || ApiService.instance.isAuthenticated;
     if (!isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connectez-vous pour publier')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_publish'))));
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const LoginPage()));
@@ -149,20 +151,16 @@ class _FoundFormPageState extends State<FoundFormPage> {
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!_contactChat && !_contactWhatsApp && !_contactCall) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Activez au moins un moyen de contact')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('enable_at_least_one_contact'))));
       return;
     }
     final phone = currentUser.value?.phone?.trim() ?? '';
     if ((_contactWhatsApp || _contactCall) && phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Ajoutez un numéro dans votre profil pour WhatsApp / Appel",
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('add_phone_number'))));
       return;
     }
     _createOrUpdateListing();
@@ -204,11 +202,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
         listingId = result.listingId;
 
         if (result.requiresPayment) {
-          final priceLabel =
-              "${result.amount ?? ''} ${result.currency ?? ''}".trim();
+          final priceLabel = '${result.amount ?? ''} ${result.currency ?? ''}'
+              .trim();
           await PaymentModal.show(
             context,
-            amount: priceLabel.isEmpty ? 'Paiement requis' : priceLabel,
+            amount: priceLabel.isEmpty ? t('payment_required') : priceLabel,
             onPay: (_) async {
               await ApiService.instance.confirmPublishPayment(
                 paymentId: result.paymentId ?? 0,
@@ -220,11 +218,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
             onPaymentSuccess: () {
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Paiement confirmé, annonce publiée'),
+                SnackBar(
+                  content: Text(t('payment_confirmed_listing_published')),
                 ),
               );
-              Navigator.of(context).popUntil((r) => r.isFirst);
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
           );
           if (!mounted) return;
@@ -233,10 +231,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
 
       if (!mounted) return;
       if (_images.isNotEmpty) {
-        await ApiService.instance.uploadListingPhotos(
-          listingId,
-          _images,
-        );
+        await ApiService.instance.uploadListingPhotos(listingId, _images);
       }
 
       if (!mounted) return;
@@ -244,17 +239,17 @@ class _FoundFormPageState extends State<FoundFormPage> {
         SnackBar(
           content: Text(
             isEdit
-                ? 'Annonce mise à jour avec succès'
-                : 'Annonce publiée avec succès',
+                ? t('listing_updated_success')
+                : t('listing_published_success'),
           ),
         ),
       );
-      Navigator.of(context).popUntil((r) => r.isFirst);
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${t('error')}: $e')));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -262,8 +257,10 @@ class _FoundFormPageState extends State<FoundFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final isMobile = MediaQuery.of(context).size.width < 640;
     final accent = widget.type == 'lost' ? Colors.redAccent : Colors.green;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7FB),
       appBar: TopNavBar(
@@ -292,42 +289,45 @@ class _FoundFormPageState extends State<FoundFormPage> {
                       _photosSection(),
                       const SizedBox(height: 20),
                       _textField(
-                        label: "Titre",
+                        label: t('title'),
                         controller: _titleCtrl,
-                        hint: "Ex: Téléphone trouvé au parc",
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? "Champ requis"
+                        hint: t('listing_title_hint'),
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? t('field_required')
                             : null,
                       ),
                       const SizedBox(height: 16),
                       _textField(
-                        label: "Description",
+                        label: t('description'),
                         controller: _descCtrl,
-                        hint:
-                            "Décrivez l'objet, où et quand vous l'avez trouvé...",
+                        hint: t('listing_description_hint'),
                         maxLines: 4,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? "Champ requis"
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? t('field_required')
                             : null,
                       ),
                       const SizedBox(height: 16),
                       _categoryDropdown(),
                       const SizedBox(height: 16),
                       _textField(
-                        label: "Ville",
+                        label: t('city_label'),
                         controller: _cityCtrl,
-                        hint: "Casablanca, Rabat...",
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? "Champ requis"
+                        hint: t('city_hint'),
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? t('field_required')
                             : null,
                       ),
                       const SizedBox(height: 16),
                       _textField(
-                        label: "Lieu précis",
+                        label: t('precise_location'),
                         controller: _locationCtrl,
-                        hint: "Quartier, rue, repère...",
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? "Champ requis"
+                        hint: t('precise_location_hint'),
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                            ? t('field_required')
                             : null,
                       ),
                       const SizedBox(height: 16),
@@ -364,10 +364,10 @@ class _FoundFormPageState extends State<FoundFormPage> {
           children: [
             Text(
               widget.isEdit
-                  ? "Modifier l'annonce"
+                  ? t('edit_listing')
                   : (widget.type == 'lost'
-                      ? "Publier un objet perdu"
-                      : "Publier un objet trouvé"),
+                        ? t('publish_lost_listing')
+                        : t('publish_found_listing')),
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
@@ -376,8 +376,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
             if (!widget.isEdit)
               Text(
                 widget.type == 'lost'
-                    ? "Paiement requis avant publication"
-                    : "Publication gratuite",
+                    ? t('payment_required_before_publish')
+                    : t('free_publication'),
                 style: Theme.of(
                   context,
                 ).textTheme.bodyMedium?.copyWith(color: AppTheme.textSecondary),
@@ -392,21 +392,22 @@ class _FoundFormPageState extends State<FoundFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label("Photos"),
+        _label(t('images')),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            if (widget.isEdit && widget.initialListing?.photoObjects.isNotEmpty == true)
+            if (widget.isEdit &&
+                widget.initialListing?.photoObjects.isNotEmpty == true)
               ...widget.initialListing!.photoObjects.map(
-                (p) => Stack(
+                (photo) => Stack(
                   alignment: Alignment.topRight,
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        _resolveImageUrl(p.url),
+                        _resolveImageUrl(photo.url),
                         width: 95,
                         height: 95,
                         fit: BoxFit.cover,
@@ -418,8 +419,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
                       child: GestureDetector(
                         onTap: () {
                           setState(() {
-                            _removedPhotoIds.add(p.id);
-                            widget.initialListing!.photoObjects.remove(p);
+                            _removedPhotoIds.add(photo.id);
+                            widget.initialListing!.photoObjects.remove(photo);
                           });
                         },
                         child: Container(
@@ -428,7 +429,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
                             color: Colors.black54,
                           ),
                           padding: const EdgeInsets.all(4),
-                          child: const Icon(Icons.close, size: 14, color: Colors.white),
+                          child: const Icon(
+                            Icons.close,
+                            size: 14,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -502,20 +507,20 @@ class _FoundFormPageState extends State<FoundFormPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label("Catégorie"),
+          _label(t('category')),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  "Échec du chargement des catégories",
-                  style: TextStyle(color: Colors.red),
+                  t('category_load_error'),
+                  style: const TextStyle(color: Colors.red),
                 ),
               ),
               TextButton.icon(
                 onPressed: _loadCategories,
                 icon: const Icon(Icons.refresh),
-                label: const Text("Réessayer"),
+                label: Text(t('retry')),
               ),
             ],
           ),
@@ -526,17 +531,18 @@ class _FoundFormPageState extends State<FoundFormPage> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _label("Catégorie"),
+          _label(t('category')),
           const SizedBox(height: 8),
-          const Text("Aucune catégorie trouvée"),
+          Text(t('no_categories_found')),
         ],
       );
     }
-    final lang = currentUser.value?.preferredLang ?? 'fr';
+
+    final lang = LanguageService.instance.currentLanguageCode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label("Catégorie"),
+        _label(t('category')),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
           key: ValueKey(_selectedCategoryId),
@@ -544,14 +550,14 @@ class _FoundFormPageState extends State<FoundFormPage> {
           decoration: _inputDecoration(null),
           items: _categories
               .map(
-                (c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.displayName(lang)),
+                (category) => DropdownMenuItem(
+                  value: category.id,
+                  child: Text(category.displayName(lang)),
                 ),
               )
               .toList(),
-          onChanged: (v) => setState(() => _selectedCategoryId = v),
-          validator: (v) => v == null ? "Choisissez une catégorie" : null,
+          onChanged: (value) => setState(() => _selectedCategoryId = value),
+          validator: (value) => value == null ? t('choose_category') : null,
         ),
       ],
     );
@@ -561,7 +567,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label("Date de l'événement"),
+        _label(t('event_date')),
         const SizedBox(height: 8),
         InkWell(
           onTap: () async {
@@ -582,8 +588,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
                 const SizedBox(width: 8),
                 Text(
                   _eventDate == null
-                      ? "Sélectionner une date"
-                      : "${_eventDate!.day.toString().padLeft(2, '0')}/${_eventDate!.month.toString().padLeft(2, '0')}/${_eventDate!.year}",
+                      ? t('select_date')
+                      : '${_eventDate!.day.toString().padLeft(2, '0')}/${_eventDate!.month.toString().padLeft(2, '0')}/${_eventDate!.year}',
                   style: TextStyle(
                     color: _eventDate == null
                         ? AppTheme.textMuted
@@ -602,29 +608,29 @@ class _FoundFormPageState extends State<FoundFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label("Moyens de contact"),
+        _label(t('contact_methods')),
         const SizedBox(height: 6),
-        const Text(
-          "Le numéro utilisé pour WhatsApp/Appel est celui de votre profil.",
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+        Text(
+          t('profile_phone_used_for_contact'),
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("Chat dans l'app"),
+          title: Text(t('chat_in_app')),
           value: _contactChat,
-          onChanged: (v) => setState(() => _contactChat = v),
+          onChanged: (value) => setState(() => _contactChat = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("WhatsApp"),
+          title: const Text('WhatsApp'),
           value: _contactWhatsApp,
-          onChanged: (v) => setState(() => _contactWhatsApp = v),
+          onChanged: (value) => setState(() => _contactWhatsApp = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text("Appel téléphonique"),
+          title: Text(t('phone_call')),
           value: _contactCall,
-          onChanged: (v) => setState(() => _contactCall = v),
+          onChanged: (value) => setState(() => _contactCall = value),
         ),
       ],
     );
@@ -647,8 +653,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
             : const Icon(Icons.cloud_upload_outlined),
         label: Text(
           _submitting
-              ? "Publication..."
-              : (widget.isEdit ? "Enregistrer les modifications" : "Publier l'annonce"),
+              ? t('publishing')
+              : (widget.isEdit ? t('save_changes') : t('publish_listing')),
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         style: ElevatedButton.styleFrom(
@@ -686,31 +692,35 @@ class _FoundFormPageState extends State<FoundFormPage> {
     );
   }
 
-  Widget _label(String text) => Text(
-    text,
-    style: const TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: AppTheme.textPrimary,
-    ),
-  );
+  Widget _label(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textPrimary,
+      ),
+    );
+  }
 
-  InputDecoration _inputDecoration(String? hint) => InputDecoration(
-    hintText: hint,
-    filled: true,
-    fillColor: Colors.white,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppTheme.borderLight),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppTheme.borderLight),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: AppTheme.primaryViolet, width: 2),
-    ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-  );
+  InputDecoration _inputDecoration(String? hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.borderLight),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.borderLight),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppTheme.primaryViolet, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
+  }
 }

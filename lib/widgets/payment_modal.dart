@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
+
+import '../services/l10n_helper.dart';
 import '../theme/app_theme.dart';
 
-/// Modal de paiement pour la publication d'annonce "Objet perdu"
 class PaymentModal extends StatefulWidget {
-  final String amount;
-  final VoidCallback onPaymentSuccess;
-  final VoidCallback? onCancel;
-  final Future<bool> Function(String method)? onPay;
-
   const PaymentModal({
     super.key,
     required this.amount,
@@ -16,7 +12,11 @@ class PaymentModal extends StatefulWidget {
     this.onPay,
   });
 
-  /// Affiche le modal de paiement
+  final String amount;
+  final VoidCallback onPaymentSuccess;
+  final VoidCallback? onCancel;
+  final Future<bool> Function(String method)? onPay;
+
   static Future<void> show(
     BuildContext context, {
     required String amount,
@@ -42,11 +42,11 @@ class PaymentModal extends StatefulWidget {
 
 class _PaymentModalState extends State<PaymentModal>
     with SingleTickerProviderStateMixin {
-  String _selectedMethod = 'card'; // 'card' ou 'paypal'
+  String _selectedMethod = 'card';
   bool _isProcessing = false;
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
+  late final AnimationController _animationController;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _fadeAnimation;
 
   @override
   void initState() {
@@ -56,16 +56,10 @@ class _PaymentModalState extends State<PaymentModal>
       vsync: this,
     );
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOut,
-      ),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
   }
@@ -79,7 +73,7 @@ class _PaymentModalState extends State<PaymentModal>
   Future<void> _handlePayment() async {
     setState(() => _isProcessing = true);
 
-    bool success = true;
+    var success = true;
     if (widget.onPay != null) {
       try {
         success = await widget.onPay!.call(_selectedMethod);
@@ -87,7 +81,6 @@ class _PaymentModalState extends State<PaymentModal>
         success = false;
       }
     } else {
-      // Simulation
       await Future.delayed(const Duration(seconds: 2));
     }
 
@@ -98,9 +91,9 @@ class _PaymentModalState extends State<PaymentModal>
     if (success) {
       widget.onPaymentSuccess();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paiement échoué')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(t('payment_failed'))));
     }
   }
 
@@ -111,6 +104,7 @@ class _PaymentModalState extends State<PaymentModal>
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     return FadeTransition(
       opacity: _fadeAnimation,
       child: ScaleTransition(
@@ -125,7 +119,7 @@ class _PaymentModalState extends State<PaymentModal>
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -134,18 +128,17 @@ class _PaymentModalState extends State<PaymentModal>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header avec titre et bouton fermer
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Finaliser la publication',
+                        t('complete_publication'),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
-                            ),
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, size: 20),
@@ -157,8 +150,6 @@ class _PaymentModalState extends State<PaymentModal>
                     ],
                   ),
                 ),
-
-                // Message d'information dans une boîte violette
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
@@ -178,12 +169,7 @@ class _PaymentModalState extends State<PaymentModal>
                           color: AppTheme.primaryVioletDark,
                         ),
                         children: [
-                          const TextSpan(text: 'Pour publier une annonce '),
-                          TextSpan(
-                            text: '"Objet perdu"',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const TextSpan(text: ', une participation de '),
+                          TextSpan(text: '${t('lost_item_payment_notice')} '),
                           TextSpan(
                             text: widget.amount,
                             style: const TextStyle(
@@ -191,34 +177,29 @@ class _PaymentModalState extends State<PaymentModal>
                               fontSize: 16,
                             ),
                           ),
-                          const TextSpan(text: ' est requise.'),
+                          TextSpan(text: ' ${t('payment_required_suffix')}'),
                         ],
                       ),
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
-                // Section Moyen de paiement
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Moyen de paiement',
-                        style: TextStyle(
+                        t('payment_method'),
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: AppTheme.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // Option Carte Bancaire
                       _PaymentMethodOption(
-                        title: 'Carte Bancaire',
+                        title: t('bank_card'),
                         icon: Icons.credit_card,
                         iconColor: const Color(0xFF2563EB),
                         iconBackground: const Color(0xFFDBEAFE),
@@ -226,8 +207,6 @@ class _PaymentModalState extends State<PaymentModal>
                         onTap: () => setState(() => _selectedMethod = 'card'),
                       ),
                       const SizedBox(height: 12),
-
-                      // Option PayPal
                       _PaymentMethodOption(
                         title: 'PayPal',
                         icon: Icons.account_balance_wallet,
@@ -239,15 +218,12 @@ class _PaymentModalState extends State<PaymentModal>
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 24),
-
-                // Footer avec sécurité et boutons
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppTheme.backgroundGray,
-                    borderRadius: const BorderRadius.only(
+                    borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(24),
                       bottomRight: Radius.circular(24),
                     ),
@@ -255,26 +231,23 @@ class _PaymentModalState extends State<PaymentModal>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Indicateur de sécurité
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.lock_outline,
                             size: 14,
                             color: AppTheme.textMuted,
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Paiement sécurisé',
-                            style: TextStyle(
+                            t('secure_payment'),
+                            style: const TextStyle(
                               fontSize: 12,
                               color: AppTheme.textMuted,
                             ),
                           ),
                         ],
                       ),
-
-                      // Boutons d'action
                       Row(
                         children: [
                           TextButton(
@@ -282,9 +255,11 @@ class _PaymentModalState extends State<PaymentModal>
                             style: TextButton.styleFrom(
                               foregroundColor: AppTheme.textSecondary,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 10),
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
                             ),
-                            child: const Text('Annuler'),
+                            child: Text(t('cancel_button')),
                           ),
                           const SizedBox(width: 12),
                           ElevatedButton(
@@ -293,7 +268,9 @@ class _PaymentModalState extends State<PaymentModal>
                               backgroundColor: AppTheme.primaryViolet,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 10),
+                                horizontal: 20,
+                                vertical: 10,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -306,11 +283,12 @@ class _PaymentModalState extends State<PaymentModal>
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.white),
+                                        Colors.white,
+                                      ),
                                     ),
                                   )
                                 : Text(
-                                    'Payer ${widget.amount}',
+                                    '${t('pay_amount')} ${widget.amount}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -330,15 +308,7 @@ class _PaymentModalState extends State<PaymentModal>
   }
 }
 
-/// Widget pour une option de moyen de paiement
 class _PaymentMethodOption extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBackground;
-  final bool isSelected;
-  final VoidCallback onTap;
-
   const _PaymentMethodOption({
     required this.title,
     required this.icon,
@@ -347,6 +317,13 @@ class _PaymentMethodOption extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
   });
+
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBackground;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -357,16 +334,13 @@ class _PaymentMethodOption extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? AppTheme.primaryVioletLight : Colors.white,
           border: Border.all(
-            color: isSelected
-                ? AppTheme.primaryViolet
-                : AppTheme.borderLight,
+            color: isSelected ? AppTheme.primaryViolet : AppTheme.borderLight,
             width: isSelected ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
-            // Radio button
             Container(
               width: 20,
               height: 20,
@@ -394,8 +368,6 @@ class _PaymentMethodOption extends StatelessWidget {
                   : null,
             ),
             const SizedBox(width: 16),
-
-            // Icône du moyen de paiement
             Container(
               width: 40,
               height: 40,
@@ -406,8 +378,6 @@ class _PaymentMethodOption extends StatelessWidget {
               child: Icon(icon, color: iconColor, size: 20),
             ),
             const SizedBox(width: 12),
-
-            // Titre
             Expanded(
               child: Text(
                 title,

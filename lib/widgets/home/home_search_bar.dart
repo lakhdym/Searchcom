@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../services/l10n_helper.dart';
+
 class SearchBarWithFilter extends StatelessWidget {
+  const SearchBarWithFilter({super.key, this.onChanged, this.onFilterTap});
+
   final ValueChanged<String>? onChanged;
   final VoidCallback? onFilterTap;
 
-  const SearchBarWithFilter({super.key, this.onChanged, this.onFilterTap});
-
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final primary = Theme.of(context).colorScheme.primary;
 
     return Container(
@@ -34,11 +37,14 @@ class SearchBarWithFilter extends StatelessWidget {
           Expanded(
             child: TextField(
               onChanged: onChanged,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                hintText: "Rechercher (objet, lieu, mot-clé…)",
-                hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                hintText: t('search_objects_places_keywords'),
+                hintStyle: const TextStyle(
+                  color: Color(0xFF9CA3AF),
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -57,9 +63,9 @@ class SearchBarWithFilter extends StatelessWidget {
                 ),
               ),
               icon: const Icon(Icons.filter_list, size: 18),
-              label: const Text(
-                'Filtrer',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              label: Text(
+                t('filter_button'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ),

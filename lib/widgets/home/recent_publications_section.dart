@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../services/l10n_helper.dart';
 import 'filter_segmented_control.dart';
 import 'home_models.dart';
 import 'publication_card.dart';
@@ -41,7 +42,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   int _offset = 0;
   int _requestSerial = 0;
 
-  int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvé
+  int _selectedIndex = 0;
   String _query = '';
 
   @override
@@ -204,9 +205,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
     return _publications.where((publication) {
       final haystack =
-          '${publication.title} '
-                  '${publication.description} '
-                  '${publication.cityArea}'
+          '${publication.title} ${publication.description} ${publication.cityArea}'
               .toLowerCase();
       return haystack.contains(_query);
     }).toList();
@@ -214,6 +213,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -223,7 +223,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           children: [
             Expanded(
               child: Text(
-                'Publications récentes',
+                t('recent_publications'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -234,7 +234,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
             ),
             const SizedBox(width: 10),
             IconButton(
-              tooltip: 'Actualiser',
+              tooltip: t('refresh'),
               onPressed: _refreshFeed,
               icon: const Icon(Icons.refresh),
             ),
@@ -266,9 +266,9 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Column(
           children: [
-            const Text(
-              'Impossible de charger les annonces.',
-              style: TextStyle(color: _textGray),
+            Text(
+              t('listings_load_error'),
+              style: const TextStyle(color: _textGray),
             ),
             const SizedBox(height: 8),
             Text(
@@ -278,10 +278,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: _refreshFeed,
-              child: const Text('Réessayer'),
-            ),
+            OutlinedButton(onPressed: _refreshFeed, child: Text(t('retry'))),
           ],
         ),
       );
@@ -292,9 +289,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            _query.isEmpty
-                ? 'Aucune annonce pour le moment.'
-                : 'Aucune annonce ne correspond à votre recherche.',
+            _query.isEmpty ? t('no_listings_yet') : t('no_search_results'),
             style: const TextStyle(color: _textGray),
           ),
         ),
@@ -339,8 +334,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
-                  'Vous avez consulté toutes les annonces',
-                  style: TextStyle(
+                  t('viewed_all_listings'),
+                  style: const TextStyle(
                     fontSize: 13,
                     color: _mutedGray,
                     fontStyle: FontStyle.italic,

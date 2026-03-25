@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../pages/login_page.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
+import '../../services/l10n_helper.dart';
 import 'home_models.dart';
 import 'publication_menu_row.dart';
 
@@ -58,17 +59,17 @@ class PublicationActionsMenu {
       items: [
         _menuItem(
           icon: Icons.link,
-          label: "Copier le lien",
+          label: t('copy_link'),
           onTap: () => _copyLink(context, publication),
         ),
         _menuItem(
           icon: Icons.share,
-          label: "Partager",
+          label: t('share'),
           onTap: () => _shareListing(publication),
         ),
         _menuItem(
           icon: Icons.flag,
-          label: "Signaler",
+          label: t('report'),
           iconColor: Colors.red,
           textColor: Colors.red,
           onTap: () => _reportListing(context, publication),
@@ -104,17 +105,17 @@ class PublicationActionsMenu {
     Clipboard.setData(ClipboardData(text: link));
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Lien copié")));
+    ).showSnackBar(SnackBar(content: Text(t('link_copied'))));
   }
 
   static Future<void> _shareListing(Publication publication) async {
     final url = buildListingShareUrl(publication);
     final buffer = StringBuffer()
-      ..write("Regarde cette annonce : ${publication.title}");
+      ..write('${t('share_listing_intro')}: ${publication.title}');
     if (publication.cityArea.isNotEmpty) {
-      buffer.write(" à ${publication.cityArea}");
+      buffer.write(' - ${publication.cityArea}');
     }
-    buffer.write("\n$url");
+    buffer.write('\n$url');
     await Share.share(buffer.toString());
   }
 
@@ -128,38 +129,39 @@ class PublicationActionsMenu {
     if (token == null || token.isEmpty) {
       final goLogin = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text("Connexion requise"),
-          content: const Text(
-            "Vous devez vous connecter pour signaler une annonce.",
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text("Annuler"),
+        builder: (dialogContext) {
+          watchLanguage(dialogContext);
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text("Se connecter"),
-            ),
-          ],
-        ),
+            title: Text(tr(dialogContext, 'login_required')),
+            content: Text(tr(dialogContext, 'sign_in_to_report')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(tr(dialogContext, 'cancel_button')),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(tr(dialogContext, 'sign_in_button')),
+              ),
+            ],
+          );
+        },
       );
 
       if (!context.mounted) return;
       if (goLogin == true) {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const LoginPage()));
       }
       return;
     }
 
     ApiService.instance.setToken(token);
-    final reasons = ['spam', 'scam', 'abuse', 'illegal', 'other'];
+    final reasons = const ['spam', 'scam', 'abuse', 'illegal', 'other'];
     var selected = reasons.first;
     final detailsController = TextEditingController();
     var sending = false;
@@ -171,6 +173,7 @@ class PublicationActionsMenu {
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (sheetContext) {
+        watchLanguage(sheetContext);
         final bottom = MediaQuery.of(sheetContext).viewInsets.bottom;
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
@@ -192,10 +195,9 @@ class PublicationActionsMenu {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    "Signaler l'annonce",
-                    style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                    tr(sheetContext, 'report_listing'),
+                    style: Theme.of(sheetContext).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 12),
                   RadioGroup<String>(
@@ -210,7 +212,7 @@ class PublicationActionsMenu {
                             (reason) => RadioListTile<String>(
                               dense: true,
                               value: reason,
-                              title: Text(reason),
+                              title: Text(_reasonLabel(reason)),
                             ),
                           )
                           .toList(),
@@ -221,8 +223,8 @@ class PublicationActionsMenu {
                     controller: detailsController,
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: "Détails (optionnel)",
+                    decoration: InputDecoration(
+                      labelText: tr(sheetContext, 'report_details_optional'),
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -233,7 +235,7 @@ class PublicationActionsMenu {
                         onPressed: sending
                             ? null
                             : () => Navigator.of(sheetContext).pop(),
-                        child: const Text("Annuler"),
+                        child: Text(tr(sheetContext, 'cancel_button')),
                       ),
                       const Spacer(),
                       FilledButton(
@@ -249,9 +251,7 @@ class PublicationActionsMenu {
                                   );
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text("Signalement envoyé"),
-                                      ),
+                                      SnackBar(content: Text(t('report_sent'))),
                                     );
                                   }
                                   if (sheetContext.mounted) {
@@ -260,7 +260,9 @@ class PublicationActionsMenu {
                                 } catch (e) {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text("Erreur: $e")),
+                                      SnackBar(
+                                        content: Text('${t('error')}: $e'),
+                                      ),
                                     );
                                   }
                                   if (sheetContext.mounted) {
@@ -279,7 +281,7 @@ class PublicationActionsMenu {
                                   ),
                                 ),
                               )
-                            : const Text("Envoyer"),
+                            : Text(tr(sheetContext, 'send_message')),
                       ),
                     ],
                   ),
@@ -292,5 +294,20 @@ class PublicationActionsMenu {
     );
 
     detailsController.dispose();
+  }
+
+  static String _reasonLabel(String reason) {
+    switch (reason) {
+      case 'spam':
+        return t('report_reason_spam');
+      case 'scam':
+        return t('report_reason_scam');
+      case 'abuse':
+        return t('report_reason_abuse');
+      case 'illegal':
+        return t('report_reason_illegal');
+      default:
+        return t('report_reason_other');
+    }
   }
 }
