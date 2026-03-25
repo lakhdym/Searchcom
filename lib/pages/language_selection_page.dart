@@ -64,9 +64,10 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     final maxWidth = isMobile ? screenWidth : 500.0;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundWhite,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: const TopNavBar(showLoginAction: false),
       body: SafeArea(
         child: Center(
@@ -84,7 +85,7 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
                       tr(context, 'welcome'),
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
+                        color: scheme.onSurface,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -92,7 +93,7 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
                     Text(
                       tr(context, 'select_language_first'),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppTheme.textSecondary,
+                        color: scheme.onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -133,6 +134,7 @@ class _LanguageButtonState extends State<_LanguageButton> {
   @override
   Widget build(BuildContext context) {
     watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -145,7 +147,7 @@ class _LanguageButtonState extends State<_LanguageButton> {
           decoration: BoxDecoration(
             color: _isHovered
                 ? AppTheme.primaryVioletLight
-                : AppTheme.backgroundGray,
+                : AppTheme.backgroundWhite,
             border: Border.all(
               color: _isHovered
                   ? AppTheme.primaryVioletMedium
@@ -155,9 +157,9 @@ class _LanguageButtonState extends State<_LanguageButton> {
             borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+                color: scheme.shadow.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -169,7 +171,7 @@ class _LanguageButtonState extends State<_LanguageButton> {
                 decoration: BoxDecoration(
                   color: _isHovered
                       ? AppTheme.primaryVioletLighter
-                      : AppTheme.borderLight,
+                      : AppTheme.backgroundGray,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: _isHovered

@@ -105,6 +105,8 @@ class _PaymentModalState extends State<PaymentModal>
   @override
   Widget build(BuildContext context) {
     watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: ScaleTransition(
@@ -115,7 +117,7 @@ class _PaymentModalState extends State<PaymentModal>
           child: Container(
             constraints: const BoxConstraints(maxWidth: 400),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.backgroundWhite,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -137,12 +139,12 @@ class _PaymentModalState extends State<PaymentModal>
                         t('complete_publication'),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppTheme.textPrimary,
+                          color: scheme.onSurface,
                         ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, size: 20),
-                        color: AppTheme.textMuted,
+                        color: scheme.onSurfaceVariant,
                         onPressed: _handleCancel,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
@@ -191,10 +193,10 @@ class _PaymentModalState extends State<PaymentModal>
                     children: [
                       Text(
                         t('payment_method'),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: AppTheme.textPrimary,
+                          color: scheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -221,9 +223,9 @@ class _PaymentModalState extends State<PaymentModal>
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppTheme.backgroundGray,
-                    borderRadius: BorderRadius.only(
+                    borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(24),
                       bottomRight: Radius.circular(24),
                     ),
@@ -233,7 +235,7 @@ class _PaymentModalState extends State<PaymentModal>
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.lock_outline,
                             size: 14,
                             color: AppTheme.textMuted,
@@ -241,7 +243,7 @@ class _PaymentModalState extends State<PaymentModal>
                           const SizedBox(width: 6),
                           Text(
                             t('secure_payment'),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: AppTheme.textMuted,
                             ),
@@ -332,7 +334,9 @@ class _PaymentMethodOption extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryVioletLight : Colors.white,
+          color: isSelected
+              ? AppTheme.primaryVioletLight
+              : AppTheme.backgroundWhite,
           border: Border.all(
             color: isSelected ? AppTheme.primaryViolet : AppTheme.borderLight,
             width: isSelected ? 2 : 1,
@@ -352,7 +356,7 @@ class _PaymentMethodOption extends StatelessWidget {
                       : AppTheme.borderMedium,
                   width: 2,
                 ),
-                color: Colors.white,
+                color: AppTheme.backgroundWhite,
               ),
               child: isSelected
                   ? Center(

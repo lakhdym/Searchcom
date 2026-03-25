@@ -11,28 +11,28 @@ class SearchBarWithFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     watchLanguage(context);
-    final primary = Theme.of(context).colorScheme.primary;
+    final scheme = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: scheme.shadow.withValues(alpha: 0.08),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
         ],
         border: Border.all(
-          color: Colors.black.withValues(alpha: 0.04),
+          color: scheme.outlineVariant.withValues(alpha: 0.8),
           width: 1,
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, color: Color(0xFF9CA3AF), size: 22),
+          Icon(Icons.search, color: scheme.onSurfaceVariant, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -41,8 +41,8 @@ class SearchBarWithFilter extends StatelessWidget {
                 isDense: true,
                 border: InputBorder.none,
                 hintText: t('search_objects_places_keywords'),
-                hintStyle: const TextStyle(
-                  color: Color(0xFF9CA3AF),
+                hintStyle: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 14,
                 ),
               ),
@@ -54,7 +54,7 @@ class SearchBarWithFilter extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: onFilterTap ?? () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
+                backgroundColor: scheme.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 14),

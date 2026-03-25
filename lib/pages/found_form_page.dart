@@ -1,4 +1,3 @@
-﻿
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -201,6 +200,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
         );
         listingId = result.listingId;
 
+        if (!mounted) return;
+
         if (result.requiresPayment) {
           final priceLabel = '${result.amount ?? ''} ${result.currency ?? ''}'
               .trim();
@@ -262,7 +263,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
     final accent = widget.type == 'lost' ? Colors.redAccent : Colors.green;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7FB),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: TopNavBar(
         showBack: true,
         onBack: () => Navigator.of(context).pop(),
@@ -480,11 +481,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
                 width: 95,
                 height: 95,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppTheme.backgroundWhite,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppTheme.borderLight),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.add_a_photo_outlined,
                   color: AppTheme.textMuted,
                 ),
@@ -584,7 +585,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
             decoration: _inputDecoration(null),
             child: Row(
               children: [
-                const Icon(Icons.event_outlined, color: AppTheme.textMuted),
+                Icon(Icons.event_outlined, color: AppTheme.textMuted),
                 const SizedBox(width: 8),
                 Text(
                   _eventDate == null
@@ -612,7 +613,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
         const SizedBox(height: 6),
         Text(
           t('profile_phone_used_for_contact'),
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -695,7 +696,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
   Widget _label(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w600,
         color: AppTheme.textPrimary,
@@ -707,14 +708,14 @@ class _FoundFormPageState extends State<FoundFormPage> {
     return InputDecoration(
       hintText: hint,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: AppTheme.inputBackground,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppTheme.borderLight),
+        borderSide: BorderSide(color: AppTheme.borderLight),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppTheme.borderLight),
+        borderSide: BorderSide(color: AppTheme.borderLight),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
