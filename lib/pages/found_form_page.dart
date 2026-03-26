@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
 import '../models/listing_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
@@ -119,7 +122,12 @@ class _FoundFormPageState extends State<FoundFormPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _catsError = e.toString());
+      setState(() {
+        _catsError = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.categoriesLoadError(),
+        );
+      });
     } finally {
       if (mounted) setState(() => _loadingCats = false);
     }
@@ -140,9 +148,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
     final isLoggedIn =
         currentUser.value != null || ApiService.instance.isAuthenticated;
     if (!isLoggedIn) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_publish'))));
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_publish'));
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const LoginPage()));
@@ -150,16 +156,15 @@ class _FoundFormPageState extends State<FoundFormPage> {
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     if (!_contactChat && !_contactWhatsApp && !_contactCall) {
-      ScaffoldMessenger.of(
+      AppFeedback.showErrorSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(t('enable_at_least_one_contact'))));
+        AppMessages.contactMethodRequired(),
+      );
       return;
     }
     final phone = currentUser.value?.phone?.trim() ?? '';
     if ((_contactWhatsApp || _contactCall) && phone.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('add_phone_number'))));
+      AppFeedback.showErrorSnackBar(context, t('add_phone_number'));
       return;
     }
     _createOrUpdateListing();
@@ -218,10 +223,9 @@ class _FoundFormPageState extends State<FoundFormPage> {
             },
             onPaymentSuccess: () {
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(t('payment_confirmed_listing_published')),
-                ),
+              AppFeedback.showSuccessSnackBar(
+                context,
+                AppMessages.paymentConfirmedListingPublished(),
               );
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
@@ -236,21 +240,24 @@ class _FoundFormPageState extends State<FoundFormPage> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isEdit
-                ? t('listing_updated_success')
-                : t('listing_published_success'),
-          ),
-        ),
+      AppFeedback.showSuccessSnackBar(
+        context,
+        isEdit
+            ? AppMessages.listingUpdatedSuccess()
+            : AppMessages.listingPublishedSuccess(),
       );
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      AppFeedback.showErrorSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text('${t('error')}: $e')));
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: widget.isEdit
+              ? AppMessages.listingUpdateError()
+              : AppMessages.listingPublishError(),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -295,7 +302,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                         hint: t('listing_title_hint'),
                         validator: (value) =>
                             (value == null || value.trim().isEmpty)
-                            ? t('field_required')
+                            ? AppMessages.requiredField()
                             : null,
                       ),
                       const SizedBox(height: 16),
@@ -306,7 +313,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                         maxLines: 4,
                         validator: (value) =>
                             (value == null || value.trim().isEmpty)
-                            ? t('field_required')
+                            ? AppMessages.requiredField()
                             : null,
                       ),
                       const SizedBox(height: 16),
@@ -318,7 +325,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                         hint: t('city_hint'),
                         validator: (value) =>
                             (value == null || value.trim().isEmpty)
-                            ? t('field_required')
+                            ? AppMessages.requiredField()
                             : null,
                       ),
                       const SizedBox(height: 16),
@@ -328,7 +335,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
                         hint: t('precise_location_hint'),
                         validator: (value) =>
                             (value == null || value.trim().isEmpty)
-                            ? t('field_required')
+                            ? AppMessages.requiredField()
                             : null,
                       ),
                       const SizedBox(height: 16),
@@ -514,7 +521,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
             children: [
               Expanded(
                 child: Text(
-                  t('category_load_error'),
+                  _catsError!,
                   style: const TextStyle(color: Colors.red),
                 ),
               ),
@@ -558,7 +565,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
               )
               .toList(),
           onChanged: (value) => setState(() => _selectedCategoryId = value),
-          validator: (value) => value == null ? t('choose_category') : null,
+          validator: (value) =>
+              value == null ? AppMessages.categoryRequired() : null,
         ),
       ],
     );

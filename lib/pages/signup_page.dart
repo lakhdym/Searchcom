@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
+import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
 import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
@@ -49,14 +53,13 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
     if (!_accepted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('please_accept_terms'))));
+      AppFeedback.showErrorSnackBar(context, t('please_accept_terms'));
       return;
     }
     if (!_isEmailValid && !_isPhoneValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t('provide_valid_email_or_phone'))),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppMessages.validEmailOrPhoneRequired(),
       );
       return;
     }
@@ -71,14 +74,9 @@ class _SignUpPageState extends State<SignUpPage> {
         preferredLang: LanguageService.instance.currentLanguageCode,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            resp.message.isNotEmpty
-                ? resp.message
-                : t('account_created_success'),
-          ),
-        ),
+      AppFeedback.showSuccessSnackBar(
+        context,
+        AppMessages.accountCreatedSuccess(),
       );
       final emailVal = resp.email ?? _emailCtrl.text.trim();
       final phoneVal = resp.phone ?? _phoneCtrl.text.trim();
@@ -107,16 +105,15 @@ class _SignUpPageState extends State<SignUpPage> {
           context,
         ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
       }
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      AppFeedback.showErrorSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('account_creation_error'))));
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.accountCreationError(),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -213,10 +210,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                 hintText: t('full_name_hint'),
                                 prefixIcon: const Icon(Icons.person_outline),
                               ),
-                              validator: (v) =>
-                                  (v == null || v.trim().length < 2)
-                                  ? t('min_2_chars')
-                                  : null,
+                              validator: AppValidators.fullName,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -227,12 +221,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                 hintText: 'vous@example.com',
                                 prefixIcon: Icon(Icons.mail_outlined),
                               ).copyWith(labelText: t('email_optional')),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return null;
-                                return v.contains('@')
-                                    ? null
-                                    : t('invalid_email');
-                              },
+                              validator: AppValidators.emailOptional,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -242,13 +231,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                 hintText: '+212 6 12 34 56 78',
                                 prefixIcon: Icon(Icons.phone_outlined),
                               ).copyWith(labelText: t('phone_optional')),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return null;
-                                return v.replaceAll(RegExp(r'\D'), '').length >=
-                                        6
-                                    ? null
-                                    : t('invalid_phone');
-                              },
+                              validator: AppValidators.phoneOptional,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -269,9 +252,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                   ),
                                 ),
                               ),
-                              validator: (v) => (v == null || v.length < 8)
-                                  ? t('at_least_8_chars')
-                                  : null,
+                              validator: AppValidators.password,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -294,9 +275,11 @@ class _SignUpPageState extends State<SignUpPage> {
                                   ),
                                 ),
                               ),
-                              validator: (v) => (v != _passwordCtrl.text)
-                                  ? t('password_mismatch')
-                                  : null,
+                              validator: (value) =>
+                                  AppValidators.confirmPassword(
+                                    value,
+                                    _passwordCtrl.text,
+                                  ),
                             ),
                             const SizedBox(height: 12),
                             Row(

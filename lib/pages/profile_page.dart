@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../core/feedback/app_feedback.dart';
+
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
@@ -294,9 +296,7 @@ class ProfileHeaderCard extends StatelessWidget {
 
   void _copyLink(BuildContext context) {
     Clipboard.setData(ClipboardData(text: profileUrl));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(t('link_copied'))));
+    AppFeedback.showSuccessSnackBar(context, t('link_copied'));
   }
 
   void _shareProfile() {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/feedback/app_feedback.dart';
 import '../services/l10n_helper.dart';
 import '../theme/app_theme.dart';
 
@@ -91,9 +93,7 @@ class _PaymentModalState extends State<PaymentModal>
     if (success) {
       widget.onPaymentSuccess();
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('payment_failed'))));
+      AppFeedback.showErrorSnackBar(context, AppMessages.paymentFailed());
     }
   }
 

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
+import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
+import '../services/l10n_helper.dart';
 import 'login_page.dart';
 
 class EmailVerificationPage extends StatefulWidget {
@@ -25,10 +30,9 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
 
   Future<void> _verify() async {
     FocusScope.of(context).unfocus();
-    if (_codeCtrl.text.trim().length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrez le code à 6 chiffres.')),
-      );
+    final validation = AppValidators.verificationCode(_codeCtrl.text.trim());
+    if (validation != null) {
+      AppFeedback.showErrorSnackBar(context, validation);
       return;
     }
     setState(() => _loadingVerify = true);
@@ -38,22 +42,22 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
         code: _codeCtrl.text.trim(),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email vérifié avec succès 🎉')),
+      AppFeedback.showSuccessSnackBar(
+        context,
+        AppMessages.emailVerifiedSuccess(),
       );
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginPage()),
         (route) => false,
       );
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vérification impossible.')),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.verificationError(),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loadingVerify = false);
@@ -65,13 +69,15 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     try {
       await AuthApiService.instance.resendVerification(email: widget.email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nouveau code envoyé.')),
-      );
-    } on ApiException catch (e) {
+      AppFeedback.showSuccessSnackBar(context, AppMessages.codeResentSuccess());
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.codeResendError(),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loadingResend = false);
@@ -80,11 +86,12 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Vérification de l’email'),
+        title: const Text('Verification email'),
         backgroundColor: scheme.surface,
         elevation: 0,
       ),
@@ -120,18 +127,26 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                       CircleAvatar(
                         radius: 28,
                         backgroundColor: scheme.primary.withValues(alpha: 0.14),
-                        child: Icon(Icons.mark_email_read_outlined, size: 30, color: scheme.primary),
+                        child: Icon(
+                          Icons.mark_email_read_outlined,
+                          size: 30,
+                          color: scheme.primary,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        'Vérifiez votre email',
-                        style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                        'Verifiez votre email',
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Un code a été envoyé à ${widget.email}. Saisissez-le pour activer votre compte.',
-                        style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                        'Un code a ete envoye a ${widget.email}. Saisissez-le pour activer votre compte.',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20),
@@ -140,7 +155,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                         keyboardType: TextInputType.number,
                         maxLength: 6,
                         decoration: const InputDecoration(
-                          labelText: 'Code à 6 chiffres',
+                          labelText: 'Code a 6 chiffres',
                           prefixIcon: Icon(Icons.verified_outlined),
                           counterText: '',
                         ),
@@ -156,10 +171,12 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(scheme.onPrimary),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      scheme.onPrimary,
+                                    ),
                                   ),
                                 )
-                              : const Text('Vérifier'),
+                              : const Text('Verifier'),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -171,7 +188,9 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    scheme.primary,
+                                  ),
                                 ),
                               )
                             : const Text('Renvoyer le code'),
@@ -179,7 +198,9 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                       const SizedBox(height: 8),
                       Text(
                         'Le code expire dans 10 minutes.',
-                        style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],

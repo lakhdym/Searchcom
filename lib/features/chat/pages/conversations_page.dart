@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_messages.dart';
+import '../../../core/errors/app_error_mapper.dart';
 import '../../../models/user_model.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
@@ -105,7 +107,16 @@ class _ConversationsPageState extends State<ConversationsPage> {
             else if (_error != null)
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(_error!, style: TextStyle(color: scheme.error)),
+                child: Column(
+                  children: [
+                    Text(_error!, style: TextStyle(color: scheme.error)),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: _loadConversations,
+                      child: Text(t('retry')),
+                    ),
+                  ],
+                ),
               )
             else
               Expanded(
@@ -164,7 +175,14 @@ class _ConversationsPageState extends State<ConversationsPage> {
           .toList();
       setState(() => _convs = mapped);
     } catch (e) {
-      if (!silent) setState(() => _error = e.toString());
+      if (!silent) {
+        setState(() {
+          _error = AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.conversationsLoadError(),
+          );
+        });
+      }
     } finally {
       if (!silent) setState(() => _loading = false);
     }

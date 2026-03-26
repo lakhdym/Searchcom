@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
+import '../../core/feedback/app_feedback.dart';
+
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
 import '../../services/l10n_helper.dart';
@@ -103,7 +107,12 @@ class _PublicationCardState extends State<PublicationCard>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _commentsError = e.toString());
+      setState(() {
+        _commentsError = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.commentsLoadError(),
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _loadingComments = false);
@@ -127,7 +136,12 @@ class _PublicationCardState extends State<PublicationCard>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _likesError = e.toString());
+      setState(() {
+        _likesError = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.likesLoadError(),
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _likesLoading = false);
@@ -139,9 +153,7 @@ class _PublicationCardState extends State<PublicationCard>
     if (_likeBusy) return;
 
     if (!ApiService.instance.isAuthenticated) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_like'))));
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_like'));
       return;
     }
 
@@ -158,11 +170,15 @@ class _PublicationCardState extends State<PublicationCard>
         _likesLoaded = false;
         _likes = [];
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      AppFeedback.showErrorSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(t('like_update_error'))));
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.likeUpdateError(),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _likeBusy = false);
@@ -177,9 +193,7 @@ class _PublicationCardState extends State<PublicationCard>
     if (!mounted) return;
 
     if (_likesError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('likes_load_error'))));
+      AppFeedback.showErrorSnackBar(context, _likesError!);
       return;
     }
 
@@ -256,14 +270,16 @@ class _PublicationCardState extends State<PublicationCard>
 
   Future<void> _addComment() async {
     final text = _commentController.text.trim();
-    if (text.isEmpty || _submittingComment) return;
+    if (_submittingComment) return;
+    if (text.isEmpty) {
+      AppFeedback.showErrorSnackBar(context, AppMessages.commentRequired());
+      return;
+    }
 
     final canComment = await ApiService.instance.syncStoredAuthSession();
     if (!mounted) return;
     if (!canComment) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_comment'))));
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_comment'));
       return;
     }
 
@@ -284,15 +300,18 @@ class _PublicationCardState extends State<PublicationCard>
         _showComments = true;
       });
       _commentController.clear();
-      ScaffoldMessenger.of(
+      AppFeedback.showSuccessSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(t('comment_added'))));
+        AppMessages.commentAddedSuccess(),
+      );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _commentsError = e.toString());
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('comment_error'))));
+      final message = AppErrorMapper.message(
+        e,
+        fallbackMessage: AppMessages.commentSendError(),
+      );
+      setState(() => _commentsError = message);
+      AppFeedback.showErrorSnackBar(context, message);
     } finally {
       if (mounted) {
         setState(() => _submittingComment = false);

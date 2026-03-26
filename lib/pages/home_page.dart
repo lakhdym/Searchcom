@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/feedback/app_feedback.dart';
 import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
 import '../services/l10n_helper.dart';
@@ -57,9 +59,10 @@ class _HomePageState extends State<HomePage> {
     if (!mounted || created != true) return;
 
     _feedRefreshSignal.value++;
-    ScaffoldMessenger.of(
+    AppFeedback.showSuccessSnackBar(
       context,
-    ).showSnackBar(SnackBar(content: Text(t('published_successfully'))));
+      AppMessages.listingPublishedSuccess(),
+    );
   }
 
   Future<void> _guardAuthThen(

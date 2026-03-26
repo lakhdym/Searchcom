@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
+import '../../core/feedback/app_feedback.dart';
+
 import '../../services/api_service.dart' show ApiListingComment, ApiService;
 import '../../services/l10n_helper.dart';
 import '../image_viewer_page.dart';
@@ -82,7 +86,12 @@ class _PublicationFullDetailsSheetState
       widget.onCommentsChanged?.call(List<ApiListingComment>.from(_comments));
     } catch (e) {
       if (!mounted) return;
-      setState(() => _commentsError = e.toString());
+      setState(() {
+        _commentsError = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.commentsLoadError(),
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _loadingComments = false);
@@ -92,14 +101,16 @@ class _PublicationFullDetailsSheetState
 
   Future<void> _addComment() async {
     final text = _commentController.text.trim();
-    if (text.isEmpty || _submittingComment) return;
+    if (_submittingComment) return;
+    if (text.isEmpty) {
+      AppFeedback.showErrorSnackBar(context, AppMessages.commentRequired());
+      return;
+    }
 
     final canComment = await ApiService.instance.syncStoredAuthSession();
     if (!mounted) return;
     if (!canComment) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('sign_in_to_comment'))));
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_comment'));
       return;
     }
 
@@ -120,15 +131,18 @@ class _PublicationFullDetailsSheetState
       });
       widget.onCommentsChanged?.call(List<ApiListingComment>.from(_comments));
       _commentController.clear();
-      ScaffoldMessenger.of(
+      AppFeedback.showSuccessSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(t('comment_added'))));
+        AppMessages.commentAddedSuccess(),
+      );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _commentsError = e.toString());
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('comment_error'))));
+      final message = AppErrorMapper.message(
+        e,
+        fallbackMessage: AppMessages.commentSendError(),
+      );
+      setState(() => _commentsError = message);
+      AppFeedback.showErrorSnackBar(context, message);
     } finally {
       if (mounted) {
         setState(() => _submittingComment = false);
@@ -490,7 +504,7 @@ class _PublicationFullDetailsSheetState
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
-                          '${t('error')}: $_commentsError',
+                          _commentsError!,
                           style: const TextStyle(color: Colors.red),
                         ),
                       )

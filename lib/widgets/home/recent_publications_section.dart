@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
 import '../../services/l10n_helper.dart';
 import 'filter_segmented_control.dart';
 import 'home_listings_api.dart';
@@ -184,7 +186,10 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     } catch (e) {
       if (!mounted || requestId != _requestSerial) return;
       setState(() {
-        _error = e.toString();
+        _error = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.listingsLoadError(),
+        );
         _loading = false;
         _loadingMore = false;
       });
@@ -268,15 +273,9 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
         child: Column(
           children: [
             Text(
-              t('listings_load_error'),
-              style: const TextStyle(color: _textGray),
-            ),
-            const SizedBox(height: 8),
-            Text(
               _error!,
-              style: const TextStyle(color: _mutedGray, fontSize: 12),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _textGray),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             OutlinedButton(onPressed: _refreshFeed, child: Text(t('retry'))),
