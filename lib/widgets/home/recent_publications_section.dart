@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/api_service.dart';
 import '../../services/l10n_helper.dart';
 import 'filter_segmented_control.dart';
+import 'home_listings_api.dart';
 import 'home_models.dart';
 import 'publication_card.dart';
 
@@ -100,7 +100,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     await _loadPublications(reset: true);
   }
 
-  Publication _mapListing(ApiListing listing) {
+  Publication _mapListing(HomeListingItem listing) {
     final images = listing.images.isNotEmpty
         ? listing.images
         : (listing.imageUrl != null && listing.imageUrl!.isNotEmpty
@@ -115,6 +115,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           : PublicationStatus.trouve,
       imageUrls: images.isNotEmpty ? images : <String>[fallbackImageUrl],
       dateText: listing.date,
+      eventDate: listing.eventDate ?? '',
       description: listing.description,
       cityArea: listing.location.isNotEmpty ? listing.location : listing.city,
       likesCount: listing.likesCount,
@@ -160,7 +161,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     final nextOffset = reset ? 0 : _offset;
 
     try {
-      final listings = await ApiService.instance.fetchListings(
+      final listings = await HomeListingsApi.instance.fetchListings(
         type: _selectedType,
         limit: requestLimit,
         offset: nextOffset,
