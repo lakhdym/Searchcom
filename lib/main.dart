@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/feedback/app_feedback.dart';
+import 'pages/app_error_page.dart';
 import 'pages/splash_screen.dart';
 import 'services/l10n_helper.dart';
 import 'services/language_service.dart';
@@ -43,6 +45,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: t('app_title'),
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: AppFeedback.messengerKey,
       themeMode: themeService.themeMode,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
@@ -53,10 +56,12 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      onUnknownRoute: (_) =>
+          MaterialPageRoute(builder: (_) => AppErrorPage.notFound()),
       builder: (context, child) {
         return Directionality(
           textDirection: languageService.textDirection,
-          child: child ?? const SizedBox.shrink(),
+          child: child ?? const AppErrorPage(kind: AppErrorKind.navigation),
         );
       },
       home: const SplashScreen(),

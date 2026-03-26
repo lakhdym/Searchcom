@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/feedback/app_feedback.dart';
 import '../pages/login_page.dart';
 import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
@@ -75,6 +77,14 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                   onTap: () async {
                     if (!isSelected) {
                       await languageService.setLanguage(lang.code);
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                      }
+                      AppFeedback.showSuccessSnackBar(
+                        context,
+                        AppMessages.languageChangedSuccess(),
+                      );
+                      return;
                     }
                     if (ctx.mounted) {
                       Navigator.of(ctx).pop();
@@ -158,7 +168,12 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           IconButton(
-            onPressed: onNotifications ?? () {},
+            onPressed:
+                onNotifications ??
+                () => AppFeedback.showInfoSnackBar(
+                  context,
+                  AppMessages.featureComingSoon(),
+                ),
             icon: Icon(
               Icons.notifications_none,
               color: scheme.onSurface,

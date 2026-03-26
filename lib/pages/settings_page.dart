@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/feedback/app_feedback.dart';
 import '../services/api_service.dart';
-import '../services/auth_local_storage.dart';
+import '../services/auth_api_service.dart';
 import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
 import '../services/theme_service.dart';
-import '../state/auth_state.dart';
 import 'change_password_page.dart';
 import 'edit_profile_page.dart';
-import 'home_page.dart';
+import 'home_shell.dart';
 import 'my_listings_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -39,7 +40,17 @@ class SettingsPage extends StatelessWidget {
                   title: Text(lang.nativeName),
                   subtitle: Text(lang.name),
                   onTap: () async {
-                    await languageService.setLanguage(lang.code);
+                    if (!isSelected) {
+                      await languageService.setLanguage(lang.code);
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                      }
+                      AppFeedback.showSuccessSnackBar(
+                        context,
+                        AppMessages.languageChangedSuccess(),
+                      );
+                      return;
+                    }
                     if (ctx.mounted) {
                       Navigator.of(ctx).pop();
                     }
@@ -121,7 +132,13 @@ class SettingsPage extends StatelessWidget {
                       themeService.isDark ? 'dark_mode' : 'light_mode',
                     ),
                     value: themeService.isDark,
-                    onChanged: themeService.toggleTheme,
+                    onChanged: (value) {
+                      themeService.toggleTheme(value);
+                      AppFeedback.showSuccessSnackBar(
+                        context,
+                        AppMessages.preferencesSaved(),
+                      );
+                    },
                   ),
                   SettingsTile(
                     icon: Icons.notifications_none,
@@ -168,9 +185,7 @@ class SettingsPage extends StatelessWidget {
   }
 
   void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(t('feature_coming'))));
+    AppFeedback.showInfoSnackBar(context, AppMessages.featureComingSoon());
   }
 
   Future<void> _logout(BuildContext context) async {
@@ -197,12 +212,14 @@ class SettingsPage extends StatelessWidget {
       },
     );
     if (confirm != true) return;
-    await AuthLocalStorage.instance.clear();
+
+    await AuthApiService.instance.logout();
     ApiService.instance.setToken(null);
-    logoutUser();
     if (!context.mounted) return;
+
+    AppFeedback.showSuccessSnackBar(context, AppMessages.logoutSuccess());
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomePage()),
+      MaterialPageRoute(builder: (_) => const HomeShell()),
       (route) => false,
     );
   }

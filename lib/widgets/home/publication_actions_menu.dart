@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
+import '../../core/feedback/app_feedback.dart';
 import '../../pages/login_page.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
@@ -103,9 +106,7 @@ class PublicationActionsMenu {
   static void _copyLink(BuildContext context, Publication publication) {
     final link = buildListingShareUrl(publication);
     Clipboard.setData(ClipboardData(text: link));
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(t('link_copied'))));
+    AppFeedback.showSuccessSnackBar(context, t('link_copied'));
   }
 
   static Future<void> _shareListing(Publication publication) async {
@@ -250,8 +251,9 @@ class PublicationActionsMenu {
                                     details: detailsController.text,
                                   );
                                   if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(t('report_sent'))),
+                                    AppFeedback.showSuccessSnackBar(
+                                      context,
+                                      AppMessages.reportSentSuccess(),
                                     );
                                   }
                                   if (sheetContext.mounted) {
@@ -259,9 +261,12 @@ class PublicationActionsMenu {
                                   }
                                 } catch (e) {
                                   if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('${t('error')}: $e'),
+                                    AppFeedback.showErrorSnackBar(
+                                      context,
+                                      AppErrorMapper.message(
+                                        e,
+                                        fallbackMessage:
+                                            AppMessages.reportSendError(),
                                       ),
                                     );
                                   }

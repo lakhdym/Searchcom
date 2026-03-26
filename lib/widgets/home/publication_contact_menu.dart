@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
+import '../../core/feedback/app_feedback.dart';
 import '../../features/chat/models/chat_models.dart';
 import '../../features/chat/pages/chat_detail_page.dart';
 import '../../services/api_service.dart';
@@ -71,9 +74,7 @@ class PublicationContactMenu {
     }
 
     if (items.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('no_contact_method'))));
+      AppFeedback.showErrorSnackBar(context, AppMessages.contactUnavailable());
       return;
     }
 
@@ -125,7 +126,7 @@ class PublicationContactMenu {
   static Future<void> _launchWhatsApp(BuildContext context, String raw) async {
     final normalized = _normalizedPhone(raw);
     if (normalized == null) {
-      _showSnack(context, t('whatsapp_unavailable'));
+      _showError(context, t('whatsapp_unavailable'));
       return;
     }
 
@@ -133,11 +134,11 @@ class PublicationContactMenu {
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (context.mounted && !ok) {
-        _showSnack(context, t('cannot_open_whatsapp'));
+        _showError(context, t('cannot_open_whatsapp'));
       }
     } catch (_) {
       if (context.mounted) {
-        _showSnack(context, t('cannot_open_whatsapp'));
+        _showError(context, t('cannot_open_whatsapp'));
       }
     }
   }
@@ -145,7 +146,7 @@ class PublicationContactMenu {
   static Future<void> _launchCall(BuildContext context, String raw) async {
     final normalized = _normalizedPhone(raw);
     if (normalized == null) {
-      _showSnack(context, t('call_unavailable'));
+      _showError(context, t('call_unavailable'));
       return;
     }
 
@@ -153,11 +154,11 @@ class PublicationContactMenu {
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (context.mounted && !ok) {
-        _showSnack(context, t('cannot_open_dialer'));
+        _showError(context, t('cannot_open_dialer'));
       }
     } catch (_) {
       if (context.mounted) {
-        _showSnack(context, t('cannot_open_dialer'));
+        _showError(context, t('cannot_open_dialer'));
       }
     }
   }
@@ -171,7 +172,7 @@ class PublicationContactMenu {
   }) async {
     final user = await AuthLocalStorage.instance.getUser();
     if (user == null) {
-      _showSnack(context, t('sign_in_to_chat'));
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_chat'));
       return;
     }
     try {
@@ -210,13 +211,14 @@ class PublicationContactMenu {
         ),
       );
     } catch (e) {
-      _showSnack(context, '${t('cannot_open_chat')}: $e');
+      _showError(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('cannot_open_chat')),
+      );
     }
   }
 
-  static void _showSnack(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+  static void _showError(BuildContext context, String message) {
+    AppFeedback.showErrorSnackBar(context, message);
   }
 }

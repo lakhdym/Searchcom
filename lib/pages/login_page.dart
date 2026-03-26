@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
+import '../core/forms/app_validators.dart';
 import '../services/api_service.dart';
 import '../services/auth_api_service.dart';
 import '../services/auth_local_storage.dart';
@@ -64,10 +68,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _updateValid() {
-    final id = _identifierCtrl.text.trim();
-    final isEmail = id.contains('@');
-    final isPhone = id.replaceAll(RegExp(r'\D'), '').length >= 6;
-    final valid = (isEmail || isPhone) && _passwordCtrl.text.length >= 8;
+    final valid =
+        AppValidators.identifier(_identifierCtrl.text) == null &&
+        AppValidators.password(_passwordCtrl.text) == null;
     if (valid != _formValid) {
       setState(() => _formValid = valid);
     }
@@ -77,6 +80,7 @@ class _LoginPageState extends State<LoginPage> {
     FocusScope.of(context).unfocus();
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
+
     setState(() => _loading = true);
     try {
       final session = await AuthApiService.instance.login(
@@ -90,15 +94,14 @@ class _LoginPageState extends State<LoginPage> {
         session.user.preferredLang,
       );
       if (!mounted) return;
+      AppFeedback.showSuccessSnackBar(context, AppMessages.loginSuccess());
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeShell()),
         (route) => false,
       );
     } on EmailVerificationRequiredException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      AppFeedback.showInfoSnackBar(context, e.message);
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => EmailVerificationPage(
@@ -108,9 +111,7 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on PhoneVerificationRequiredException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      AppFeedback.showInfoSnackBar(context, e.message);
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => PhoneVerificationPage(
@@ -118,16 +119,12 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       );
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+      AppFeedback.showErrorSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(t('network_error'))));
+        AppErrorMapper.message(e, fallbackMessage: AppMessages.loginError()),
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -232,19 +229,7 @@ class _LoginPageState extends State<LoginPage> {
                                 hintText: t('email_or_phone_hint'),
                                 prefixIcon: const Icon(Icons.person_outline),
                               ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return t('field_required');
-                                }
-                                final id = v.trim();
-                                final isEmail = id.contains('@');
-                                final isPhone =
-                                    id.replaceAll(RegExp(r'\D'), '').length >=
-                                    6;
-                                return (isEmail || isPhone)
-                                    ? null
-                                    : t('invalid_email_or_phone');
-                              },
+                              validator: AppValidators.identifier,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -264,15 +249,16 @@ class _LoginPageState extends State<LoginPage> {
                                       setState(() => _obscure = !_obscure),
                                 ),
                               ),
-                              validator: (v) => (v == null || v.length < 8)
-                                  ? t('at_least_8_chars')
-                                  : null,
+                              validator: AppValidators.password,
                             ),
                             const SizedBox(height: 12),
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {},
+                                onPressed: () => AppFeedback.showInfoSnackBar(
+                                  context,
+                                  AppMessages.featureComingSoon(),
+                                ),
                                 child: Text(t('forgot_password')),
                               ),
                             ),
@@ -327,7 +313,10 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 16),
                             OutlinedButton.icon(
-                              onPressed: () {},
+                              onPressed: () => AppFeedback.showInfoSnackBar(
+                                context,
+                                AppMessages.featureComingSoon(),
+                              ),
                               icon: Icon(
                                 Icons.g_translate,
                                 color: scheme.primary,
@@ -342,7 +331,10 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 12),
                             OutlinedButton.icon(
-                              onPressed: () {},
+                              onPressed: () => AppFeedback.showInfoSnackBar(
+                                context,
+                                AppMessages.featureComingSoon(),
+                              ),
                               icon: Icon(Icons.facebook, color: scheme.primary),
                               label: Text(t('continue_with_facebook')),
                               style: OutlinedButton.styleFrom(

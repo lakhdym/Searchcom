@@ -7,6 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/constants/app_messages.dart';
+import '../../../core/errors/app_error_mapper.dart';
+import '../../../core/feedback/app_feedback.dart';
+import '../../../pages/app_error_page.dart';
+
 import '../models/chat_models.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
@@ -49,7 +54,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     try {
       _me = await AuthLocalStorage.instance.getUser();
       if (_me == null) {
-        setState(() => _error = 'Vous devez Ãªtre connectÃ© pour discuter');
+        setState(() => _error = t('sign_in_to_chat'));
         return;
       }
       await _loadMessages();
@@ -58,7 +63,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         (_) => _loadMessages(silent: true),
       );
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() {
+        _error = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.messagesLoadError(),
+        );
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -93,10 +103,20 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         );
       }).toList();
       if (mounted) {
-        setState(() => _messages = mapped);
+        setState(() {
+          _messages = mapped;
+          _error = null;
+        });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted && !silent) {
+        setState(() {
+          _error = AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.messagesLoadError(),
+          );
+        });
+      }
     }
   }
 
@@ -122,7 +142,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   Future<void> _sendMessage(String text) async {
     final me = _me;
     if (me == null) {
-      setState(() => _error = t('session_required'));
+      AppFeedback.showInfoSnackBar(context, AppMessages.sessionExpired());
       return;
     }
     final convId = int.tryParse(widget.conversation.id) ?? 0;
@@ -186,7 +206,18 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (mounted) {
+        setState(() {
+          _messages.removeWhere((message) => message.id == localMsg.id);
+        });
+        AppFeedback.showErrorSnackBar(
+          context,
+          AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.messageSendError(),
+          ),
+        );
+      }
     }
   }
 
@@ -315,9 +346,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     } else if (result == 'copy' && message.text != null) {
       await Clipboard.setData(ClipboardData(text: message.text!));
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(t('text_copied'))));
+        AppFeedback.showSuccessSnackBar(context, t('text_copied'));
       }
     }
   }
@@ -359,7 +388,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             isMe: msg.isMe,
             time: msg.time,
             isDeletedForEveryone: true,
-            deletedText: 'Vous avez supprimÃ© ce message',
+            deletedText: t('message_deleted_by_you'),
             status: msg.status,
           );
         });
@@ -378,11 +407,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       );
     }
     if (_error != null) {
-      return Scaffold(
-        backgroundColor: scheme.surface,
-        appBar: AppBar(title: Text(t('conversation'))),
-        body: Center(child: Text(_error!)),
-      );
+      final kind = AppErrorMapper.isNotFound(_error!)
+          ? AppErrorKind.conversationNotFound
+          : AppErrorMapper.isUnauthorized(_error!)
+          ? AppErrorKind.unauthorized
+          : AppErrorKind.unexpected;
+      return AppErrorPage(kind: kind, message: _error, onRetry: _init);
     }
     final textTheme = Theme.of(context).textTheme;
 
@@ -569,7 +599,7 @@ class MessageBubble extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          repliedTo!.isMe ? 'Vous' : 'RÃ©ponse',
+                          repliedTo!.isMe ? t('you') : t('reply_label'),
                           style: textTheme.labelMedium?.copyWith(
                             color: fg.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w700,
@@ -736,7 +766,7 @@ class ReplyPreviewBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  message.isMe ? 'RÃ©ponse Ã  Vous' : 'RÃ©ponse',
+                  message.isMe ? t('reply_to_you') : t('reply_label'),
                   style: textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -838,8 +868,8 @@ class ChatInputBar extends StatelessWidget {
                   focusNode: focusNode,
                   minLines: 1,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Ã‰crire un message...',
+                  decoration: InputDecoration(
+                    hintText: t('write_message'),
                     border: InputBorder.none,
                   ),
                   onTap: () => FocusScope.of(context).requestFocus(focusNode),
