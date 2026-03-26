@@ -7,6 +7,7 @@ import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
 import 'publication_contact_menu.dart';
+import 'publication_date_formatter.dart';
 import 'publication_full_details_sheet.dart';
 
 class PublicationCard extends StatefulWidget {
@@ -385,6 +386,7 @@ class _PublicationCardState extends State<PublicationCard>
         (publication.contactWhatsApp && hasPhone) ||
         (publication.contactCall && hasPhone);
     final longDescription = publication.description.length > 140;
+    final eventDateLabel = formatPublicationEventDate(publication.eventDate);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -591,6 +593,31 @@ class _PublicationCardState extends State<PublicationCard>
                     ),
                   ],
                 ),
+                if (eventDateLabel.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        size: 15,
+                        color: widget.mutedGray,
+                      ),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          eventDateLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: widget.mutedGray,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -882,6 +909,7 @@ class _PublicationCardState extends State<PublicationCard>
 
   Future<void> _showConversationMenu(BuildContext context) async {
     final isLoggedIn = await AuthLocalStorage.instance.isLoggedIn();
+    if (!context.mounted) return;
     await PublicationContactMenu.show(
       context: context,
       listingId: widget.publication.id,
