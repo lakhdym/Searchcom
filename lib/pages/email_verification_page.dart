@@ -47,9 +47,20 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
       );
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      final msg = e.message.toLowerCase();
+      if (msg.contains('déjà vérifié') || msg.contains('deja verifie')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Email déjà vérifié, vous pouvez vous connecter.')),
+        );
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -8,6 +8,7 @@ import 'phone_verification_page.dart';
 import 'home_shell.dart';
 import 'signup_page.dart';
 import 'forgot_password_page.dart';
+import 'verification_choice_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -91,16 +92,24 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message)),
       );
+      final email = e.email ?? _identifierCtrl.text.trim();
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => EmailVerificationPage(email: e.email ?? _identifierCtrl.text.trim())),
+        MaterialPageRoute(
+          builder: (_) => VerificationChoicePage(
+            email: email,
+            phone: e.phone,
+          ),
+        ),
       );
     } on PhoneVerificationRequiredException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message)),
       );
+      final phone = e.phone ?? _identifierCtrl.text.trim();
+      final email = _identifierCtrl.text.contains('@') ? _identifierCtrl.text.trim() : null;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: e.phone ?? _identifierCtrl.text.trim())),
+        MaterialPageRoute(builder: (_) => VerificationChoicePage(email: email, phone: phone)),
       );
     } on ApiException catch (e) {
       if (!mounted) return;

@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 $email = trim($body['email'] ?? '');
+$emailLower = strtolower($email);
 $code = trim($body['code'] ?? '');
 
 if (!$email || !$code) {
@@ -33,11 +34,11 @@ try {
     $stmt = $pdo->prepare(
         'SELECT ev.id, ev.user_id, ev.verification_code, ev.expires_at, ev.verified_at
          FROM email_verifications ev
-         WHERE ev.email = :email
+         WHERE LOWER(ev.email) = :email
          ORDER BY ev.id DESC
          LIMIT 1'
     );
-    $stmt->execute([':email' => $email]);
+    $stmt->execute([':email' => $emailLower]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row) {

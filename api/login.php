@@ -54,35 +54,28 @@ try {
         json_response(['success' => false, 'message' => 'Identifiant ou mot de passe incorrect'], 401);
     }
 
-    // On vérifie uniquement le canal utilisé pour se connecter
-    $isEmailIdentifier = strpos($identifier, '@') !== false;
-    if ($isEmailIdentifier) {
-        if ($user['email'] && $user['email_verified_at'] === null) {
-            json_response([
-                'success' => false,
-                'message' => 'Veuillez vérifier votre adresse email avant de vous connecter',
-                'requires_email_verification' => true,
-                'email' => $user['email'],
-                'user_id' => (int)$user['id'],
-            ], 401);
-        }
-    } else {
-        if ($user['phone'] && $user['phone_verified_at'] === null) {
-            // Générer et envoyer automatiquement un OTP WhatsApp
+    $emailNeeds = $user['email'] && $user['email_verified_at'] === null;
+    $phoneNeeds = $user['phone'] && $user['phone_verified_at'] === null;
+
+    if ($emailNeeds || $phoneNeeds) {
+        // si besoin OTP téléphone on le renvoie systématiquement
+        if ($phoneNeeds) {
             $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $expiresAt = date('Y-m-d H:i:s', time() + 600);
             $stmt = $pdo->prepare('INSERT INTO phone_verifications (user_id, phone, verification_code, expires_at) VALUES (?, ?, ?, ?)');
             $stmt->execute([(int)$user['id'], $user['phone'], $code, $expiresAt]);
             send_whatsapp_otp($user['phone'], $code);
-
-            json_response([
-                'success' => false,
-                'message' => 'Veuillez vérifier votre numéro WhatsApp avant de vous connecter. Un nouveau code vient d’être envoyé.',
-                'requires_phone_verification' => true,
-                'phone' => $user['phone'],
-                'user_id' => (int)$user['id'],
-            ], 401);
         }
+
+        json_response([
+            'success' => false,
+            'message' => 'Veuillez vérifier votre compte avant de vous connecter.',
+            'requires_email_verification' => $emailNeeds,
+            'requires_phone_verification' => $phoneNeeds,
+            'email' => $user['email'],
+            'phone' => $user['phone'],
+            'user_id' => (int)$user['id'],
+        ], 401);
     }
 
     unset($user['password_hash']);

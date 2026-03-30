@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 header('Content-Type: application/json; charset=UTF-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 $email = trim($body['email'] ?? '');
+$emailLower = strtolower($email);
 
 if (!$email) {
     json_response(['success' => false, 'message' => 'Email requis'], 400);
@@ -30,8 +31,8 @@ if (!$email) {
 try {
     $pdo = get_pdo();
 
-    $stmt = $pdo->prepare('SELECT id, full_name, email_verified_at FROM users WHERE email = :email LIMIT 1');
-    $stmt->execute([':email' => $email]);
+    $stmt = $pdo->prepare('SELECT id, full_name, email_verified_at FROM users WHERE LOWER(email) = :email LIMIT 1');
+    $stmt->execute([':email' => $emailLower]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
@@ -46,13 +47,14 @@ try {
     $expiresAt = date('Y-m-d H:i:s', time() + 600);
 
     $ins = $pdo->prepare('INSERT INTO email_verifications (user_id, email, verification_code, expires_at) VALUES (?, ?, ?, ?)');
-    $ins->execute([$user['id'], $email, $code, $expiresAt]);
+    $ins->execute([$user['id'], $emailLower, $code, $expiresAt]);
 
     send_verification_email($email, $user['full_name'], $code);
 
     json_response([
         'success' => true,
         'message' => 'Un nouveau code a été envoyé',
+        'dev_email_code' => $code, // DEBUG: à retirer en prod
     ]);
 } catch (Throwable $e) {
     json_response([

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 header('Content-Type: application/json; charset=UTF-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
@@ -20,18 +20,27 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
-$identifier = trim($body['identifier'] ?? '');
+$rawIdentifier = trim($body['identifier'] ?? '');
 $otp = trim($body['otp'] ?? '');
 
-if ($identifier === '' || strlen($otp) < 4) {
+// normalisation identifiant
+$normalizePhone = function (string $v): string {
+    return preg_replace('/\D+/', '', $v ?? '');
+};
+$identifierEmail = strtolower($rawIdentifier);
+$identifierPhone = $normalizePhone($rawIdentifier);
+
+if ($rawIdentifier === '' || strlen($otp) < 4) {
     json_response(['success' => false, 'message' => 'Identifiant et code requis'], 400);
 }
 
 try {
     $pdo = get_pdo();
 
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE email = :id OR phone = :id LIMIT 1');
-    $stmt->execute([':id' => $identifier]);
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE LOWER(email) = :email
+        OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone," ",""),"+",""),"-",""),".",""),"(",""),")","") = :phone
+        LIMIT 1');
+    $stmt->execute([':email' => $identifierEmail, ':phone' => $identifierPhone]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) {
         json_response(['success' => false, 'message' => 'Code invalide'], 400);
@@ -49,7 +58,7 @@ try {
         json_response(['success' => false, 'message' => 'Trop de tentatives, recommencez'], 429);
     }
 
-    if (new DateTime($row['expires_at']) < new DateTime()) {
+    if (strtotime($row['expires_at']) < time()) {
         json_response(['success' => false, 'message' => 'Code expiré'], 400);
     }
 
@@ -65,5 +74,5 @@ try {
     ]);
 } catch (Throwable $e) {
     error_log('[verify_otp] ' . $e->getMessage());
-    json_response(['success' => false, 'message' => 'Erreur serveur'], 500);
+    json_response(['success' => false, 'message' => 'Erreur serveur', 'error' => $e->getMessage()], 500);
 }

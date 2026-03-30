@@ -1,10 +1,14 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../services/auth_api_service.dart';
+import '../services/auth_local_storage.dart';
+import '../services/api_service.dart';
+import '../state/auth_state.dart';
 import 'email_verification_page.dart';
 import 'phone_verification_page.dart';
 import 'login_page.dart';
 import 'verification_choice_page.dart';
+import 'home_shell.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -74,7 +78,37 @@ class _SignUpPageState extends State<SignUpPage> {
       final emailVal = resp.email ?? _emailCtrl.text.trim();
       final phoneVal = resp.phone ?? _phoneCtrl.text.trim();
 
-      if (resp.requiresEmailVerification && resp.requiresPhoneVerification) {
+      // auto-login si aucune vérification n'est requise
+      if (!resp.requiresEmailVerification && !resp.requiresPhoneVerification) {
+        final identifier = emailVal.isNotEmpty ? emailVal : phoneVal;
+        try {
+          final session = await AuthApiService.instance.login(
+            identifier: identifier,
+            password: _passwordCtrl.text,
+          );
+          await AuthLocalStorage.instance.saveSession(session.user, session.token);
+          ApiService.instance.setToken(session.token);
+          loginUser(session.user);
+          if (!mounted) return;
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomeShell()),
+            (route) => false,
+          );
+          return;
+        } catch (_) {
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+          }
+          return;
+        }
+      }
+
+      // si email + phone fournis => laisser choisir la méthode
+      final hasEmail = emailVal.isNotEmpty;
+      final hasPhone = phoneVal.isNotEmpty;
+      if ((resp.requiresEmailVerification || resp.requiresPhoneVerification) && hasEmail && hasPhone) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => VerificationChoicePage(email: emailVal, phone: phoneVal),
@@ -176,7 +210,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                       ),
                                     ),
                                     Text(
-                                      'Email ou téléphone, à vous de choisir',
+                                      'Email ou téléphone, à  vous de choisir',
                                       style: textTheme.bodyMedium?.copyWith(
                                         color: scheme.onSurfaceVariant,
                                       ),
@@ -194,14 +228,14 @@ class _SignUpPageState extends State<SignUpPage> {
                                 prefixIcon: Icon(Icons.person_outline),
                               ),
                               validator: (v) =>
-                                  (v == null || v.trim().length < 2) ? 'Nom requis (min 2 caractères)' : null,
+                                  (v == null || v.trim().length < 2) ? 'Nom requis (min 2 caractéres)' : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _emailCtrl,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
-                                labelText: 'Email (optionnel)',
+                                labelText: 'Email',
                                 hintText: 'vous@example.com',
                                 prefixIcon: Icon(Icons.mail_outlined),
                               ),
@@ -215,7 +249,7 @@ class _SignUpPageState extends State<SignUpPage> {
                               controller: _phoneCtrl,
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
-                                labelText: 'Téléphone (optionnel)',
+                                labelText: 'Téléphone',
                                 hintText: '+212 6 12 34 56 78',
                                 prefixIcon: Icon(Icons.phone_outlined),
                               ),
@@ -239,7 +273,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                   onPressed: () => setState(() => _obscurePass = !_obscurePass),
                                 ),
                               ),
-                              validator: (v) => (v == null || v.length < 8) ? 'Au moins 8 caractères' : null,
+                              validator: (v) => (v == null || v.length < 8) ? 'Au moins 8 caractéres' : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -274,9 +308,9 @@ class _SignUpPageState extends State<SignUpPage> {
                                     TextSpan(
                                       style: textTheme.bodyMedium?.copyWith(color: scheme.onSurface),
                                       children: [
-                                        const TextSpan(text: 'J’accepte les '),
+                                        const TextSpan(text: "J'accepte les"),
                                         TextSpan(
-                                          text: 'Conditions d’utilisation',
+                                          text: "Conditions d'utilisation",
                                           style: TextStyle(
                                             color: scheme.primary,
                                             fontWeight: FontWeight.w600,
@@ -313,7 +347,7 @@ class _SignUpPageState extends State<SignUpPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('Vous avez déjà un compte ? '),
+                                const Text('Vous avez déjà  un compte ? '),
                                 TextButton(
                                   onPressed: () {
                                     if (Navigator.canPop(context)) {
@@ -340,3 +374,13 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
