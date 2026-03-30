@@ -19,13 +19,15 @@ class ApiException implements Exception {
 
 class EmailVerificationRequiredException extends ApiException {
   final String? email;
-  EmailVerificationRequiredException(String message, {this.email, int? statusCode})
+  final String? phone;
+  EmailVerificationRequiredException(String message, {this.email, this.phone, int? statusCode})
       : super(message, statusCode: statusCode);
 }
 
 class PhoneVerificationRequiredException extends ApiException {
   final String? phone;
-  PhoneVerificationRequiredException(String message, {this.phone, int? statusCode})
+  final String? email;
+  PhoneVerificationRequiredException(String message, {this.phone, this.email, int? statusCode})
       : super(message, statusCode: statusCode);
 }
 
@@ -76,6 +78,7 @@ class AuthApiService {
         throw EmailVerificationRequiredException(
           resp['message']?.toString() ?? 'Veuillez vÃ©rifier votre adresse email.',
           email: resp['email']?.toString(),
+          phone: resp['phone']?.toString(),
           statusCode: status,
         );
       }
@@ -83,6 +86,7 @@ class AuthApiService {
         throw PhoneVerificationRequiredException(
           resp['message']?.toString() ?? 'Veuillez vÃ©rifier votre numÃ©ro.',
           phone: resp['phone']?.toString(),
+          email: resp['email']?.toString(),
           statusCode: status,
         );
       }

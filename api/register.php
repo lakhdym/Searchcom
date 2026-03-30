@@ -100,6 +100,8 @@ try {
 
     $requiresEmail = false;
     $requiresPhone = false;
+    $devEmailCode = null;
+    $devPhoneCode = null;
 
     if ($email) {
         $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -108,6 +110,7 @@ try {
         $stmt->execute([$userId, $email, $code, $expiresAt]);
         send_verification_email($email, $fullName, $code);
         $requiresEmail = true;
+        $devEmailCode = $code; // DEBUG: à retirer en prod
     }
 
     if ($phone) {
@@ -118,6 +121,7 @@ try {
         $stmt->execute([$userId, $phone, $code, $expiresAt]);
         send_whatsapp_otp($phone, $code);
         $requiresPhone = true;
+        $devPhoneCode = $code; // DEBUG: à retirer en prod
     }
 
     json_response([
@@ -130,6 +134,8 @@ try {
         'user_id' => $userId,
         'email' => $email,
         'phone' => $phone,
+        'dev_email_code' => $devEmailCode,
+        'dev_phone_code' => $devPhoneCode,
     ]);
 } catch (Throwable $e) {
     error_log('[register.php] '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine());

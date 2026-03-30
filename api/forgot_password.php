@@ -1,5 +1,6 @@
 ﻿<?php
 // forgot_password.php - reset via OTP
+ob_start();
 header('Content-Type: application/json; charset=UTF-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
 header("Access-Control-Allow-Origin: $origin");
@@ -8,12 +9,26 @@ header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); echo json_encode(['ok'=>true]); exit; }
 
+// global safe responders & handlers
 $respond = function(bool $success, string $message, int $status = 200, $error = null, array $extra = []) {
+    if (ob_get_length()) { @ob_clean(); }
     http_response_code($status);
     $payload = array_merge(['success'=>$success,'message'=>$message], $error ? ['error'=>$error] : [], $extra);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
     exit;
 };
+set_exception_handler(function($e) use ($respond){
+    $respond(false,'Erreur serveur',500,$e->getMessage());
+});
+set_error_handler(function($errno,$errstr,$errfile,$errline) use ($respond){
+    $respond(false,'Erreur serveur',500,"$errstr at $errfile:$errline");
+});
+register_shutdown_function(function() use ($respond){
+    $err = error_get_last();
+    if ($err && in_array($err['type'], [E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR])) {
+        $respond(false,'Erreur serveur',500,$err['message']);
+    }
+});
 
 try {
     require_once __DIR__.'/config.php';
@@ -48,10 +63,20 @@ $body = json_decode(file_get_contents('php://input'), true);
 if (!is_array($body)) {
     $respond(false,'Payload JSON invalide',400,'body_parse_error');
 }
-$identifier = trim((string)($body['identifier'] ?? ''));
-if ($identifier === '') {
+$rawIdentifier = trim((string)($body['identifier'] ?? ''));
+if ($rawIdentifier === '') {
     $respond(false,'Email ou téléphone requis',400);
 }
+
+// Normalisation téléphone pour limiter les échecs de matching
+$normalizePhone = function(string $v): string {
+    // garde uniquement les chiffres, retire +, espaces, tirets, points, parenthèses
+    return preg_replace('/\D+/', '', $v ?? '');
+};
+
+// email en minuscule, phone en chiffres uniquement
+$identifierEmail = strtolower($rawIdentifier);
+$identifierPhone = $normalizePhone($rawIdentifier);
 
 try {
     $pdo = get_pdo();
@@ -67,8 +92,13 @@ try {
         UNIQUE KEY uniq_token (reset_token)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-    $stmt = $pdo->prepare('SELECT id, full_name, email, phone FROM users WHERE email = :id OR phone = :id LIMIT 1');
-    $stmt->execute([':id'=>$identifier]);
+    // compat MySQL 5.7+: pas de REGEXP_REPLACE -> enchaînement de REPLACE
+    $stmt = $pdo->prepare('SELECT id, full_name, email, phone
+        FROM users
+        WHERE LOWER(email) = :email
+           OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone," ",""),"+",""),"-",""),".",""),"(",""),")","") = :phone
+        LIMIT 1');
+    $stmt->execute([':email'=>$identifierEmail, ':phone'=>$identifierPhone]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
@@ -83,7 +113,7 @@ try {
         ->execute([':uid'=>$user['id'], ':otp'=>$otp, ':exp'=>$expires]);
 
     $channel = 'email';
-    if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+    if (filter_var($rawIdentifier, FILTER_VALIDATE_EMAIL) && !empty($user['email'])) {
         sendOtpEmail($user['email'], $user['full_name'] ?: $user['email'], $otp);
     } elseif (!empty($user['phone'])) {
         $channel = 'whatsapp';

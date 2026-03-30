@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 header('Content-Type: application/json; charset=UTF-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
@@ -20,10 +20,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
-$phone = trim($body['phone'] ?? '');
+$phoneRaw = trim($body['phone'] ?? '');
 $code = trim($body['code'] ?? '');
+$phoneDigits = preg_replace('/\D+/', '', $phoneRaw);
 
-if (!$phone || !$code) {
+if (!$phoneRaw || !$code) {
     json_response(['success' => false, 'message' => 'Téléphone et code requis'], 400);
 }
 
@@ -32,11 +33,11 @@ try {
     $stmt = $pdo->prepare('SELECT pv.id, pv.user_id, pv.expires_at, pv.verified_at, u.phone_verified_at
                            FROM phone_verifications pv
                            JOIN users u ON u.id = pv.user_id
-                           WHERE pv.phone = :phone
+                           WHERE (pv.phone = :phone_raw OR REPLACE(REPLACE(REPLACE(pv.phone,"+","")," ",""),"-","") = :phone_digits)
                              AND pv.verification_code = :code
                            ORDER BY pv.id DESC
                            LIMIT 1');
-    $stmt->execute([':phone' => $phone, ':code' => $code]);
+    $stmt->execute([':phone_raw' => $phoneRaw, ':phone_digits' => $phoneDigits, ':code' => $code]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row) {
@@ -58,6 +59,6 @@ try {
 
     json_response(['success' => true, 'message' => 'Numéro vérifié avec succès']);
 } catch (Throwable $e) {
-    if ($pdo && $pdo->inTransaction()) $pdo->rollBack();
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     json_response(['success' => false, 'message' => 'Erreur serveur : ' . $e->getMessage()], 500);
 }
