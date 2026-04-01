@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../core/feedback/app_feedback.dart';
 
 import '../models/user_model.dart';
-import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
+import '../services/auth_local_storage.dart';
+import '../services/l10n_helper.dart';
+import '../services/language_service.dart';
 import '../state/auth_state.dart';
 import 'login_page.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:flutter/services.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -42,12 +46,12 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _buildProfileUrl(UserModel user) {
-    // Exemple d'URL publique : baseUrl/user/{id}
     return '${ApiService.baseUrlProd}/user/${user.id}';
   }
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final textTheme = Theme.of(context).textTheme;
 
     return ValueListenableBuilder<UserModel?>(
@@ -57,15 +61,17 @@ class _ProfilePageState extends State<ProfilePage> {
           return const Center(child: CircularProgressIndicator());
         }
         if (user == null) {
-          return _EmptyProfile(onReconnect: () {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const LoginPage()),
-            );
-          });
+          return _EmptyProfile(
+            onReconnect: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+              );
+            },
+          );
         }
 
         final preferredLang = _langLabel(user.preferredLang);
-        final roleLabel = user.role == 'admin' ? 'Admin' : 'Utilisateur';
+        final roleLabel = user.role == 'admin' ? 'Admin' : t('personal_info');
 
         return SafeArea(
           child: SingleChildScrollView(
@@ -79,23 +85,45 @@ class _ProfilePageState extends State<ProfilePage> {
                   profileUrl: _publicProfileUrl ?? _buildProfileUrl(user),
                 ),
                 const SizedBox(height: 16),
-                Text('Informations personnelles', style: textTheme.titleMedium),
+                Text(t('personal_info'), style: textTheme.titleMedium),
                 const SizedBox(height: 8),
                 _InfoSection(
                   items: [
-                    _InfoItem(Icons.badge_outlined, 'Nom complet', user.fullName),
-                    _InfoItem(Icons.mail_outline, 'Email', user.email),
-                    _InfoItem(Icons.phone_outlined, 'Téléphone', user.phone?.isNotEmpty == true ? user.phone! : 'Non renseigné'),
-                    _InfoItem(Icons.language_outlined, 'Langue préférée', preferredLang),
+                    _InfoItem(
+                      Icons.badge_outlined,
+                      t('full_name'),
+                      user.fullName,
+                    ),
+                    _InfoItem(Icons.mail_outline, t('email'), user.email),
+                    _InfoItem(
+                      Icons.phone_outlined,
+                      t('phone'),
+                      user.phone?.isNotEmpty == true
+                          ? user.phone!
+                          : t('user_not_provided'),
+                    ),
+                    _InfoItem(
+                      Icons.language_outlined,
+                      t('preferred_language'),
+                      preferredLang,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Résumé', style: textTheme.titleMedium),
+                Text(t('summary'), style: textTheme.titleMedium),
                 const SizedBox(height: 8),
                 _StatsRow(
-                  items: const [
-                    _StatItem(label: 'Publications actives', value: '0', icon: Icons.campaign_outlined),
-                    _StatItem(label: 'Publications résolues', value: '0', icon: Icons.verified_outlined),
+                  items: [
+                    _StatItem(
+                      label: t('active_publications_label'),
+                      value: '0',
+                      icon: Icons.campaign_outlined,
+                    ),
+                    _StatItem(
+                      label: t('resolved_publications_label'),
+                      value: '0',
+                      icon: Icons.verified_outlined,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -108,16 +136,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   String _langLabel(String? code) {
-    switch (code) {
-      case 'ar':
-        return 'Arabe';
-      case 'en':
-        return 'Anglais';
-      case 'fr':
-        return 'Français';
-      default:
-        return 'Non renseigné';
+    if (code == null || code.isEmpty) {
+      return t('user_not_provided');
     }
+    return LanguageService.instance.getLanguageName(code);
   }
 }
 
@@ -135,6 +157,7 @@ class ProfileHeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -167,19 +190,27 @@ class ProfileHeaderCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user.fullName.isEmpty ? 'Utilisateur' : user.fullName,
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            user.fullName.isEmpty
+                                ? t('personal_info')
+                                : user.fullName,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             user.email,
-                            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     PopupMenuButton<String>(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       onSelected: (value) {
                         switch (value) {
                           case 'copy':
@@ -193,14 +224,14 @@ class ProfileHeaderCard extends StatelessWidget {
                             break;
                         }
                       },
-                      itemBuilder: (ctx) => const [
+                      itemBuilder: (ctx) => [
                         PopupMenuItem(
                           value: 'copy',
                           child: Row(
                             children: [
-                              Icon(Icons.copy_outlined, size: 18),
-                              SizedBox(width: 8),
-                              Text('Copier le lien'),
+                              const Icon(Icons.copy_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Text(tr(ctx, 'copy_link')),
                             ],
                           ),
                         ),
@@ -208,9 +239,9 @@ class ProfileHeaderCard extends StatelessWidget {
                           value: 'share',
                           child: Row(
                             children: [
-                              Icon(Icons.share_outlined, size: 18),
-                              SizedBox(width: 8),
-                              Text('Partager le profil'),
+                              const Icon(Icons.share_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Text(tr(ctx, 'share_profile')),
                             ],
                           ),
                         ),
@@ -218,9 +249,9 @@ class ProfileHeaderCard extends StatelessWidget {
                           value: 'qr',
                           child: Row(
                             children: [
-                              Icon(Icons.qr_code_2_outlined, size: 18),
-                              SizedBox(width: 8),
-                              Text('Code QR'),
+                              const Icon(Icons.qr_code_2_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Text(tr(ctx, 'qr_code')),
                             ],
                           ),
                         ),
@@ -239,7 +270,10 @@ class ProfileHeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: scheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -252,23 +286,21 @@ class ProfileHeaderCard extends StatelessWidget {
                     ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
 
   void _copyLink(BuildContext context) {
     Clipboard.setData(ClipboardData(text: profileUrl));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Lien de profil copié')),
-    );
+    AppFeedback.showSuccessSnackBar(context, t('link_copied'));
   }
 
   void _shareProfile() {
-    Share.share(profileUrl, subject: 'Découvre mon profil');
+    Share.share(profileUrl, subject: t('discover_my_profile'));
   }
 
   void _showQr(BuildContext context) {
@@ -280,6 +312,7 @@ class ProfileHeaderCard extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        watchLanguage(ctx);
         final scheme = Theme.of(ctx).colorScheme;
         final viewInsets = MediaQuery.of(ctx).viewInsets;
         return Padding(
@@ -295,10 +328,17 @@ class ProfileHeaderCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Code QR du profil', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                  Text(
+                    tr(ctx, 'qr_profile'),
+                    style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                     elevation: 2,
                     child: Padding(
                       padding: const EdgeInsets.all(14),
@@ -307,14 +347,23 @@ class ProfileHeaderCard extends StatelessWidget {
                         version: QrVersions.auto,
                         size: 200,
                         foregroundColor: scheme.onSurface,
-                        eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: scheme.onSurface),
-                        dataModuleStyle: QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: scheme.onSurface),
+                        eyeStyle: QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: scheme.onSurface,
+                        ),
+                        dataModuleStyle: QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: scheme.onSurface,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: scheme.surfaceVariant.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(12),
@@ -322,14 +371,18 @@ class ProfileHeaderCard extends StatelessWidget {
                     child: Text(
                       profileUrl,
                       textAlign: TextAlign.center,
-                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
                   FilledButton(
                     onPressed: () => Navigator.pop(ctx),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
-                    child: const Text('Fermer'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(44),
+                    ),
+                    child: Text(tr(ctx, 'cancel')),
                   ),
                 ],
               ),
@@ -343,13 +396,19 @@ class ProfileHeaderCard extends StatelessWidget {
 
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.user});
+
   final UserModel user;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final initials = user.fullName.isNotEmpty
-        ? user.fullName.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').join().toUpperCase()
+        ? user.fullName
+              .trim()
+              .split(' ')
+              .map((e) => e.isNotEmpty ? e[0] : '')
+              .join()
+              .toUpperCase()
         : 'U';
     return CircleAvatar(
       radius: 34,
@@ -373,6 +432,7 @@ class _Avatar extends StatelessWidget {
 
 class _InfoSection extends StatelessWidget {
   const _InfoSection({required this.items});
+
   final List<_InfoItem> items;
 
   @override
@@ -402,7 +462,11 @@ class _InfoSection extends StatelessWidget {
                 subtitle: Text(item.value),
                 dense: false,
               ),
-              if (!isLast) Divider(height: 1, color: scheme.outlineVariant.withValues(alpha: 0.6)),
+              if (!isLast)
+                Divider(
+                  height: 1,
+                  color: scheme.outlineVariant.withValues(alpha: 0.6),
+                ),
             ],
           );
         }),
@@ -415,11 +479,13 @@ class _InfoItem {
   final IconData icon;
   final String label;
   final String value;
+
   const _InfoItem(this.icon, this.label, this.value);
 }
 
 class _StatsRow extends StatelessWidget {
   const _StatsRow({required this.items});
+
   final List<_StatItem> items;
 
   @override
@@ -446,11 +512,17 @@ class _StatItem {
   final String label;
   final String value;
   final IconData icon;
-  const _StatItem({required this.label, required this.value, required this.icon});
+
+  const _StatItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 }
 
 class _StatCard extends StatelessWidget {
   const _StatCard({required this.item});
+
   final _StatItem item;
 
   @override
@@ -481,10 +553,17 @@ class _StatCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(item.label, style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                Text(
+                  item.label,
+                  style: textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
                 Text(
                   item.value,
-                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -497,10 +576,12 @@ class _StatCard extends StatelessWidget {
 
 class _EmptyProfile extends StatelessWidget {
   const _EmptyProfile({required this.onReconnect});
+
   final VoidCallback onReconnect;
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Center(
@@ -509,19 +590,25 @@ class _EmptyProfile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_off_outlined, size: 54, color: scheme.onSurfaceVariant),
+            Icon(
+              Icons.person_off_outlined,
+              size: 54,
+              color: scheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 12),
-            Text('Aucune information utilisateur disponible', style: textTheme.titleMedium),
+            Text(tr(context, 'no_user_info'), style: textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'Veuillez vous reconnecter pour voir votre profil.',
+              tr(context, 'reconnect_msg'),
               textAlign: TextAlign.center,
-              style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: onReconnect,
-              child: const Text('Se reconnecter'),
+              child: Text(tr(context, 'reconnect')),
             ),
           ],
         ),

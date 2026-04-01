@@ -103,6 +103,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         status: listing.type == 'found' ? PublicationStatus.trouve : PublicationStatus.perdu,
         imageUrls: images.isNotEmpty ? images : [_fallbackImage],
         dateText: listing.createdAt,
+        eventDate: listing.eventDate ?? '',
         description: listing.description,
         cityArea: listing.city ?? listing.locationText ?? '',
         likesCount: listing.likesCount,

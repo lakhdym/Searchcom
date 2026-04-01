@@ -7,9 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/constants/app_messages.dart';
+import '../../../core/errors/app_error_mapper.dart';
+import '../../../core/feedback/app_feedback.dart';
+import '../../../pages/app_error_page.dart';
+
 import '../models/chat_models.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
+import '../../../services/l10n_helper.dart';
 import '../../../models/user_model.dart';
 
 class ChatDetailPage extends StatefulWidget {
@@ -53,13 +59,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     try {
       _me = await AuthLocalStorage.instance.getUser();
       if (_me == null) {
-        setState(() => _error = 'Vous devez être connecté pour discuter');
+        setState(() => _error = t('sign_in_to_chat'));
         return;
       }
       await _loadMessages();
-      _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _loadMessages(silent: true));
+      _refreshTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _loadMessages(silent: true),
+      );
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() {
+        _error = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.messagesLoadError(),
+        );
+      });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -247,7 +261,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   Future<void> _sendMessage(String text) async {
     final me = _me;
     if (me == null) {
-      setState(() => _error = 'Session requise');
+      AppFeedback.showInfoSnackBar(context, AppMessages.sessionExpired());
       return;
     }
     final replyTarget = _replyTo;
@@ -261,7 +275,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       time: DateTime.now(),
       status: MessageStatus.sent,
       replyToMessageId: replyTarget?.id,
-      replyExcerpt: replyTarget?.text ??
+      replyExcerpt:
+          replyTarget?.text ??
           (replyTarget == null
               ? null
               : replyTarget.isImage
@@ -339,14 +354,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       time: DateTime.now(),
       status: MessageStatus.sent,
       replyToMessageId: _replyTo?.id,
-      replyExcerpt: _replyTo?.text ??
+      replyExcerpt:
+          _replyTo?.text ??
           (_replyTo == null
               ? null
               : _replyTo!.isImage
-                  ? '[Image]'
-                  : _replyTo!.isFile
-                      ? '[Fichier]'
-                      : ''),
+              ? t('image_attachment')
+              : _replyTo!.isFile
+              ? t('file_attachment')
+              : ''),
     );
     setState(() {
       _messages.add(msg);
@@ -369,14 +385,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       time: DateTime.now(),
       status: MessageStatus.sent,
       replyToMessageId: _replyTo?.id,
-      replyExcerpt: _replyTo?.text ??
+      replyExcerpt:
+          _replyTo?.text ??
           (_replyTo == null
               ? null
               : _replyTo!.isImage
-                  ? '[Image]'
-                  : _replyTo!.isFile
-                      ? '[Fichier]'
-                      : ''),
+              ? t('image_attachment')
+              : _replyTo!.isFile
+              ? t('file_attachment')
+              : ''),
     );
     setState(() {
       _messages.add(msg);
@@ -424,18 +441,18 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           children: [
             ListTile(
               leading: const Icon(Icons.reply_outlined),
-              title: const Text('Répondre'),
+              title: Text(t('reply')),
               onTap: () => Navigator.pop(context, 'reply'),
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
-              title: const Text('Supprimer'),
+              title: Text(t('delete')),
               onTap: () => Navigator.pop(context, 'delete'),
             ),
             if (message.text != null && message.text!.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.copy),
-                title: const Text('Copier'),
+                title: Text(t('copy')),
                 onTap: () => Navigator.pop(context, 'copy'),
               ),
           ],
@@ -451,9 +468,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     } else if (result == 'copy' && message.text != null) {
       await Clipboard.setData(ClipboardData(text: message.text!));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Texte copié')),
-        );
+        AppFeedback.showSuccessSnackBar(context, t('text_copied'));
       }
     }
   }
@@ -463,21 +478,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer le message ?'),
-        content: const Text('Choisissez une option'),
+        title: Text(t('delete_message')),
+        content: Text(t('choose_an_option')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'me'),
-            child: const Text('Supprimer pour moi'),
+            child: Text(t('delete_for_me')),
           ),
           if (isMine)
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'all'),
-              child: const Text('Supprimer pour tout'),
+              child: Text(t('delete_for_everyone')),
             ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, null),
-            child: const Text('Annuler'),
+            child: Text(t('cancel_button')),
           ),
         ],
       ),
@@ -503,7 +518,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             isMe: msg.isMe,
             time: msg.time,
             isDeletedForEveryone: true,
-            deletedText: 'Vous avez supprimé ce message',
+            deletedText: t('message_deleted_by_you'),
             status: msg.status,
           );
         });
@@ -537,16 +552,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     if (_loading) {
       return Scaffold(
         backgroundColor: scheme.surface,
-        appBar: AppBar(title: const Text('Discussion')),
+        appBar: AppBar(title: Text(t('conversation'))),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     if (_error != null) {
-      return Scaffold(
-        backgroundColor: scheme.surface,
-        appBar: AppBar(title: const Text('Discussion')),
-        body: Center(child: Text(_error!)),
-      );
+      final kind = AppErrorMapper.isNotFound(_error!)
+          ? AppErrorKind.conversationNotFound
+          : AppErrorMapper.isUnauthorized(_error!)
+          ? AppErrorKind.unauthorized
+          : AppErrorKind.unexpected;
+      return AppErrorPage(kind: kind, message: _error, onRetry: _init);
     }
     final textTheme = Theme.of(context).textTheme;
     final filteredMessages = (_searchMode && _searchQuery.isNotEmpty)
@@ -660,7 +676,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Align(
-                      alignment: msg.isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: msg.isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: GestureDetector(
                         onLongPress: msg.isDeletedForEveryone ? null : () => _onLongPressMessage(msg),
                         behavior: HitTestBehavior.opaque,
@@ -784,14 +802,17 @@ class MessageBubble extends StatelessWidget {
                       color: fg.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                       border: Border(
-                        left: BorderSide(color: fg.withValues(alpha: 0.5), width: 3),
+                        left: BorderSide(
+                          color: fg.withValues(alpha: 0.5),
+                          width: 3,
+                        ),
                       ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          repliedTo!.isMe ? 'Vous' : 'Réponse',
+                          repliedTo!.isMe ? t('you') : t('reply_label'),
                           style: textTheme.labelMedium?.copyWith(
                             color: fg.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w700,
@@ -801,13 +822,15 @@ class MessageBubble extends StatelessWidget {
                         Text(
                           repliedTo!.text ??
                               (repliedTo!.isImage
-                                  ? '[Image]'
+                                  ? t('image_attachment')
                                   : repliedTo!.isFile
-                                      ? '[Fichier]'
-                                      : ''),
+                                  ? t('file_attachment')
+                                  : ''),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall?.copyWith(color: fg.withValues(alpha: 0.8)),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: fg.withValues(alpha: 0.8),
+                          ),
                         ),
                       ],
                     ),
@@ -852,7 +875,9 @@ class MessageBubble extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             _formatSize(message.fileSize!),
-                            style: textTheme.labelSmall?.copyWith(color: fg.withValues(alpha: 0.8)),
+                            style: textTheme.labelSmall?.copyWith(
+                              color: fg.withValues(alpha: 0.8),
+                            ),
                           ),
                         ],
                       ],
@@ -928,7 +953,11 @@ class _StatusTicks extends StatelessWidget {
 }
 
 class ReplyPreviewBar extends StatelessWidget {
-  const ReplyPreviewBar({super.key, required this.message, required this.onCancel});
+  const ReplyPreviewBar({
+    super.key,
+    required this.message,
+    required this.onCancel,
+  });
 
   final ChatMessage message;
   final VoidCallback onCancel;
@@ -950,17 +979,19 @@ class ReplyPreviewBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  message.isMe ? 'Réponse à Vous' : 'Réponse',
-                  style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                  message.isMe ? t('reply_to_you') : t('reply_label'),
+                  style: textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   message.text ??
                       (message.isImage
-                          ? '[Image]'
+                          ? t('image_attachment')
                           : message.isFile
-                              ? '[Fichier]'
-                              : ''),
+                          ? t('file_attachment')
+                          : ''),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.bodySmall,
@@ -1011,7 +1042,10 @@ class ChatInputBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Icon(Icons.emoji_emotions_outlined, color: scheme.onSurfaceVariant),
+                child: Icon(
+                  Icons.emoji_emotions_outlined,
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
             InkWell(
@@ -1027,7 +1061,10 @@ class ChatInputBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Icon(Icons.image_outlined, color: scheme.onSurfaceVariant),
+                child: Icon(
+                  Icons.image_outlined,
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
             const SizedBox(width: 6),
@@ -1044,8 +1081,8 @@ class ChatInputBar extends StatelessWidget {
                   focusNode: focusNode,
                   minLines: 1,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Écrire un message...',
+                  decoration: InputDecoration(
+                    hintText: t('write_message'),
                     border: InputBorder.none,
                   ),
                   onTap: () => FocusScope.of(context).requestFocus(focusNode),
@@ -1070,7 +1107,11 @@ class ChatInputBar extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Icon(Icons.send_rounded, color: scheme.onPrimary, size: 22),
+                child: Icon(
+                  Icons.send_rounded,
+                  color: scheme.onPrimary,
+                  size: 22,
+                ),
               ),
             ),
           ],

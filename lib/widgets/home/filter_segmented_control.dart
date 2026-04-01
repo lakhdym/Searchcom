@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 
-class FilterSegmentedControl extends StatelessWidget {
-  final int selectedIndex;
-  final ValueChanged<int> onChanged;
+import '../../services/l10n_helper.dart';
 
+class FilterSegmentedControl extends StatelessWidget {
   const FilterSegmentedControl({
     super.key,
     required this.selectedIndex,
     required this.onChanged,
   });
 
+  final int selectedIndex;
+  final ValueChanged<int> onChanged;
+
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     const pillHeight = 60.0;
     const bgColor = Color(0xFFF5F6F8);
     const textInactive = Color(0xFF6B7280);
@@ -22,7 +25,7 @@ class FilterSegmentedControl extends StatelessWidget {
       offset: const Offset(0, 2),
     );
 
-    const labels = ["Tout", "Perdu", "Trouvé"];
+    final labels = [t('filter_all'), t('filter_lost'), t('filter_found')];
 
     return Container(
       height: pillHeight,

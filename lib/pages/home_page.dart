@@ -2,8 +2,11 @@
 
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/feedback/app_feedback.dart';
 import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
+import '../services/l10n_helper.dart';
 import '../widgets/home/home_action_card.dart';
 import '../widgets/home/home_search_bar.dart';
 import '../widgets/home/recent_publications_section.dart';
@@ -12,7 +15,6 @@ import 'notifications_page.dart';
 import 'found_form_page.dart';
 import 'login_page.dart';
 
-/// Home page with action cards, search bar, and recent publications list.
 class HomePage extends StatefulWidget {
   const HomePage({super.key, this.showAppBar = true});
 
@@ -37,8 +39,8 @@ class _HomePageState extends State<HomePage> {
     await _guardAuthThen(
       context,
       onAllowed: () => _openCreationPage('lost'),
-      title: 'Connexion requise',
-      message: 'Vous devez vous connecter pour publier une annonce perdue.',
+      title: t('login_required'),
+      message: t('login_required_lost'),
     );
   }
 
@@ -46,19 +48,21 @@ class _HomePageState extends State<HomePage> {
     await _guardAuthThen(
       context,
       onAllowed: () => _openCreationPage('found'),
-      title: 'Connexion requise',
-      message: 'Vous devez vous connecter pour publier une annonce.',
+      title: t('login_required'),
+      message: t('login_required_found'),
     );
   }
 
   Future<void> _openCreationPage(String type) async {
-    final created = await Navigator.of(context)
-        .push<bool>(MaterialPageRoute(builder: (_) => FoundFormPage(type: type)));
+    final created = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => FoundFormPage(type: type)));
     if (!mounted || created != true) return;
 
     _feedRefreshSignal.value++;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Annonce publiée avec succès')),
+    AppFeedback.showSuccessSnackBar(
+      context,
+      AppMessages.listingPublishedSuccess(),
     );
   }
 
@@ -83,21 +87,26 @@ class _HomePageState extends State<HomePage> {
 
     final goLogin = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Annuler'),
+      builder: (ctx) {
+        watchLanguage(ctx);
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Se connecter'),
-          ),
-        ],
-      ),
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(tr(ctx, 'cancel_button')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(tr(ctx, 'sign_in_button')),
+            ),
+          ],
+        );
+      },
     );
 
     if (!navigator.mounted) return;
@@ -109,13 +118,13 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth >= 760;
 
     final lostCard = HomeActionCard(
-      title: "J'ai perdu",
-      subtitle:
-          'Signalez un objet perdu pour augmenter vos chances de le retrouver.',
+      title: t('i_lost_item'),
+      subtitle: t('i_lost_subtitle'),
       height: 150,
       backgroundColor: const Color(0xFFFFF1F1),
       smallIconBackground: const Color(0xFFFFE4E4),
@@ -127,8 +136,8 @@ class _HomePageState extends State<HomePage> {
     );
 
     final foundCard = HomeActionCard(
-      title: "J'ai trouvé",
-      subtitle: "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
+      title: t('i_found_item'),
+      subtitle: t('i_found_subtitle'),
       height: 150,
       backgroundColor: const Color(0xFFF1FBF5),
       smallIconBackground: const Color(0xFFDFF5E7),

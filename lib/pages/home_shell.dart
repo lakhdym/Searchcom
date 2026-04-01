@@ -1,11 +1,15 @@
-import 'package:flutter/material.dart';
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+
 import '../features/chat/pages/conversations_page.dart';
+import '../services/api_service.dart';
+import '../services/auth_local_storage.dart';
+import '../services/l10n_helper.dart';
 import '../state/auth_state.dart';
 import '../widgets/top_nav_bar.dart';
-import 'home_page.dart';
 import 'found_form_page.dart';
+import 'home_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
 import 'notifications_page.dart';
@@ -15,7 +19,6 @@ import '../services/api_service.dart';
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, this.initialIndex = 2});
 
-  /// 0: Chat, 1: Créer, 2: Accueil, 3: Profil, 4: Paramètres
   final int initialIndex;
 
   @override
@@ -27,34 +30,6 @@ class _HomeShellState extends State<HomeShell> {
   int _unreadCount = 0;
   int _notifCount = 0;
   Timer? _badgeTimer;
-
-  late final List<_NavPage> _pages = [
-    _NavPage(
-      title: 'Chat',
-      icon: Icons.chat_bubble_outline,
-      builder: () => const ConversationsPage(),
-    ),
-    _NavPage(
-      title: 'Créer',
-      icon: Icons.add_circle_outline,
-      builder: () => const _PlaceholderPage(title: 'Créer une publication'),
-    ),
-    _NavPage(
-      title: 'Accueil',
-      icon: Icons.home_outlined,
-      builder: () => const HomePage(showAppBar: false),
-    ),
-    _NavPage(
-      title: 'Profil',
-      icon: Icons.person_outline,
-      builder: () => const ProfilePage(),
-    ),
-    _NavPage(
-      title: 'Paramètres',
-      icon: Icons.settings_outlined,
-      builder: () => const SettingsPage(),
-    ),
-  ];
 
   @override
   void initState() {
@@ -68,9 +43,42 @@ class _HomeShellState extends State<HomeShell> {
     super.dispose();
   }
 
+  List<_NavPage> _buildPages() {
+    return [
+      _NavPage(
+        title: t('chat'),
+        icon: Icons.chat_bubble_outline,
+        builder: () => const ConversationsPage(),
+      ),
+      _NavPage(
+        title: t('create'),
+        icon: Icons.add_circle_outline,
+        builder: () => _PlaceholderPage(title: t('create_publication')),
+      ),
+      _NavPage(
+        title: t('home'),
+        icon: Icons.home_outlined,
+        builder: () => const HomePage(showAppBar: false),
+      ),
+      _NavPage(
+        title: t('profile'),
+        icon: Icons.person_outline,
+        builder: () => const ProfilePage(),
+      ),
+      _NavPage(
+        title: t('settings'),
+        icon: Icons.settings_outlined,
+        builder: () => const SettingsPage(),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
+    final pages = _buildPages();
     final scheme = Theme.of(context).colorScheme;
+
     return ValueListenableBuilder<bool>(
       valueListenable: authState,
       builder: (context, loggedIn, _) {
@@ -90,7 +98,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
           body: IndexedStack(
             index: _index,
-            children: _pages.map((p) => p.builder()).toList(),
+            children: pages.map((page) => page.builder()).toList(),
           ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
@@ -100,34 +108,27 @@ class _HomeShellState extends State<HomeShell> {
             surfaceTintColor: scheme.surfaceTint,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             onDestinationSelected: (i) async {
-              // Intercepte le bouton "Créer" pour ouvrir le choix rapide
               if (i == 1) {
                 await _showCreateSheet();
                 return;
               }
               setState(() => _index = i);
             },
-            destinations: _pages
-                .asMap()
-                .entries
-                .map(
-                  (entry) {
-                    final p = entry.value;
-                    final i = entry.key;
-                    Widget icon = Icon(p.icon, color: scheme.onSurfaceVariant);
-                    Widget selectedIcon = Icon(p.icon, color: scheme.primary);
-                    if (i == 0 && _unreadCount > 0) {
-                      icon = _withBadge(icon, scheme);
-                      selectedIcon = _withBadge(selectedIcon, scheme);
-                    }
-                    return NavigationDestination(
-                      icon: icon,
-                      selectedIcon: selectedIcon,
-                      label: p.title,
-                    );
-                  },
-                )
-                .toList(),
+            destinations: pages.asMap().entries.map((entry) {
+              final page = entry.value;
+              final i = entry.key;
+              Widget icon = Icon(page.icon, color: scheme.onSurfaceVariant);
+              Widget selectedIcon = Icon(page.icon, color: scheme.primary);
+              if (i == 0 && _unreadCount > 0) {
+                icon = _withBadge(icon, scheme);
+                selectedIcon = _withBadge(selectedIcon, scheme);
+              }
+              return NavigationDestination(
+                icon: icon,
+                selectedIcon: selectedIcon,
+                label: page.title,
+              );
+            }).toList(),
           ),
         );
       },
@@ -144,6 +145,7 @@ class _HomeShellState extends State<HomeShell> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        watchLanguage(ctx);
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -151,11 +153,18 @@ class _HomeShellState extends State<HomeShell> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Créer une publication', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  tr(ctx, 'create_publication'),
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
-                  'Choisissez le type d’annonce à publier.',
-                  style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                  tr(ctx, 'choose_announcement_type'),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
@@ -168,7 +177,7 @@ class _HomeShellState extends State<HomeShell> {
                     );
                   },
                   icon: const Icon(Icons.search_off_outlined),
-                  label: const Text("J'ai perdu"),
+                  label: Text(tr(ctx, 'i_lost')),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
@@ -184,7 +193,7 @@ class _HomeShellState extends State<HomeShell> {
                     );
                   },
                   icon: const Icon(Icons.volunteer_activism_outlined),
-                  label: const Text("J'ai trouvé"),
+                  label: Text(tr(ctx, 'i_found')),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
@@ -227,7 +236,10 @@ class _HomeShellState extends State<HomeShell> {
 
   void _startBadgePolling() {
     _loadUnreadCount();
-    _badgeTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadUnreadCount());
+    _badgeTimer = Timer.periodic(
+      const Duration(seconds: 6),
+      (_) => _loadUnreadCount(),
+    );
   }
 
   Future<void> _loadUnreadCount() async {
@@ -242,10 +254,13 @@ class _HomeShellState extends State<HomeShell> {
         }
         return;
       }
-      final convs = await ApiService.instance.getConversations(userId: user.id);
-      final total = convs.fold<int>(0, (p, c) {
-        final raw = c['unread_count'] ?? 0;
-        return p + (raw is num ? raw.toInt() : int.tryParse(raw.toString()) ?? 0);
+      final conversations = await ApiService.instance.getConversations(
+        userId: user.id,
+      );
+      final total = conversations.fold<int>(0, (previous, current) {
+        final raw = current['unread_count'] ?? 0;
+        return previous +
+            (raw is num ? raw.toInt() : int.tryParse(raw.toString()) ?? 0);
       });
       int notifTotal = 0;
       try {
@@ -265,7 +280,7 @@ class _HomeShellState extends State<HomeShell> {
         });
       }
     } catch (_) {
-      // on ignore pour ne pas casser l'UI
+      // Ignore pour ne pas casser l'UI.
     }
   }
 }
@@ -274,15 +289,18 @@ class _NavPage {
   final String title;
   final IconData icon;
   final Widget Function() builder;
+
   _NavPage({required this.title, required this.icon, required this.builder});
 }
 
 class _PlaceholderPage extends StatelessWidget {
   const _PlaceholderPage({required this.title});
+
   final String title;
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Container(
@@ -306,12 +324,16 @@ class _PlaceholderPage extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               title,
-              style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              style: textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Contenu à venir',
-              style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+              tr(context, 'coming_soon'),
+              style: textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

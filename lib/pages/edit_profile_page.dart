@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
+import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
 import '../services/auth_local_storage.dart';
+import '../services/l10n_helper.dart';
 import '../state/auth_state.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -46,9 +51,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Future<void> _save() async {
     final user = currentUser.value;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun utilisateur connecté.')),
-      );
+      AppFeedback.showInfoSnackBar(context, t('reconnect_msg'));
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -61,24 +64,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
         email: _emailCtrl.text.trim(),
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         preferredLang: _preferredLang,
-        avatarUrl: _avatarCtrl.text.trim().isEmpty ? null : _avatarCtrl.text.trim(),
+        avatarUrl: _avatarCtrl.text.trim().isEmpty
+            ? null
+            : _avatarCtrl.text.trim(),
       );
       await AuthLocalStorage.instance.saveUser(updated);
       loginUser(updated);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour avec succès')),
+      AppFeedback.showSuccessSnackBar(
+        context,
+        AppMessages.profileUpdatedSuccess(),
       );
       Navigator.of(context).pop();
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur lors de la mise à jour du profil.')),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.profileUpdateError(),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -87,13 +92,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final user = currentUser.value;
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Modifier le profil'),
+        title: Text(t('edit_profile')),
         backgroundColor: scheme.surface,
         elevation: 0,
       ),
@@ -102,11 +108,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Aucun utilisateur connecté'),
+                  Text(t('no_user_info')),
                   const SizedBox(height: 8),
                   FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Retour'),
+                    child: Text(t('back_to_home')),
                   ),
                 ],
               ),
@@ -115,62 +121,92 @@ class _EditProfilePageState extends State<EditProfilePage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _HeaderAvatar(avatarUrl: user.avatarUrl, initials: _initials(user.fullName)),
+                  _HeaderAvatar(
+                    avatarUrl: user.avatarUrl,
+                    initials: _initials(user.fullName),
+                  ),
                   const SizedBox(height: 16),
                   Form(
                     key: _formKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Informations personnelles', style: textTheme.titleMedium),
+                        Text(t('personal_info'), style: textTheme.titleMedium),
                         const SizedBox(height: 8),
                         _Card(
                           child: Column(
                             children: [
                               TextFormField(
                                 controller: _fullNameCtrl,
-                                decoration: const InputDecoration(labelText: 'Nom complet', prefixIcon: Icon(Icons.badge_outlined)),
-                                validator: (v) =>
-                                    (v == null || v.trim().length < 2) ? 'Nom complet requis (min 2 caractères)' : null,
+                                decoration: InputDecoration(
+                                  labelText: t('full_name'),
+                                  prefixIcon: const Icon(Icons.badge_outlined),
+                                ),
+                                validator: AppValidators.fullName,
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
                                 controller: _emailCtrl,
                                 readOnly: true,
-                                decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_outline)),
+                                decoration: InputDecoration(
+                                  labelText: t('email'),
+                                  prefixIcon: const Icon(Icons.mail_outline),
+                                ),
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
                                 controller: _phoneCtrl,
                                 keyboardType: TextInputType.phone,
-                                decoration: const InputDecoration(labelText: 'Téléphone', prefixIcon: Icon(Icons.phone_outlined)),
+                                decoration: InputDecoration(
+                                  labelText: t('phone'),
+                                  prefixIcon: const Icon(Icons.phone_outlined),
+                                ),
+                                validator: AppValidators.phoneOptional,
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Text('Préférences', style: textTheme.titleMedium),
+                        Text(t('application'), style: textTheme.titleMedium),
                         const SizedBox(height: 8),
                         _Card(
                           child: Column(
                             children: [
                               DropdownButtonFormField<String>(
                                 value: _preferredLang,
-                                decoration: const InputDecoration(labelText: 'Langue préférée', prefixIcon: Icon(Icons.language_outlined)),
+                                decoration: InputDecoration(
+                                  labelText: t('preferred_language'),
+                                  prefixIcon: const Icon(
+                                    Icons.language_outlined,
+                                  ),
+                                ),
                                 items: const [
-                                  DropdownMenuItem(value: 'fr', child: Text('Français')),
-                                  DropdownMenuItem(value: 'ar', child: Text('Arabe')),
-                                  DropdownMenuItem(value: 'en', child: Text('Anglais')),
+                                  DropdownMenuItem(
+                                    value: 'fr',
+                                    child: Text('Francais'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'ar',
+                                    child: Text('Arabic'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'en',
+                                    child: Text('English'),
+                                  ),
                                 ],
-                                onChanged: (v) => setState(() => _preferredLang = v ?? 'fr'),
-                                validator: (v) => (v == null || v.isEmpty) ? 'Choisissez une langue' : null,
+                                onChanged: (v) =>
+                                    setState(() => _preferredLang = v ?? 'fr'),
+                                validator: (v) => (v == null || v.isEmpty)
+                                    ? AppMessages.requiredField()
+                                    : null,
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
                                 controller: _avatarCtrl,
-                                decoration: const InputDecoration(
-                                  labelText: 'Avatar URL (optionnel)',
-                                  prefixIcon: Icon(Icons.image_outlined),
+                                decoration: InputDecoration(
+                                  labelText: 'Avatar URL',
+                                  prefixIcon: const Icon(Icons.image_outlined),
                                 ),
                               ),
                             ],
@@ -187,10 +223,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                     height: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(scheme.onPrimary),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        scheme.onPrimary,
+                                      ),
                                     ),
                                   )
-                                : const Text('Enregistrer les modifications'),
+                                : Text(t('save_changes')),
                           ),
                         ),
                       ],
@@ -226,11 +264,17 @@ class _HeaderAvatar extends StatelessWidget {
           CircleAvatar(
             radius: 32,
             backgroundColor: scheme.primary.withValues(alpha: 0.15),
-            backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty) ? NetworkImage(avatarUrl!) : null,
+            backgroundImage: (avatarUrl != null && avatarUrl!.isNotEmpty)
+                ? NetworkImage(avatarUrl!)
+                : null,
             child: (avatarUrl == null || avatarUrl!.isEmpty)
                 ? Text(
                     initials,
-                    style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w800, fontSize: 18),
+                    style: TextStyle(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
                   )
                 : null,
           ),
@@ -239,11 +283,13 @@ class _HeaderAvatar extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Mettez à jour vos informations', style: textTheme.titleMedium),
+                Text(t('edit_profile'), style: textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                  'Photo, nom, téléphone et préférences.',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  'Photo, nom, telephone et preferences.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),

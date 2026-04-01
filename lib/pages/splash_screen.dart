@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import '../services/language_service.dart';
-import '../services/auth_local_storage.dart';
+
 import '../services/api_service.dart';
+import '../services/auth_local_storage.dart';
+import '../services/language_service.dart';
 import '../state/auth_state.dart';
-import 'language_selection_page.dart';
 import 'home_page.dart';
 import 'home_shell.dart';
+import 'language_selection_page.dart';
 
-/// Splash screen : redirige vers Home si langue stockée, sinon vers le choix de langue.
+/// Splash screen : redirige vers Home si langue stockee, sinon vers le choix de langue.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -16,7 +17,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  final LanguageService _languageService = LanguageService();
+  final LanguageService _languageService = LanguageService.instance;
 
   @override
   void initState() {
@@ -25,41 +26,44 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateAfterSplash() async {
-    await _languageService.initFromStorage();
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    // Tente de restaurer la session utilisateur si elle existe.
     final storedUser = await AuthLocalStorage.instance.getUser();
     final storedToken = await AuthLocalStorage.instance.getToken();
 
     if (storedUser != null && storedToken != null && storedToken.isNotEmpty) {
       ApiService.instance.setToken(storedToken);
       loginUser(storedUser);
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
+      await _languageService.syncWithUserPreferredLanguage(
+        storedUser.preferredLang,
       );
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
       return;
     }
 
+    if (!mounted) return;
+
     if (_languageService.hasStoredLanguage) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HomePage()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
     } else {
-      await _languageService.translations.loadLanguage('fr');
-      if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LanguageSelectionPage()),
+        MaterialPageRoute(builder: (_) => const LanguageSelectionPage()),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
         child: Image.asset(
           'assets/images/splash.png',
@@ -69,10 +73,10 @@ class _SplashScreenState extends State<SplashScreen> {
               width: 200,
               height: 200,
               decoration: BoxDecoration(
-                color: const Color(0xFF7C3AED).withOpacity(0.1),
+                color: scheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.image, size: 80, color: Color(0xFF7C3AED)),
+              child: Icon(Icons.image, size: 80, color: scheme.primary),
             );
           },
         ),

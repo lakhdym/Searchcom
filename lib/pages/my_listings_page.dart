@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
+
 import '../models/listing_model.dart';
 import '../services/my_listings_api_service.dart';
 import '../services/api_service.dart';
@@ -7,7 +11,8 @@ import '../services/auth_local_storage.dart';
 import 'found_form_page.dart';
 import 'home_page.dart';
 
-const _fallbackListingImage = 'https://via.placeholder.com/600x400?text=Annonce';
+const _fallbackListingImage =
+    'https://via.placeholder.com/600x400?text=Annonce';
 const _uploadsBase = 'https://italents.ma/app/';
 
 String _resolveImageUrl(String? raw) {
@@ -20,7 +25,7 @@ String _resolveImageUrl(String? raw) {
   String cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
   final uploadsIndex = cleaned.indexOf('uploads/');
   if (uploadsIndex >= 0) {
-    cleaned = cleaned.substring(uploadsIndex); // garde dès "uploads/..."
+    cleaned = cleaned.substring(uploadsIndex); // garde dÃ¨s "uploads/..."
   }
   if (cleaned.startsWith('uploads/')) {
     return '$_uploadsBase$cleaned';
@@ -62,14 +67,20 @@ class _MyListingsPageState extends State<MyListingsPage> {
     setState(() => _loading = true);
     try {
       final items = await MyListingsApiService.instance.getMyListings(
-        search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
+        search: _searchCtrl.text.trim().isEmpty
+            ? null
+            : _searchCtrl.text.trim(),
       );
       if (!mounted) return;
       setState(() => _items = items);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.listingsLoadError(),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -83,8 +94,14 @@ class _MyListingsPageState extends State<MyListingsPage> {
         title: const Text('Supprimer'),
         content: const Text('Supprimer cette publication ?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Supprimer')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer'),
+          ),
         ],
       ),
     );
@@ -94,12 +111,17 @@ class _MyListingsPageState extends State<MyListingsPage> {
       if (!mounted) return;
       _items.removeWhere((e) => e.id == id);
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Annonce supprimée')),
+      AppFeedback.showSuccessSnackBar(
+        context,
+        AppMessages.listingDeletedSuccess(),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.listingDeleteError(),
+        ),
       );
     }
   }
@@ -127,7 +149,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         ),
       ),
     );
-    // Rafraîchir la liste après retour
+    // RafraÃ®chir la liste aprÃ¨s retour
     if (mounted) {
       _load();
     }
@@ -144,15 +166,20 @@ class _MyListingsPageState extends State<MyListingsPage> {
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HomePage())),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const HomePage())),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Nouvelle'),
               style: FilledButton.styleFrom(
                 visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
             ),
-          )
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -176,15 +203,21 @@ class _MyListingsPageState extends State<MyListingsPage> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_items.isEmpty)
-              _EmptyState(onCreate: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HomePage())))
+              _EmptyState(
+                onCreate: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const HomePage())),
+              )
             else
-              ..._items.map((e) => _ListingCard(
-                    item: e,
-                    onDelete: _delete,
-                    onBoost: () => _showBoostSheet(e),
-                    onView: () => _openDetails(e),
-                    onEdit: () => _openEdit(e),
-                  )),
+              ..._items.map(
+                (e) => _ListingCard(
+                  item: e,
+                  onDelete: _delete,
+                  onBoost: () => _showBoostSheet(e),
+                  onView: () => _openDetails(e),
+                  onEdit: () => _openEdit(e),
+                ),
+              ),
           ],
         ),
       ),
@@ -207,11 +240,18 @@ class _MyListingsPageState extends State<MyListingsPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Booster cette publication', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+              Text(
+                'Booster cette publication',
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(height: 4),
               Text(
-                'Mettez votre annonce en avant pour augmenter sa visibilité.',
-                style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                'Mettez votre annonce en avant pour augmenter sa visibilitÃ©.',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               _BoostPlanTile(
@@ -234,7 +274,9 @@ class _MyListingsPageState extends State<MyListingsPage> {
                 onPressed: () => Navigator.pop(ctx),
                 icon: const Icon(Icons.check_circle_outline),
                 label: const Text('Continuer'),
-                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
               ),
             ],
           ),
@@ -258,7 +300,8 @@ class _ListingCard extends StatelessWidget {
   final VoidCallback onView;
   final VoidCallback onEdit;
 
-  Color _typeColor(ColorScheme scheme) => item.type == 'lost' ? Colors.red : Colors.green;
+  Color _typeColor(ColorScheme scheme) =>
+      item.type == 'lost' ? Colors.red : Colors.green;
 
   String _statusLabel() {
     switch (item.status) {
@@ -267,11 +310,11 @@ class _ListingCard extends StatelessWidget {
       case 'pending_payment':
         return 'En attente';
       case 'published':
-        return 'Publiée';
+        return 'PubliÃ©e';
       case 'hidden':
-        return 'Cachée';
+        return 'CachÃ©e';
       case 'archived':
-        return 'Archivée';
+        return 'ArchivÃ©e';
       default:
         return item.status;
     }
@@ -307,19 +350,26 @@ class _ListingCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _Badge(label: item.type == 'lost' ? "J'ai perdu" : "J'ai trouvé", color: _typeColor(scheme)),
+                      _Badge(
+                        label: item.type == 'lost'
+                            ? "J'ai perdu"
+                            : "J'ai trouvÃ©",
+                        color: _typeColor(scheme),
+                      ),
                       const SizedBox(width: 6),
                       _Badge(label: _statusLabel(), color: scheme.primary),
                       if (item.isBoosted) ...[
                         const SizedBox(width: 6),
-                        _Badge(label: 'Boostée', color: scheme.tertiary),
+                        _Badge(label: 'BoostÃ©e', color: scheme.tertiary),
                       ],
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     item.title,
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -328,7 +378,9 @@ class _ListingCard extends StatelessWidget {
                     item.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -346,7 +398,10 @@ class _ListingCard extends StatelessWidget {
                       const SizedBox(width: 10),
                       const Icon(Icons.calendar_today, size: 14),
                       const SizedBox(width: 4),
-                      Text(item.eventDate ?? item.createdAt, style: textTheme.labelMedium),
+                      Text(
+                        item.eventDate ?? item.createdAt,
+                        style: textTheme.labelMedium,
+                      ),
                     ],
                   ),
                 ],
@@ -369,11 +424,7 @@ class _ListingCard extends StatelessWidget {
                 PopupMenuItem(value: 'edit', child: Text('Modifier')),
                 PopupMenuItem(
                   value: 'boost',
-                  child: Row(
-                    children: [
-                      Text('Booster'),
-                    ],
-                  ),
+                  child: Row(children: [Text('Booster')]),
                 ),
                 PopupMenuItem(value: 'delete', child: Text('Supprimer')),
               ],
@@ -398,7 +449,10 @@ class _Badge extends StatelessWidget {
         color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color)),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+      ),
     );
   }
 }
@@ -423,11 +477,14 @@ class _Cover extends StatelessWidget {
   }
 
   Widget _placeholder(ColorScheme scheme) => Container(
-        width: 110,
-        height: 110,
-        color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
-        child: Icon(Icons.photo_size_select_actual_outlined, color: scheme.onSurfaceVariant),
-      );
+    width: 110,
+    height: 110,
+    color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+    child: Icon(
+      Icons.photo_size_select_actual_outlined,
+      color: scheme.onSurfaceVariant,
+    ),
+  );
 }
 
 class _ListingDetailsSheet extends StatefulWidget {
@@ -451,7 +508,9 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
 
   List<String> get _images {
     if (widget.item.photoObjects.isNotEmpty) {
-      return widget.item.photoObjects.map((p) => _resolveImageUrl(p.url)).toList();
+      return widget.item.photoObjects
+          .map((p) => _resolveImageUrl(p.url))
+          .toList();
     }
     if (widget.item.photos.isNotEmpty) {
       return widget.item.photos.map(_resolveImageUrl).toList();
@@ -483,7 +542,10 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _commentsError = e.toString();
+          _commentsError = AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.commentsLoadError(),
+          );
         });
       }
     } finally {
@@ -493,15 +555,31 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
 
   Future<void> _addComment() async {
     final text = _commentCtrl.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty) {
+      AppFeedback.showErrorSnackBar(context, AppMessages.commentRequired());
+      return;
+    }
     try {
-      await ApiService.instance.addComment(listingId: widget.item.id, content: text);
+      await ApiService.instance.addComment(
+        listingId: widget.item.id,
+        content: text,
+      );
       _commentCtrl.clear();
       await _loadComments();
+      if (mounted) {
+        AppFeedback.showSuccessSnackBar(
+          context,
+          AppMessages.commentAddedSuccess(),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Impossible d\'ajouter le commentaire: $e')),
+        AppFeedback.showErrorSnackBar(
+          context,
+          AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.commentSendError(),
+          ),
         );
       }
     }
@@ -511,7 +589,9 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
     if (_likeBusy) return;
     setState(() => _likeBusy = true);
     try {
-      final LikeToggleResult res = await ApiService.instance.toggleLike(widget.item.id);
+      final LikeToggleResult res = await ApiService.instance.toggleLike(
+        widget.item.id,
+      );
       if (mounted) {
         setState(() {
           _liked = res.liked;
@@ -520,8 +600,12 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Impossible de liker: $e')),
+        AppFeedback.showErrorSnackBar(
+          context,
+          AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.likeUpdateError(),
+          ),
         );
       }
     } finally {
@@ -547,7 +631,9 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
       maxChildSize: 0.95,
       builder: (ctx, controller) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
           child: ListView(
             controller: controller,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -582,14 +668,18 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                             return Center(
                               child: CircularProgressIndicator(
                                 value: progress.expectedTotalBytes != null
-                                    ? progress.cumulativeBytesLoaded / (progress.expectedTotalBytes ?? 1)
+                                    ? progress.cumulativeBytesLoaded /
+                                          (progress.expectedTotalBytes ?? 1)
                                     : null,
                               ),
                             );
                           },
                           errorBuilder: (_, __, ___) => Container(
                             color: scheme.surfaceContainerHighest,
-                            child: Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant),
+                            child: Icon(
+                              Icons.broken_image_outlined,
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ),
@@ -622,14 +712,26 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
               const SizedBox(height: 12),
               Text(
                 widget.item.title,
-                style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  _Badge(label: widget.item.type == 'lost' ? "J'ai perdu" : "J'ai trouvé", color: widget.item.type == 'lost' ? Colors.red : Colors.green),
+                  _Badge(
+                    label: widget.item.type == 'lost'
+                        ? "J'ai perdu"
+                        : "J'ai trouvÃ©",
+                    color: widget.item.type == 'lost'
+                        ? Colors.red
+                        : Colors.green,
+                  ),
                   const SizedBox(width: 6),
-                  _Badge(label: _statusLabel(widget.item.status), color: scheme.primary),
+                  _Badge(
+                    label: _statusLabel(widget.item.status),
+                    color: scheme.primary,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -637,11 +739,19 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                 children: [
                   const Icon(Icons.place, size: 16),
                   const SizedBox(width: 4),
-                  Expanded(child: Text(widget.item.city ?? 'Ville inconnue', style: textTheme.bodyMedium)),
+                  Expanded(
+                    child: Text(
+                      widget.item.city ?? 'Ville inconnue',
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   const Icon(Icons.calendar_today, size: 14),
                   const SizedBox(width: 4),
-                  Text(widget.item.eventDate ?? widget.item.createdAt, style: textTheme.bodyMedium),
+                  Text(
+                    widget.item.eventDate ?? widget.item.createdAt,
+                    style: textTheme.bodyMedium,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -651,7 +761,10 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                 children: [
                   IconButton(
                     onPressed: _likeBusy ? null : _toggleLike,
-                    icon: Icon(_liked ? Icons.favorite : Icons.favorite_border, color: _liked ? scheme.primary : scheme.onSurfaceVariant),
+                    icon: Icon(
+                      _liked ? Icons.favorite : Icons.favorite_border,
+                      color: _liked ? scheme.primary : scheme.onSurfaceVariant,
+                    ),
                   ),
                   Text('$_likesCount'),
                   const SizedBox(width: 16),
@@ -664,22 +777,43 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
               Text('Commentaires', style: textTheme.titleMedium),
               const SizedBox(height: 8),
               if (_loadingComments)
-                const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)))
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(12),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
               else if (_commentsError != null)
                 Text(_commentsError!, style: TextStyle(color: scheme.error))
               else if (_comments.isEmpty)
-                Text('Aucun commentaire pour le moment', style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant))
+                Text(
+                  'Aucun commentaire pour le moment',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                )
               else
-                ..._comments.map((c) => ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
-                        backgroundColor: scheme.primary.withOpacity(0.1),
-                        child: Text(c.fullName.isNotEmpty ? c.fullName[0].toUpperCase() : '?'),
+                ..._comments.map(
+                  (c) => ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: scheme.primary.withOpacity(0.1),
+                      child: Text(
+                        c.fullName.isNotEmpty
+                            ? c.fullName[0].toUpperCase()
+                            : '?',
                       ),
-                      title: Text(c.fullName, style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                      subtitle: Text(c.content),
-                    )),
+                    ),
+                    title: Text(
+                      c.fullName,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(c.content),
+                  ),
+                ),
               const SizedBox(height: 12),
               TextField(
                 controller: _commentCtrl,
@@ -705,11 +839,11 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
       case 'pending_payment':
         return 'En attente';
       case 'published':
-        return 'Publiée';
+        return 'PubliÃ©e';
       case 'hidden':
-        return 'Cachée';
+        return 'CachÃ©e';
       case 'archived':
-        return 'Archivée';
+        return 'ArchivÃ©e';
       default:
         return status;
     }
@@ -758,13 +892,29 @@ class _BoostPlanTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(subtitle, style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Text(
+                  subtitle,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
-          Text(price, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, color: color)),
+          Text(
+            price,
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -794,7 +944,10 @@ class _SearchBar extends StatelessWidget {
         controller: controller,
         onSubmitted: onSubmit,
         decoration: InputDecoration(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
           border: InputBorder.none,
           prefixIcon: const Icon(Icons.search),
           hintText: 'Rechercher une publication',
@@ -821,15 +974,23 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(Icons.inbox_outlined, size: 48, color: scheme.onSurfaceVariant),
           const SizedBox(height: 12),
-          Text('Vous n’avez encore aucune publication', style: textTheme.titleMedium),
+          Text(
+            'Vous nâ€™avez encore aucune publication',
+            style: textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           Text(
-            'Créez votre première annonce pour la voir ici.',
-            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            'CrÃ©ez votre premiÃ¨re annonce pour la voir ici.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: onCreate, child: const Text('Créer une publication')),
+          FilledButton(
+            onPressed: onCreate,
+            child: const Text('CrÃ©er une publication'),
+          ),
         ],
       ),
     );

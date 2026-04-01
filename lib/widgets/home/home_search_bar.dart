@@ -1,44 +1,50 @@
 import 'package:flutter/material.dart';
 
+import '../../services/l10n_helper.dart';
+
 class SearchBarWithFilter extends StatelessWidget {
+  const SearchBarWithFilter({super.key, this.onChanged, this.onFilterTap});
+
   final ValueChanged<String>? onChanged;
   final VoidCallback? onFilterTap;
 
-  const SearchBarWithFilter({super.key, this.onChanged, this.onFilterTap});
-
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: scheme.shadow.withValues(alpha: 0.08),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
         ],
         border: Border.all(
-          color: Colors.black.withValues(alpha: 0.04),
+          color: scheme.outlineVariant.withValues(alpha: 0.8),
           width: 1,
         ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, color: Color(0xFF9CA3AF), size: 22),
+          Icon(Icons.search, color: scheme.onSurfaceVariant, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
               onChanged: onChanged,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                hintText: "Rechercher (objet, lieu, mot-clé…)",
-                hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                hintText: t('search_objects_places_keywords'),
+                hintStyle: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -48,7 +54,7 @@ class SearchBarWithFilter extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: onFilterTap ?? () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
+                backgroundColor: scheme.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -57,9 +63,9 @@ class SearchBarWithFilter extends StatelessWidget {
                 ),
               ),
               icon: const Icon(Icons.filter_list, size: 18),
-              label: const Text(
-                'Filtrer',
-                style: TextStyle(fontWeight: FontWeight.w600),
+              label: Text(
+                t('filter_button'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
           ),

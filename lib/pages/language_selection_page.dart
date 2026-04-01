@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+
+import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
 import '../theme/app_theme.dart';
-import 'home_page.dart';
 import '../widgets/top_nav_bar.dart';
+import 'home_page.dart';
 
-/// Page de sélection de langue.
 class LanguageSelectionPage extends StatefulWidget {
   const LanguageSelectionPage({super.key});
 
@@ -14,10 +15,10 @@ class LanguageSelectionPage extends StatefulWidget {
 
 class _LanguageSelectionPageState extends State<LanguageSelectionPage>
     with SingleTickerProviderStateMixin {
-  final LanguageService _languageService = LanguageService();
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  final LanguageService _languageService = LanguageService.instance;
+  late final AnimationController _animationController;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
@@ -29,12 +30,10 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.2),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+        );
     _animationController.forward();
   }
 
@@ -49,7 +48,8 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const HomePage(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -60,13 +60,15 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     final maxWidth = isMobile ? screenWidth : 500.0;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppTheme.backgroundWhite,
-      appBar: const TopNavBar(),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: const TopNavBar(showLoginAction: false),
       body: SafeArea(
         child: Center(
           child: FadeTransition(
@@ -80,19 +82,19 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _languageService.translations.translate('welcome'),
+                      tr(context, 'welcome'),
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
+                        fontWeight: FontWeight.bold,
+                        color: scheme.onSurface,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _languageService.translations.translate('select_language_first'),
+                      tr(context, 'select_language_first'),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: AppTheme.textSecondary,
-                          ),
+                        color: scheme.onSurfaceVariant,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
@@ -117,10 +119,10 @@ class _LanguageSelectionPageState extends State<LanguageSelectionPage>
 }
 
 class _LanguageButton extends StatefulWidget {
+  const _LanguageButton({required this.language, required this.onTap});
+
   final LanguageOption language;
   final VoidCallback onTap;
-
-  const _LanguageButton({required this.language, required this.onTap});
 
   @override
   State<_LanguageButton> createState() => _LanguageButtonState();
@@ -131,6 +133,8 @@ class _LanguageButtonState extends State<_LanguageButton> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -141,17 +145,21 @@ class _LanguageButtonState extends State<_LanguageButton> {
           curve: Curves.easeInOut,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
-            color: _isHovered ? AppTheme.primaryVioletLight : AppTheme.backgroundGray,
+            color: _isHovered
+                ? AppTheme.primaryVioletLight
+                : AppTheme.backgroundWhite,
             border: Border.all(
-              color: _isHovered ? AppTheme.primaryVioletMedium : AppTheme.borderLight,
+              color: _isHovered
+                  ? AppTheme.primaryVioletMedium
+                  : AppTheme.borderLight,
               width: 1,
             ),
             borderRadius: BorderRadius.circular(AppTheme.borderRadiusLarge),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha:0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+                color: scheme.shadow.withValues(alpha: 0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
@@ -161,34 +169,59 @@ class _LanguageButtonState extends State<_LanguageButton> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: _isHovered ? AppTheme.primaryVioletLighter : AppTheme.borderLight,
+                  color: _isHovered
+                      ? AppTheme.primaryVioletLighter
+                      : AppTheme.backgroundGray,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: _isHovered ? AppTheme.primaryVioletMedium : AppTheme.borderMedium,
+                    color: _isHovered
+                        ? AppTheme.primaryVioletMedium
+                        : AppTheme.borderMedium,
                     width: 1,
                   ),
                 ),
                 child: Icon(
                   Icons.flag,
-                  color: _isHovered ? AppTheme.primaryViolet : AppTheme.textSecondary,
+                  color: _isHovered
+                      ? AppTheme.primaryViolet
+                      : AppTheme.textSecondary,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: Text(
-                  widget.language.name,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: _isHovered ? AppTheme.primaryVioletDark : AppTheme.textPrimary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.language.nativeName,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: _isHovered
+                            ? AppTheme.primaryVioletDark
+                            : AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.language.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _isHovered
+                            ? AppTheme.primaryViolet
+                            : AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
-                color: _isHovered ? AppTheme.primaryVioletMedium : AppTheme.textMuted,
+                color: _isHovered
+                    ? AppTheme.primaryVioletMedium
+                    : AppTheme.textMuted,
               ),
             ],
           ),

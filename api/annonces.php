@@ -81,6 +81,7 @@ function map_listing_row(
         'location' => $row['location_text'] ?: $row['city'],
         'city' => $row['city'],
         'date' => $row['created_at'], // YYYY-MM-DD HH:MM:SS
+        'event_date' => $row['event_date'] ?? null,
         'is_boosted' => (bool) $row['is_boosted'],
         // Compat: champ simple (ancien) + nouveau tableau complet
         'imageUrl' => $mainImage,
@@ -413,7 +414,8 @@ if ($method === 'GET') {
                l.contact_whatsapp,
                l.contact_call,
                u.phone AS owner_phone,
-               l.created_at
+               l.created_at,
+               l.event_date
         FROM listings l
         LEFT JOIN users u ON u.id = l.user_id
         WHERE l.status = 'published'

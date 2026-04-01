@@ -11,6 +11,7 @@ class Publication {
   final PublicationStatus status;
   final List<String> imageUrls;
   final String dateText;
+  final String eventDate;
   final String description;
   final String cityArea;
   final int likesCount;
@@ -29,6 +30,7 @@ class Publication {
     required this.status,
     required this.imageUrls,
     required this.dateText,
+    required this.eventDate,
     required this.description,
     required this.cityArea,
     required this.likesCount,

@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/api_service.dart';
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
+import '../../services/l10n_helper.dart';
 import 'filter_segmented_control.dart';
+import 'home_listings_api.dart';
 import 'home_models.dart';
 import 'publication_card.dart';
 
@@ -30,7 +33,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
   static const _pageSize = 5;
-  static const _loadMoreSize = 1;
+  static const _loadMoreSize = 5;
   static const _prefetchThreshold = 180.0;
 
   List<Publication> _publications = [];
@@ -41,7 +44,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   int _offset = 0;
   int _requestSerial = 0;
 
-  int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvé
+  int _selectedIndex = 0;
   String _query = '';
 
   @override
@@ -99,7 +102,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     await _loadPublications(reset: true);
   }
 
-  Publication _mapListing(ApiListing listing) {
+  Publication _mapListing(HomeListingItem listing) {
     final images = listing.images.isNotEmpty
         ? listing.images
         : (listing.imageUrl != null && listing.imageUrl!.isNotEmpty
@@ -108,13 +111,14 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
     return Publication(
       id: listing.id,
-      ownerId: listing.ownerId,
+      ownerId: listing.ownerId ?? 0,
       title: listing.title,
       status: listing.type == 'lost'
           ? PublicationStatus.perdu
           : PublicationStatus.trouve,
       imageUrls: images.isNotEmpty ? images : <String>[fallbackImageUrl],
       dateText: listing.date,
+      eventDate: listing.eventDate ?? '',
       description: listing.description,
       cityArea: listing.location.isNotEmpty ? listing.location : listing.city,
       likesCount: listing.likesCount,
@@ -160,7 +164,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     final nextOffset = reset ? 0 : _offset;
 
     try {
-      final listings = await ApiService.instance.fetchListings(
+      final listings = await HomeListingsApi.instance.fetchListings(
         type: _selectedType,
         limit: requestLimit,
         offset: nextOffset,
@@ -183,7 +187,10 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     } catch (e) {
       if (!mounted || requestId != _requestSerial) return;
       setState(() {
-        _error = e.toString();
+        _error = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.listingsLoadError(),
+        );
         _loading = false;
         _loadingMore = false;
       });
@@ -205,9 +212,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
     return _publications.where((publication) {
       final haystack =
-          '${publication.title} '
-                  '${publication.description} '
-                  '${publication.cityArea}'
+          '${publication.title} ${publication.description} ${publication.cityArea}'
               .toLowerCase();
       return haystack.contains(_query);
     }).toList();
@@ -215,6 +220,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -224,7 +230,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           children: [
             Expanded(
               child: Text(
-                'Publications récentes',
+                t('recent_publications'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -235,7 +241,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
             ),
             const SizedBox(width: 10),
             IconButton(
-              tooltip: 'Actualiser',
+              tooltip: t('refresh'),
               onPressed: _refreshFeed,
               icon: const Icon(Icons.refresh),
             ),
@@ -267,22 +273,13 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Column(
           children: [
-            const Text(
-              'Impossible de charger les annonces.',
-              style: TextStyle(color: _textGray),
-            ),
-            const SizedBox(height: 8),
             Text(
               _error!,
-              style: const TextStyle(color: _mutedGray, fontSize: 12),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _textGray),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: _refreshFeed,
-              child: const Text('Réessayer'),
-            ),
+            OutlinedButton(onPressed: _refreshFeed, child: Text(t('retry'))),
           ],
         ),
       );
@@ -293,9 +290,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            _query.isEmpty
-                ? 'Aucune annonce pour le moment.'
-                : 'Aucune annonce ne correspond à votre recherche.',
+            _query.isEmpty ? t('no_listings_yet') : t('no_search_results'),
             style: const TextStyle(color: _textGray),
           ),
         ),
@@ -333,6 +328,20 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (!_hasMore && _publications.isNotEmpty && _query.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  t('viewed_all_listings'),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: _mutedGray,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             ),
         ],

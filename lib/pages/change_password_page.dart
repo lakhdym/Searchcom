@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
+import '../core/feedback/app_feedback.dart';
+import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
+import '../services/l10n_helper.dart';
 import '../state/auth_state.dart';
 
 class ChangePasswordPage extends StatefulWidget {
@@ -31,9 +36,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   Future<void> _submit() async {
     final user = currentUser.value;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucun utilisateur connecté.')),
-      );
+      AppFeedback.showInfoSnackBar(context, t('reconnect_msg'));
       return;
     }
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -45,19 +48,19 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         newPassword: _newCtrl.text,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mot de passe mis à jour avec succès')),
+      AppFeedback.showSuccessSnackBar(
+        context,
+        AppMessages.passwordUpdatedSuccess(),
       );
       Navigator.of(context).pop();
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur lors de la mise à jour du mot de passe.')),
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.passwordUpdateError(),
+        ),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -66,12 +69,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Changer le mot de passe'),
-      ),
+      appBar: AppBar(title: Text(t('change_password'))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -83,30 +85,33 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Sécurité', style: textTheme.titleMedium),
+                    Text('Securite', style: textTheme.titleMedium),
                     const SizedBox(height: 12),
                     _passwordField(
                       controller: _currentCtrl,
-                      label: 'Mot de passe actuel',
+                      label: t('password'),
                       obscure: _obscureCurrent,
-                      toggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
-                      validator: (v) => (v == null || v.isEmpty) ? 'Mot de passe actuel requis' : null,
+                      toggle: () =>
+                          setState(() => _obscureCurrent = !_obscureCurrent),
+                      validator: AppValidators.currentPassword,
                     ),
                     const SizedBox(height: 12),
                     _passwordField(
                       controller: _newCtrl,
-                      label: 'Nouveau mot de passe',
+                      label: t('new_password'),
                       obscure: _obscureNew,
                       toggle: () => setState(() => _obscureNew = !_obscureNew),
-                      validator: (v) => (v == null || v.length < 8) ? 'Minimum 8 caractères' : null,
+                      validator: AppValidators.password,
                     ),
                     const SizedBox(height: 12),
                     _passwordField(
                       controller: _confirmCtrl,
-                      label: 'Confirmer le mot de passe',
+                      label: t('confirm_password'),
                       obscure: _obscureConfirm,
-                      toggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                      validator: (v) => (v != _newCtrl.text) ? 'Les mots de passe ne correspondent pas' : null,
+                      toggle: () =>
+                          setState(() => _obscureConfirm = !_obscureConfirm),
+                      validator: (v) =>
+                          AppValidators.confirmPassword(v, _newCtrl.text),
                     ),
                   ],
                 ),
@@ -123,10 +128,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(scheme.onPrimary),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            scheme.onPrimary,
+                          ),
                         ),
                       )
-                    : const Text('Mettre à jour le mot de passe'),
+                    : Text(t('change_password')),
               ),
             ),
           ],
@@ -151,7 +158,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         labelText: label,
         prefixIcon: const Icon(Icons.lock_outline),
         suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+          icon: Icon(
+            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          ),
           onPressed: toggle,
         ),
       ),

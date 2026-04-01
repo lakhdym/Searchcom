@@ -1,48 +1,111 @@
 import 'package:flutter/material.dart';
 
-import '../services/auth_local_storage.dart';
+import '../core/constants/app_messages.dart';
+import '../core/feedback/app_feedback.dart';
 import '../services/api_service.dart';
-import '../state/auth_state.dart';
-import 'edit_profile_page.dart';
-import 'home_page.dart';
+import '../services/auth_api_service.dart';
+import '../services/l10n_helper.dart';
+import '../services/language_service.dart';
+import '../services/theme_service.dart';
 import 'change_password_page.dart';
+import 'edit_profile_page.dart';
+import 'home_shell.dart';
 import 'my_listings_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
+  void _showLanguagePicker(BuildContext context) {
+    final languageService = LanguageService.instance;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        watchLanguage(ctx);
+        return AlertDialog(
+          title: Text(tr(ctx, 'select_language')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: LanguageService.supportedLanguages.map((lang) {
+              final isSelected =
+                  languageService.currentLanguageCode == lang.code;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: ListTile(
+                  leading: isSelected
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(ctx).colorScheme.primary,
+                        )
+                      : null,
+                  title: Text(lang.nativeName),
+                  subtitle: Text(lang.name),
+                  onTap: () async {
+                    if (!isSelected) {
+                      await languageService.setLanguage(lang.code);
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                      }
+                      AppFeedback.showSuccessSnackBar(
+                        context,
+                        AppMessages.languageChangedSuccess(),
+                      );
+                      return;
+                    }
+                    if (ctx.mounted) {
+                      Navigator.of(ctx).pop();
+                    }
+                  },
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final languageService = watchLanguage(context);
+    final themeService = watchTheme(context);
     final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Paramètres'), centerTitle: false),
+      appBar: AppBar(title: Text(tr(context, 'settings')), centerTitle: false),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Compte', style: textTheme.titleMedium),
+              Text(
+                tr(context, 'account_settings'),
+                style: textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
               _SettingsSection(
                 tiles: [
                   SettingsTile(
                     icon: Icons.edit_outlined,
-                    title: 'Modifier le profil',
+                    title: t('edit_profile'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const EditProfilePage()),
+                      MaterialPageRoute(
+                        builder: (_) => const EditProfilePage(),
+                      ),
                     ),
                   ),
                   SettingsTile(
                     icon: Icons.lock_reset_outlined,
-                    title: 'Changer le mot de passe',
+                    title: t('change_password'),
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ChangePasswordPage()),
+                      MaterialPageRoute(
+                        builder: (_) => const ChangePasswordPage(),
+                      ),
                     ),
                   ),
                   SettingsTile(
                     icon: Icons.campaign_outlined,
-                    title: 'Mes publications',
+                    title: t('my_listings'),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const MyListingsPage()),
                     ),
@@ -50,55 +113,66 @@ class SettingsPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Text('Application', style: textTheme.titleMedium),
+              Text(tr(context, 'application'), style: textTheme.titleMedium),
               const SizedBox(height: 8),
               _SettingsSection(
                 tiles: [
                   SettingsTile(
                     icon: Icons.language_outlined,
-                    title: 'Langue',
-                    subtitle: 'UI only pour le moment',
-                    onTap: () => _placeholder(context),
+                    title: t('select_language'),
+                    subtitle: languageService.getLanguageName(
+                      languageService.currentLanguageCode,
+                    ),
+                    onTap: () => _showLanguagePicker(context),
                   ),
-                  SettingsTile(
+                  SettingsToggleTile(
                     icon: Icons.brightness_6_outlined,
-                    title: 'Thème',
-                    subtitle: 'Système / Clair / Sombre',
-                    onTap: () => _placeholder(context),
+                    title: t('theme'),
+                    subtitle: t(
+                      themeService.isDark ? 'dark_mode' : 'light_mode',
+                    ),
+                    value: themeService.isDark,
+                    onChanged: (value) {
+                      themeService.toggleTheme(value);
+                      AppFeedback.showSuccessSnackBar(
+                        context,
+                        AppMessages.preferencesSaved(),
+                      );
+                    },
                   ),
                   SettingsTile(
                     icon: Icons.notifications_none,
-                    title: 'Notifications',
-                    subtitle: 'Coming soon',
-                    onTap: () => _placeholder(context),
+                    title: t('notifications'),
+                    subtitle: t('coming_soon'),
+                    onTap: () => _showComingSoon(context),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Text('Support', style: textTheme.titleMedium),
+              Text(tr(context, 'support'), style: textTheme.titleMedium),
               const SizedBox(height: 8),
               _SettingsSection(
                 tiles: [
                   SettingsTile(
                     icon: Icons.help_outline,
-                    title: 'Aide',
-                    onTap: () => _placeholder(context),
+                    title: t('help'),
+                    onTap: () => _showComingSoon(context),
                   ),
                   SettingsTile(
                     icon: Icons.info_outline,
-                    title: 'À propos',
-                    onTap: () => _placeholder(context),
+                    title: t('about'),
+                    onTap: () => _showComingSoon(context),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
-              Text('Session', style: textTheme.titleMedium),
+              Text(tr(context, 'session'), style: textTheme.titleMedium),
               const SizedBox(height: 8),
               _SettingsSection(
                 tiles: [
                   SettingsTile.danger(
                     icon: Icons.logout,
-                    title: 'Déconnexion',
+                    title: t('logout_confirm'),
                     onTap: () => _logout(context),
                   ),
                 ],
@@ -110,39 +184,42 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  void _placeholder(BuildContext context) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Fonctionnalité à venir.')));
+  void _showComingSoon(BuildContext context) {
+    AppFeedback.showInfoSnackBar(context, AppMessages.featureComingSoon());
   }
 
   Future<void> _logout(BuildContext context) async {
     final scheme = Theme.of(context).colorScheme;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Déconnexion'),
-        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: scheme.error),
-            child: const Text('Déconnexion'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        watchLanguage(ctx);
+        return AlertDialog(
+          title: Text(tr(ctx, 'logout_confirm')),
+          content: Text(tr(ctx, 'logout_confirm_msg')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr(ctx, 'cancel_button')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: scheme.error),
+              child: Text(tr(ctx, 'logout_confirm')),
+            ),
+          ],
+        );
+      },
     );
     if (confirm != true) return;
-    await AuthLocalStorage.instance.clear();
+
+    await AuthApiService.instance.logout();
     ApiService.instance.setToken(null);
-    logoutUser();
     if (!context.mounted) return;
+
+    AppFeedback.showSuccessSnackBar(context, AppMessages.logoutSuccess());
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomePage()),
+      MaterialPageRoute(builder: (_) => const HomeShell()),
       (route) => false,
     );
   }
@@ -150,7 +227,8 @@ class SettingsPage extends StatelessWidget {
 
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection({required this.tiles});
-  final List<SettingsTile> tiles;
+
+  final List<Widget> tiles;
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +293,7 @@ class SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final resolvedColor = isDanger ? scheme.error : (color ?? scheme.primary);
@@ -238,6 +317,52 @@ class SettingsTile extends StatelessWidget {
           : null,
       trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
       onTap: onTap,
+    );
+  }
+}
+
+class SettingsToggleTile extends StatelessWidget {
+  const SettingsToggleTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    watchLanguage(context);
+    watchTheme(context);
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return ListTile(
+      leading: Icon(icon, color: scheme.primary),
+      title: Text(
+        title,
+        style: textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurface,
+        ),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            )
+          : null,
+      trailing: Switch.adaptive(value: value, onChanged: onChanged),
+      onTap: () => onChanged(!value),
     );
   }
 }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/chat/pages/conversations_page.dart';
@@ -390,9 +390,11 @@ class _PublicationCardState extends State<PublicationCard>
     final commentCount =
         _commentsLoaded ? _comments.length : publication.commentsCount;
     final hasPhone = publication.ownerPhone?.trim().isNotEmpty ?? false;
-    final hasContactOptions = publication.contactChat ||
-        (publication.contactWhatsApp && hasPhone) ||
-        (publication.contactCall && hasPhone);
+    // Masquer les contacts si c'est ma propre publication
+    final hasContactOptions = !_isOwner &&
+        (publication.contactChat ||
+            (publication.contactWhatsApp && hasPhone) ||
+            (publication.contactCall && hasPhone));
     final longDescription = publication.description.length > 140;
 
     return Card(
