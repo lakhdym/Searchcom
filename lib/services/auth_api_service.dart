@@ -259,7 +259,9 @@ class AuthApiService {
           )
           .timeout(const Duration(seconds: 15));
 
-      final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+      // Décodage robuste (évite les soucis d'accents / encodage)
+      final decoded = utf8.decode(response.bodyBytes);
+      final Map<String, dynamic> data = jsonDecode(decoded) as Map<String, dynamic>;
       data['status'] = response.statusCode;
       return data;
     } on SocketException {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/auth_api_service.dart';
 import 'email_verification_page.dart';
 import 'phone_verification_page.dart';
 
@@ -12,6 +13,42 @@ class VerificationChoicePage extends StatelessWidget {
 
   final String? email;
   final String? phone;
+
+  Future<void> _sendEmailCode(BuildContext context, String email) async {
+    try {
+      await AuthApiService.instance.resendVerification(email: email);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => EmailVerificationPage(email: email)),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendPhoneCode(BuildContext context, String phone) async {
+    try {
+      await AuthApiService.instance.sendPhoneOtp(phone: phone);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: phone)),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,11 +88,7 @@ class VerificationChoicePage extends StatelessWidget {
                   title: const Text('Vérifier par email'),
                   subtitle: Text(email!),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => EmailVerificationPage(email: email!)),
-                    );
-                  },
+                  onTap: () => _sendEmailCode(context, email!),
                 ),
               ),
             if (phone != null && phone!.isNotEmpty) const SizedBox(height: 12),
@@ -71,11 +104,7 @@ class VerificationChoicePage extends StatelessWidget {
                   title: const Text('Vérifier par WhatsApp'),
                   subtitle: Text(phone!),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => PhoneVerificationPage(phone: phone!)),
-                    );
-                  },
+                  onTap: () => _sendPhoneCode(context, phone!),
                 ),
               ),
             const Spacer(),

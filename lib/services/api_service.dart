@@ -600,17 +600,20 @@ class ApiService {
   // -------------------------------------------------------------
   // Notifications (likes / comments)
   // -------------------------------------------------------------
-  Future<List<ApiNotification>> fetchNotifications({
+  // Notifications paginées
+  Future<NotificationsResult> fetchNotificationsPaged({
     required int userId,
-    DateTime? since,
-    bool countOnly = false,
+    int page = 1,
+    int perPage = 10,
+    bool markRead = true,
   }) async {
     await _loadTokenIfNeeded();
     final uri = Uri.parse('$_baseUrl/get_notifications.php');
     final body = <String, dynamic>{
       'user_id': userId,
-      if (since != null) 'since': since.toIso8601String(),
-      if (countOnly) 'count_only': 1,
+      'page': page,
+      'per_page': perPage,
+      'mark_read': markRead ? 1 : 0,
     };
     final resp = await _client.post(
       uri,
@@ -621,18 +624,27 @@ class ApiService {
       throw Exception('Notifications (${resp.statusCode}): ${resp.body}');
     }
     final data = jsonDecode(resp.body);
-    if (countOnly) {
-      if (data is Map && data['success'] == true) {
-        final c = data['count'];
-        final count = c is num ? c.toInt() : (int.tryParse(c?.toString() ?? '0') ?? 0);
-        return List<ApiNotification>.filled(count, ApiNotification.empty(), growable: false);
-      }
-      throw Exception(data['message'] ?? 'Impossible de compter les notifications');
-    }
     if (data is Map && data['success'] == true && data['items'] is List) {
-      return List<Map<String, dynamic>>.from(data['items'])
+      final items = List<Map<String, dynamic>>.from(data['items'])
           .map(ApiNotification.fromJson)
           .toList();
+      final unread = (data['unread_count'] is num)
+          ? (data['unread_count'] as num).toInt()
+          : int.tryParse(data['unread_count']?.toString() ?? '0') ?? 0;
+      final total = (data['total'] is num)
+          ? (data['total'] as num).toInt()
+          : int.tryParse(data['total']?.toString() ?? '0') ?? items.length;
+      final hasMore = data['has_more'] == true;
+      final p = (data['page'] is num) ? (data['page'] as num).toInt() : page;
+      final pp = (data['per_page'] is num) ? (data['per_page'] as num).toInt() : perPage;
+      return NotificationsResult(
+        items: items,
+        unreadCount: unread,
+        page: p,
+        perPage: pp,
+        total: total,
+        hasMore: hasMore,
+      );
     }
     throw Exception(data['message'] ?? 'Impossible de charger les notifications');
   }
@@ -919,6 +931,24 @@ class ApiNotification {
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
+}
+
+class NotificationsResult {
+  final List<ApiNotification> items;
+  final int unreadCount;
+  final int page;
+  final int perPage;
+  final int total;
+  final bool hasMore;
+
+  NotificationsResult({
+    required this.items,
+    required this.unreadCount,
+    required this.page,
+    required this.perPage,
+    required this.total,
+    required this.hasMore,
+  });
 }
 
 class LikeToggleResult {

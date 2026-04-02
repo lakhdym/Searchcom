@@ -264,15 +264,16 @@ class _HomeShellState extends State<HomeShell> {
       });
       int notifTotal = 0;
       try {
-        final lastSeen = await AuthLocalStorage.instance.getLastNotifSeen();
-        notifTotal = await ApiService.instance.fetchNotificationsCount(
+        final notifResult = await ApiService.instance.fetchNotificationsPaged(
           userId: user.id,
-          since: lastSeen, // null => toutes; sinon seulement après lastSeen
+          page: 1,
+          perPage: 1,
+          markRead: false,
         );
+        notifTotal = notifResult.unreadCount;
       } catch (_) {
         // on ignore les erreurs de notif pour ne pas bloquer le badge chat
       }
-
       if (mounted && (total != _unreadCount || notifTotal != _notifCount)) {
         setState(() {
           _unreadCount = total;
@@ -341,3 +342,5 @@ class _PlaceholderPage extends StatelessWidget {
     );
   }
 }
+
+

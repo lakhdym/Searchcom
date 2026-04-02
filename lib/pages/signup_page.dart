@@ -84,61 +84,43 @@ class _SignUpPageState extends State<SignUpPage> {
       );
       final emailVal = resp.email ?? _emailCtrl.text.trim();
       final phoneVal = resp.phone ?? _phoneCtrl.text.trim();
-
-      // auto-login si aucune vérification n'est requise
-      if (!resp.requiresEmailVerification && !resp.requiresPhoneVerification) {
-        final identifier = emailVal.isNotEmpty ? emailVal : phoneVal;
-        try {
-          final session = await AuthApiService.instance.login(
-            identifier: identifier,
-            password: _passwordCtrl.text,
-          );
-          await AuthLocalStorage.instance.saveSession(session.user, session.token);
-          ApiService.instance.setToken(session.token);
-          loginUser(session.user);
-          if (!mounted) return;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeShell()),
-            (route) => false,
-          );
-          return;
-        } catch (_) {
-          if (mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const LoginPage()),
-            );
-          }
-          return;
-        }
-      }
-
-      // si email + phone fournis => laisser choisir la méthode
       final hasEmail = emailVal.isNotEmpty;
       final hasPhone = phoneVal.isNotEmpty;
-      if ((resp.requiresEmailVerification || resp.requiresPhoneVerification) && hasEmail && hasPhone) {
+
+      // Toujours diriger vers la vérification disponible
+      if (hasEmail && hasPhone) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) =>
                 VerificationChoicePage(email: emailVal, phone: phoneVal),
           ),
         );
-      } else if (resp.requiresPhoneVerification) {
+        return;
+      }
+      if (hasPhone) {
+        await AuthApiService.instance.sendPhoneOtp(phone: phoneVal);
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => PhoneVerificationPage(phone: phoneVal),
           ),
         );
-      } else if (resp.requiresEmailVerification) {
+        return;
+      }
+      if (hasEmail) {
+        await AuthApiService.instance.resendVerification(email: emailVal);
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => EmailVerificationPage(email: emailVal),
           ),
         );
-      } else {
-        Navigator.of(
-          context,
-        ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
+        return;
       }
+      // fallback si aucun moyen (ne devrait pas arriver)
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
     } catch (e) {
       if (!mounted) return;
       AppFeedback.showErrorSnackBar(

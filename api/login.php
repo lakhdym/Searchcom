@@ -54,10 +54,13 @@ try {
         json_response(['success' => false, 'message' => 'Identifiant ou mot de passe incorrect'], 401);
     }
 
-    $emailNeeds = $user['email'] && $user['email_verified_at'] === null;
-    $phoneNeeds = $user['phone'] && $user['phone_verified_at'] === null;
+    $emailVerified = $user['email'] && $user['email_verified_at'] !== null;
+    $phoneVerified = $user['phone'] && $user['phone_verified_at'] !== null;
+    $anyVerified   = $emailVerified || $phoneVerified;
+    $emailNeeds = $user['email'] && !$emailVerified;
+    $phoneNeeds = $user['phone'] && !$phoneVerified;
 
-    if ($emailNeeds || $phoneNeeds) {
+    if (!$anyVerified) {
         // si besoin OTP téléphone on le renvoie systématiquement
         if ($phoneNeeds) {
             $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);

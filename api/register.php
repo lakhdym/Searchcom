@@ -1,6 +1,6 @@
 ﻿<?php
 
-// Robust JSON response wrapper to Ã©viter les sorties partielles
+// Robust JSON response wrapper to éviter les sorties partielles
 ob_start();
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -42,11 +42,17 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/send_verification_email.php';
 require_once __DIR__ . '/helpers/whatsapp_sender.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if ($method !== 'POST' && $method !== 'GET') {
     $respond(false, 'Method not allowed', 405);
 }
 
-$body = json_decode(file_get_contents('php://input'), true) ?? [];
+$rawBody = file_get_contents('php://input');
+$body = json_decode($rawBody, true);
+if (!is_array($body) || empty($body)) {
+    // fallback GET query params when body is absent (ex: fetch GET)
+    $body = $_GET ?? [];
+}
 
 $fullName = trim($body['full_name'] ?? '');
 $email = trim($body['email'] ?? '');
@@ -59,7 +65,7 @@ if (mb_strlen($fullName) < 2) {
     $errors[] = 'Nom complet invalide';
 }
 if (!$email && !$phone) {
-    $errors[] = 'Email ou tÃ©lÃ©phone requis';
+    $errors[] = 'Email ou téléphone requis';
 }
 if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $errors[] = 'Email invalide';
@@ -67,7 +73,7 @@ if ($email && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
 if ($phone) {
     $digits = preg_replace('/\D+/', '', $phone);
     if (strlen($digits) < 6) {
-        $errors[] = 'TÃ©lÃ©phone invalide';
+        $errors[] = 'Téléphone invalide';
     }
 }
 if (strlen($password) < 8) {
@@ -85,7 +91,7 @@ if ($errors) {
 try {
     $pdo = get_pdo();
 
-    // Tables de vÃ©rification si elles n'existent pas encore
+    // Tables de vérification si elles n'existent pas encore
     $pdo->exec("CREATE TABLE IF NOT EXISTS email_verifications (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id BIGINT NOT NULL,
@@ -110,19 +116,19 @@ try {
         INDEX idx_user (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-    // VÃ©rifier unicitÃ© email / phone
+    // Vérifier unicité email / phone
     if ($email) {
         $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
         $stmt->execute([$email]);
         if ($stmt->fetch()) {
-            json_response(['success' => false, 'message' => 'Email dÃ©jÃ  utilisÃ©'], 409);
+            $respond(false, 'Email déjà utilisé', 409);
         }
     }
     if ($phone) {
         $stmt = $pdo->prepare('SELECT id FROM users WHERE phone = ? LIMIT 1');
         $stmt->execute([$phone]);
         if ($stmt->fetch()) {
-            json_response(['success' => false, 'message' => 'TÃ©lÃ©phone dÃ©jÃ  utilisÃ©'], 409);
+            $respond(false, 'Téléphone déjà utilisé', 409);
         }
     }
 
@@ -147,56 +153,19 @@ try {
 
     $userId = (int)$pdo->lastInsertId();
 
-    $requiresEmail = false;
-    $requiresPhone = false;
-    $devEmailCode = null;
-    $devPhoneCode = null;
+    // On ne déclenche pas l'envoi ici : l'utilisateur choisira la méthode
+    $requiresEmail = !empty($email);
+    $requiresPhone = !empty($phone);
 
-    if ($email) {
-        try {
-            $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expiresAt = date('Y-m-d H:i:s', time() + 600);
-            $stmt = $pdo->prepare('INSERT INTO email_verifications (user_id, email, verification_code, expires_at) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$userId, $email, $code, $expiresAt]);
-            send_verification_email($email, $fullName, $code);
-            $requiresEmail = true;
-            $devEmailCode = $code; // DEBUG: Ã  retirer en prod
-        } catch (Throwable $e) {
-            error_log('[register.php] email verif send failed: '.$e->getMessage());
-        }
-    }
-
-    if ($phone) {
-        try {
-            $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expiresAt = date('Y-m-d H:i:s', time() + 600);
-            $stmt = $pdo->prepare('INSERT INTO phone_verifications (user_id, phone, verification_code, expires_at) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$userId, $phone, $code, $expiresAt]);
-            send_whatsapp_otp($phone, $code);
-            $requiresPhone = true;
-            $devPhoneCode = $code; // DEBUG: Ã  retirer en prod
-        } catch (Throwable $e) {
-            error_log('[register.php] phone verif send failed: '.$e->getMessage());
-        }
-    }
-
-    json_response([
-        'success' => true,
-        'message' => $requiresPhone
-            ? 'Compte crÃ©Ã©. VÃ©rifiez votre numÃ©ro via WhatsApp.'
-            : 'Compte crÃ©Ã©. VÃ©rifiez votre email.',
+    $respond(true, 'Compte créé. Choisissez votre méthode de vérification.', 200, null, [
         'requires_email_verification' => $requiresEmail,
         'requires_phone_verification' => $requiresPhone,
         'user_id' => $userId,
         'email' => $email,
         'phone' => $phone,
-        'dev_email_code' => $devEmailCode,
-        'dev_phone_code' => $devPhoneCode,
+        // On ne renvoie plus de codes ici, ils seront envoyés après le choix.
     ]);
 } catch (Throwable $e) {
     error_log('[register.php] '.$e->getMessage().' @ '.$e->getFile().':'.$e->getLine());
-    json_response([
-        'success' => false,
-        'message' => 'Erreur serveur : ' . $e->getMessage(),
-    ], 500);
+    $respond(false, 'Erreur serveur : '.$e->getMessage(), 500);
 }

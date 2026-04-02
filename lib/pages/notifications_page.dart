@@ -16,6 +16,10 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int _page = 1;
+  final int _perPage = 10;
   String? _error;
   List<ApiNotification> _items = [];
   int _unseenCount = 0;
@@ -25,10 +29,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _load(reset: true);
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool reset = false}) async {
+    if (reset) {
+      _page = 1;
+      _hasMore = false;
+      _items = [];
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -39,24 +48,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
         setState(() => _error = 'Connectez-vous pour voir vos notifications.');
         return;
       }
-      var lastSeen = await AuthLocalStorage.instance.getLastNotifSeen();
-      if (lastSeen == null) {
-        lastSeen = DateTime.now();
-        await AuthLocalStorage.instance.setLastNotifSeen(lastSeen);
-      }
-      final counts = await ApiService.instance.fetchNotifications(
+      final result = await ApiService.instance.fetchNotificationsPaged(
         userId: _me!.id,
-        since: lastSeen,
-        countOnly: true,
+        page: _page,
+        perPage: _perPage,
       );
-      final unseen = counts.length;
-      final data = await ApiService.instance.fetchNotifications(
-        userId: _me!.id,
-        since: null, // charge tout pour l'instant
-      );
+      final data = result.items;
       setState(() {
         _items = data;
-        _unseenCount = unseen;
+        _unseenCount = result.unreadCount;
+        _hasMore = result.hasMore;
+        _page = result.page + 1;
       });
       // Marque comme lu jusqu'à la notification la plus récente
       DateTime seenAt = DateTime.now();
@@ -69,6 +71,30 @@ class _NotificationsPageState extends State<NotificationsPage> {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore || _me == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      final result = await ApiService.instance.fetchNotificationsPaged(
+        userId: _me!.id,
+        page: _page,
+        perPage: _perPage,
+      );
+      setState(() {
+        _items.addAll(result.items);
+        _hasMore = result.hasMore;
+        _page = result.page + 1;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur chargement: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -162,7 +188,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       ),
       backgroundColor: scheme.surface,
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: () => _load(reset: true),
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
@@ -176,7 +202,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    itemCount: _items.length + (_unseenCount > 0 ? 1 : 0),
+                    itemCount: _items.length + (_unseenCount > 0 ? 1 : 0) + (_hasMore ? 1 : 0),
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, index) {
                       if (_unseenCount > 0 && index == 0) {
@@ -195,7 +221,23 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           ),
                         );
                       }
-                      final n = _items[index - (_unseenCount > 0 ? 1 : 0)];
+                      final idx = index - (_unseenCount > 0 ? 1 : 0);
+                      if (_hasMore && idx == _items.length) {
+                        return Center(
+                          child: TextButton.icon(
+                            onPressed: _loadingMore ? null : _loadMore,
+                            icon: _loadingMore
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.expand_more),
+                            label: const Text('Afficher plus'),
+                          ),
+                        );
+                      }
+                      final n = _items[idx];
                       final isLike = (n.type.toLowerCase() == 'like');
                       final icon = isLike ? Icons.favorite_border : Icons.chat_bubble_outline;
                       final bgColor = scheme.primaryContainer;
