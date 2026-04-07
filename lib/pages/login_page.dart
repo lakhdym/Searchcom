@@ -301,6 +301,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                             ),
+                            /*
                             const SizedBox(height: 16),
                             Row(
                               children: [
@@ -354,6 +355,7 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                               ),
                             ),
+                            */
                             const SizedBox(height: 20),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -384,3 +386,4 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+
