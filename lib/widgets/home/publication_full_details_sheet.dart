@@ -8,6 +8,7 @@ import '../../services/api_service.dart' show ApiListingComment, ApiService;
 import '../../services/l10n_helper.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
+import 'publication_date_formatter.dart';
 
 class PublicationFullDetailsSheet extends StatefulWidget {
   const PublicationFullDetailsSheet({
@@ -352,6 +353,7 @@ class _PublicationFullDetailsSheetState
     watchLanguage(context);
     final publication = widget.publication;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final formattedEventDate = formatPublicationEventDate(publication.eventDate);
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
@@ -440,6 +442,25 @@ class _PublicationFullDetailsSheetState
                         ),
                       ],
                     ),
+                    if (formattedEventDate.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.event_outlined, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${t('event_date')}: $formattedEventDate',
+                              style: TextStyle(
+                                color: widget.textGray,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     if (publication.imageUrls.isNotEmpty)
                       _buildImageGallery(publication),

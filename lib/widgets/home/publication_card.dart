@@ -4,11 +4,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../features/chat/pages/conversations_page.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
+import '../../services/l10n_helper.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
 import 'publication_contact_chip.dart';
 import 'publication_contact_menu.dart';
+import 'publication_date_formatter.dart';
 import 'publication_full_details_sheet.dart';
 
 class PublicationCard extends StatefulWidget {
@@ -379,6 +381,7 @@ class _PublicationCardState extends State<PublicationCard>
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final publication = widget.publication;
     final badgeColor = publication.status == PublicationStatus.perdu
         ? widget.red
@@ -396,6 +399,7 @@ class _PublicationCardState extends State<PublicationCard>
             (publication.contactWhatsApp && hasPhone) ||
             (publication.contactCall && hasPhone));
     final longDescription = publication.description.length > 140;
+    final formattedEventDate = formatPublicationEventDate(publication.eventDate);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -599,6 +603,30 @@ class _PublicationCardState extends State<PublicationCard>
                     ),
                   ],
                 ),
+                if (formattedEventDate.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.event_outlined,
+                        size: 16,
+                        color: widget.purple,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${t('event_date')}: $formattedEventDate',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: widget.textGray,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               /*
                 if (hasContactOptions) ...[
                   const SizedBox(height: 10),
