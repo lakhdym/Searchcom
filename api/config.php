@@ -1,19 +1,39 @@
 <?php
-// api/config.php
-// api/config.php
 
 const DB_HOST = 'localhost';
 const DB_NAME = 'italents_searchcom';
-const DB_USER = 'italents_flutter';        // à adapter
-const DB_PASS = 'Pp6QOQ8mbUU)Dl&S';           // à adapter
+const DB_USER = 'italents_flutter';
+const DB_PASS = 'Pp6QOQ8mbUU)Dl&S';
 
-// Base publique pour servir les photos d'annonces.
-// Exemple : photo_url('123.jpg') => https://italents.ma/app/uploads/annonces/123.jpg
-const PHOTO_BASE_URL = 'https://italents.ma/app/uploads/annonces/';
+const APP_BASE_URL = 'https://italents.ma/app';
+const PHOTO_BASE_URL = APP_BASE_URL . '/uploads/annonces/';
+
+function app_base_url(): string
+{
+    return rtrim(APP_BASE_URL, '/');
+}
+
+function uploads_url(string $path): string
+{
+    $trimmed = trim($path);
+    if ($trimmed === '') {
+        return '';
+    }
+    if (preg_match('#^https?://#i', $trimmed)) {
+        return $trimmed;
+    }
+
+    $cleaned = ltrim($trimmed, '/');
+    if (strpos($cleaned, 'uploads/') !== 0) {
+        $cleaned = 'uploads/' . $cleaned;
+    }
+
+    return app_base_url() . '/' . $cleaned;
+}
 
 function photo_url(string $filename): string
 {
-    return rtrim(PHOTO_BASE_URL, '/') . '/' . ltrim($filename, '/');
+    return uploads_url('annonces/' . ltrim($filename, '/'));
 }
 
 function get_pdo(): PDO
@@ -29,21 +49,36 @@ function get_pdo(): PDO
     return $pdo;
 }
 
-// Clé secrète pour signer les JWT (à changer en prod)
 const JWT_SECRET = 'f3724ea34aa84913e27a4c581604ssdgk8f6g2azelazeddinea0fe4a256b6406bc4ff931fec59';
+const JWT_TTL = 3600;
 
-// Durée de vie du token (en secondes)
-const JWT_TTL = 3600; // 1 heure
-
-// Helper pour répondre en JSON
 function json_response($data, int $status = 200)
 {
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=UTF-8');
+    }
+
     http_response_code($status);
-    echo json_encode($data);
+
+    if (is_string($data)) {
+        $trimmed = trim($data);
+        if ($trimmed !== '') {
+            $first = $trimmed[0];
+            $last = substr($trimmed, -1);
+            if (($first === '{' && $last === '}') || ($first === '[' && $last === ']')) {
+                echo $trimmed;
+                exit;
+            }
+        }
+    }
+
+    echo json_encode(
+        $data,
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+    );
     exit;
 }
 
-// Création très simple d’un JWT HS256
 function create_jwt(array $payload): string
 {
     $header = ['alg' => 'HS256', 'typ' => 'JWT'];
@@ -56,11 +91,12 @@ function create_jwt(array $payload): string
     return implode('.', $segments);
 }
 
-// Vérification très simple du JWT (sans gestion d’erreurs avancée)
 function verify_jwt(string $token): ?array
 {
     $parts = explode('.', $token);
-    if (count($parts) !== 3) return null;
+    if (count($parts) !== 3) {
+        return null;
+    }
 
     [$header64, $payload64, $sig64] = $parts;
     $signing_input = $header64 . '.' . $payload64;
@@ -68,15 +104,64 @@ function verify_jwt(string $token): ?array
         hash_hmac('sha256', $signing_input, JWT_SECRET, true)
     ), '+/', '-_'), '=');
 
-    if (!hash_equals($expected, $sig64)) return null;
+    if (!hash_equals($expected, $sig64)) {
+        return null;
+    }
 
     $payload = json_decode(base64_decode(strtr($payload64, '-_', '+/')), true);
-    if (!is_array($payload)) return null;
+    if (!is_array($payload)) {
+        return null;
+    }
 
-    // Vérifier expiration
     if (isset($payload['exp']) && time() > $payload['exp']) {
         return null;
     }
 
     return $payload;
+}
+
+function get_authorization_header(): string
+{
+    return $_SERVER['HTTP_AUTHORIZATION']
+        ?? ($_SERVER['Authorization'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
+}
+
+function get_bearer_token(): ?string
+{
+    $auth = get_authorization_header();
+    if ($auth && preg_match('/Bearer\s+(.*)$/i', $auth, $matches)) {
+        return trim($matches[1]);
+    }
+    return null;
+}
+
+function require_authenticated_user(): array
+{
+    $token = get_bearer_token();
+    if (!$token) {
+        json_response(['success' => false, 'message' => 'Veuillez vous reconnecter'], 401);
+    }
+
+    $payload = verify_jwt($token);
+    if (!is_array($payload) || (int)($payload['sub'] ?? 0) <= 0) {
+        json_response(['success' => false, 'message' => 'Veuillez vous reconnecter'], 401);
+    }
+
+    return $payload;
+}
+
+function require_authenticated_user_id(?int $expectedUserId = null): int
+{
+    $payload = require_authenticated_user();
+    $userId = (int)($payload['sub'] ?? 0);
+
+    if ($userId <= 0) {
+        json_response(['success' => false, 'message' => 'Veuillez vous reconnecter'], 401);
+    }
+
+    if ($expectedUserId !== null && $expectedUserId > 0 && $expectedUserId !== $userId) {
+        json_response(['success' => false, 'message' => 'Acces non autorise'], 403);
+    }
+
+    return $userId;
 }

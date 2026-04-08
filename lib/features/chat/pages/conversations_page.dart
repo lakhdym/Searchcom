@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
-import 'dart:async';
+﻿import 'dart:async';
 
-import '../models/chat_models.dart';
+import 'package:flutter/material.dart';
+
+import '../../../models/user_model.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
-import '../../../models/user_model.dart';
+import '../../../services/l10n_helper.dart';
+import '../models/chat_models.dart';
 import 'chat_detail_page.dart';
 
 class ConversationsPage extends StatefulWidget {
@@ -29,7 +31,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
       setState(() => _query = _searchCtrl.text.trim().toLowerCase());
     });
     _loadConversations();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) => _loadConversations(silent: true));
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _loadConversations(silent: true),
+    );
   }
 
   @override
@@ -41,11 +46,12 @@ class _ConversationsPageState extends State<ConversationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
-    final filtered = _convs.where((c) {
+    final filtered = _convs.where((conversation) {
       if (_query.isEmpty) return true;
-      return c.user.name.toLowerCase().contains(_query) ||
-          (c.listingTitle?.toLowerCase().contains(_query) ?? false);
+      return conversation.user.name.toLowerCase().contains(_query) ||
+          (conversation.listingTitle?.toLowerCase().contains(_query) ?? false);
     }).toList();
 
     return Scaffold(
@@ -55,7 +61,9 @@ class _ConversationsPageState extends State<ConversationsPage> {
         elevation: 0.4,
         title: Text(
           'Messages',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
       body: SafeArea(
@@ -69,7 +77,9 @@ class _ConversationsPageState extends State<ConversationsPage> {
                   hintText: 'Rechercher...',
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
-                  fillColor: scheme.surfaceVariant.withValues(alpha: 0.7),
+                  fillColor: scheme.surfaceContainerHighest.withValues(
+                    alpha: 0.7,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide(color: scheme.outlineVariant),
@@ -82,7 +92,10 @@ class _ConversationsPageState extends State<ConversationsPage> {
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide(color: scheme.primary, width: 1.4),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
               ),
             ),
@@ -99,21 +112,26 @@ class _ConversationsPageState extends State<ConversationsPage> {
             else
               Expanded(
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, index) {
-                    final conv = filtered[index];
+                    final conversation = filtered[index];
                     return ConversationTile(
-                      conversation: conv,
+                      conversation: conversation,
                       onTap: () async {
-                        if (conv.unreadCount > 0) {
-                          setState(() => conv.unreadCount = 0);
+                        if (conversation.unreadCount > 0) {
+                          setState(() => conversation.unreadCount = 0);
                         }
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ChatDetailPage(conversation: conv),
+                            builder: (_) =>
+                                ChatDetailPage(conversation: conversation),
                           ),
                         );
                       },
@@ -143,13 +161,21 @@ class _ConversationsPageState extends State<ConversationsPage> {
         });
         return;
       }
+
       final data = await ApiService.instance.getConversations(userId: user.id);
-      final mapped = data.map((m) => _mapApiConv(m, user)).whereType<ChatConversation>().toList();
+      final mapped = data
+          .map((item) => _mapApiConv(item, user))
+          .whereType<ChatConversation>()
+          .toList();
+      if (!mounted) return;
       setState(() => _convs = mapped);
     } catch (e) {
-      if (!silent) setState(() => _error = e.toString());
+      if (!mounted || silent) return;
+      setState(() => _error = e.toString());
     } finally {
-      if (!silent) setState(() => _loading = false);
+      if (mounted && !silent) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -158,11 +184,18 @@ class _ConversationsPageState extends State<ConversationsPage> {
       final otherId = json['other_user_id']?.toString() ?? '';
       final otherName = json['other_user_name']?.toString() ?? 'Contact';
       final listingTitle = json['listing_title']?.toString();
-      final lastMsg = json['last_message']?.toString() ?? '';
-      if (lastMsg.trim().isEmpty) {
-        // Conversation sans message : ne pas l'afficher
+      final lastMsg = json['last_message']?.toString();
+      final lastMessageType = json['last_message_type']?.toString() ?? 'text';
+      final lastMediaUrl = json['last_media_url']?.toString();
+      final lastSenderId = json['last_sender_user_id']?.toString() ?? '';
+      final hasMessagePreview =
+          (lastMsg != null && lastMsg.trim().isNotEmpty) ||
+          lastMessageType == 'image' ||
+          (lastMediaUrl != null && lastMediaUrl.trim().isNotEmpty);
+      if (!hasMessagePreview) {
         return null;
       }
+
       final lastAtRaw = json['last_message_at']?.toString();
       DateTime lastAt;
       try {
@@ -170,9 +203,16 @@ class _ConversationsPageState extends State<ConversationsPage> {
       } catch (_) {
         lastAt = DateTime.now();
       }
+
       final unread = int.tryParse(json['unread_count']?.toString() ?? '0') ?? 0;
-      final blockedByMe = json['blocked_by_me'] == 1 || json['blocked_by_me'] == true;
-      final blockedByOther = json['blocked_by_other'] == 1 || json['blocked_by_other'] == true;
+      final blockedByMe =
+          json['blocked_by_me'] == 1 || json['blocked_by_me'] == true;
+      final blockedByOther =
+          json['blocked_by_other'] == 1 || json['blocked_by_other'] == true;
+      final isDeleted =
+          lastMessageType == 'system' &&
+          (lastMsg?.trim() == '[deleted]' ||
+              lastMsg?.toLowerCase() == 'message supprime');
 
       return ChatConversation(
         id: json['id'].toString(),
@@ -186,9 +226,16 @@ class _ConversationsPageState extends State<ConversationsPage> {
         lastMessage: ChatMessage(
           id: 'last_${json['id']}',
           conversationId: json['id'].toString(),
-          text: lastMsg,
-          isMe: false,
+          senderId: lastSenderId,
+          messageType: lastMessageType,
+          text: (lastMsg == null || lastMsg.trim().isEmpty) ? null : lastMsg,
+          mediaUrl: (lastMediaUrl == null || lastMediaUrl.trim().isEmpty)
+              ? null
+              : lastMediaUrl,
+          isMe: lastSenderId == me.id.toString(),
           time: lastAt,
+          isDeletedForEveryone: isDeleted,
+          deletedText: 'Message supprime',
         ),
         blockedByMe: blockedByMe,
         blockedByOther: blockedByOther,
@@ -243,7 +290,8 @@ class _ConversationTileState extends State<ConversationTile> {
             children: [
               CircleAvatar(
                 radius: 22,
-                backgroundColor: widget.conversation.user.avatarColor.withValues(alpha: 0.15),
+                backgroundColor: widget.conversation.user.avatarColor
+                    .withValues(alpha: 0.15),
                 child: Text(
                   widget.conversation.user.initials,
                   style: textTheme.titleMedium?.copyWith(
@@ -264,13 +312,17 @@ class _ConversationTileState extends State<ConversationTile> {
                             widget.conversation.user.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           _formatTime(widget.conversation.lastMessage.time),
-                          style: textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+                          style: textTheme.labelMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -281,17 +333,24 @@ class _ConversationTileState extends State<ConversationTile> {
                           child: Text(
                             widget.conversation.listingTitle != null &&
                                     widget.conversation.listingTitle!.isNotEmpty
-                                ? 'À propos de : ${widget.conversation.listingTitle}'
-                                : (widget.conversation.lastMessage.text ?? ''),
+                                ? 'A propos de : ${widget.conversation.listingTitle}'
+                                : _lastMessagePreview(
+                                    widget.conversation.lastMessage,
+                                  ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                         if (widget.conversation.unreadCount > 0) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: scheme.primary,
                               borderRadius: BorderRadius.circular(999),
@@ -314,7 +373,9 @@ class _ConversationTileState extends State<ConversationTile> {
               if (!_blockedByOther)
                 PopupMenuButton<String>(
                   icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   onSelected: (value) {
                     switch (value) {
                       case 'open':
@@ -342,8 +403,10 @@ class _ConversationTileState extends State<ConversationTile> {
                       value: 'block',
                       child: ListTile(
                         dense: true,
-                        leading: Icon(_isBlocked ? Icons.lock_open : Icons.block),
-                        title: Text(_isBlocked ? 'Débloquer' : 'Bloquer'),
+                        leading: Icon(
+                          _isBlocked ? Icons.lock_open : Icons.block,
+                        ),
+                        title: Text(_isBlocked ? 'Debloquer' : 'Bloquer'),
                       ),
                     ),
                     const PopupMenuItem(
@@ -377,9 +440,17 @@ class _ConversationTileState extends State<ConversationTile> {
     }
   }
 
+  String _lastMessagePreview(ChatMessage message) {
+    return chatMessagePreviewText(
+      message,
+      imageLabel: t('image_attachment'),
+      fileLabel: t('file_attachment'),
+    );
+  }
+
   Future<void> _toggleBlock(bool block) async {
     if (_blockedByOther) {
-      _showSnack("Vous avez été bloqué dans cette conversation.");
+      _showSnack('Vous avez ete bloque dans cette conversation.');
       return;
     }
     if (_busy) return;
@@ -387,7 +458,7 @@ class _ConversationTileState extends State<ConversationTile> {
     try {
       final me = await AuthLocalStorage.instance.getUser();
       if (me == null) {
-        _showSnack("Connectez-vous");
+        _showSnack('Connectez-vous');
         return;
       }
       final convId = int.tryParse(widget.conversation.id) ?? 0;
@@ -397,7 +468,7 @@ class _ConversationTileState extends State<ConversationTile> {
         block: block,
       );
       setState(() => _isBlocked = block);
-      _showSnack(block ? "Conversation bloquée" : "Blocage retiré");
+      _showSnack(block ? 'Conversation bloquee' : 'Blocage retire');
     } catch (e) {
       _showSnack(e.toString());
     } finally {
@@ -411,16 +482,16 @@ class _ConversationTileState extends State<ConversationTile> {
     try {
       final me = await AuthLocalStorage.instance.getUser();
       if (me == null) {
-        _showSnack("Connectez-vous");
+        _showSnack('Connectez-vous');
         return;
       }
       final convId = int.tryParse(widget.conversation.id) ?? 0;
       await ApiService.instance.reportConversation(
         conversationId: convId,
         userId: me.id,
-        reason: "Signalé depuis la liste",
+        reason: 'Signale depuis la liste',
       );
-      _showSnack("Conversation signalée");
+      _showSnack('Conversation signalee');
     } catch (e) {
       _showSnack(e.toString());
     } finally {
@@ -433,3 +504,4 @@ class _ConversationTileState extends State<ConversationTile> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
+

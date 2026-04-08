@@ -315,6 +315,7 @@
     "conversations_load_error": "Unable to load conversations",
     "messages_load_error": "Unable to load messages",
     "message_send_error": "Unable to send the message",
+    "image_send_error": "Unable to send the image",
     "verification_error": "Unable to verify this code",
     "code_resend_error": "Unable to resend the code",
     "validation_email_or_phone_required": "Please enter your email or phone number",

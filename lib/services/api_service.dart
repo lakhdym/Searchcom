@@ -67,7 +67,7 @@ class ApiService {
           .map(ApiCategory.fromJson)
           .toList();
     }
-    throw Exception('Réponse catégories invalide');
+    throw Exception('RÃƒÆ’Ã‚Â©ponse catÃƒÆ’Ã‚Â©gories invalide');
   }
 
   // -------------------------------------------------------------
@@ -78,7 +78,7 @@ class ApiService {
     int limit = 5,
     int offset = 0,
   }) async {
-    await _loadTokenIfNeeded(); // pour liked_by_me si token stocké
+    await _loadTokenIfNeeded(); // pour liked_by_me si token stockÃƒÆ’Ã‚Â©
     final query = <String, String>{
       'limit': limit.toString(),
       'offset': offset.toString(),
@@ -204,7 +204,9 @@ class ApiService {
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     if (data['success'] != true) {
-      throw Exception(data['message'] ?? 'Erreur lors de la mise à jour');
+      throw Exception(
+        data['message'] ?? 'Erreur lors de la mise ÃƒÆ’Ã‚Â  jour',
+      );
     }
   }
 
@@ -226,11 +228,15 @@ class ApiService {
       body: jsonEncode(body),
     );
     if (resp.statusCode != 200) {
-      throw Exception('Erreur suppression photo (${resp.statusCode}): ${resp.body}');
+      throw Exception(
+        'Erreur suppression photo (${resp.statusCode}): ${resp.body}',
+      );
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     if (data['success'] != true) {
-      throw Exception(data['message'] ?? 'Erreur lors de la suppression de la photo');
+      throw Exception(
+        data['message'] ?? 'Erreur lors de la suppression de la photo',
+      );
     }
   }
 
@@ -365,24 +371,25 @@ class ApiService {
     final resp = await _client.post(
       uri,
       headers: _buildHeaders(withAuth: true, json: true),
-      body: jsonEncode({
-        'listing_id': listingId,
-        'user_id': userId,
-      }),
+      body: jsonEncode({'listing_id': listingId, 'user_id': userId}),
     );
     if (resp.statusCode != 200) {
       throw Exception('Conversation (${resp.statusCode}): ${resp.body}');
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true) {
+    final data = _decodeMap(_readResponseBody(resp));
+    if (data['success'] == true) {
       final conv = data['conversation'] ?? {};
       final cid = conv['id'] ?? conv['conversation_id'];
       if (cid != null) return int.tryParse(cid.toString()) ?? (cid as int);
     }
-    throw Exception(data['message'] ?? 'Impossible de créer la conversation');
+    throw Exception(
+      data['message'] ?? 'Impossible de crÃƒÆ’Ã‚Â©er la conversation',
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getConversations({required int userId}) async {
+  Future<List<Map<String, dynamic>>> getConversations({
+    required int userId,
+  }) async {
     await _loadTokenIfNeeded();
     final uri = Uri.parse('$_baseUrl/get_conversations.php');
     final resp = await _client.post(
@@ -393,11 +400,13 @@ class ApiService {
     if (resp.statusCode != 200) {
       throw Exception('Conversations (${resp.statusCode}): ${resp.body}');
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true && data['items'] is List) {
+    final data = _decodeMap(_readResponseBody(resp));
+    if (data['success'] == true && data['items'] is List) {
       return List<Map<String, dynamic>>.from(data['items']);
     }
-    throw Exception(data['message'] ?? 'Impossible de charger les conversations');
+    throw Exception(
+      data['message'] ?? 'Impossible de charger les conversations',
+    );
   }
 
   Future<Map<String, dynamic>> getMessages({
@@ -414,8 +423,8 @@ class ApiService {
     if (resp.statusCode != 200) {
       throw Exception('Messages (${resp.statusCode}): ${resp.body}');
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true && data['items'] is List) {
+    final data = _decodeMap(_readResponseBody(resp));
+    if (data['success'] == true && data['items'] is List) {
       return {
         'items': List<Map<String, dynamic>>.from(data['items']),
         'blocked': data['blocked'] == true,
@@ -443,17 +452,153 @@ class ApiService {
         'user_id': userId,
         'content': content,
         'message_type': messageType,
-        if (replyToMessageId != null) 'reply_to_message_id': replyToMessageId,
+        ...?(replyToMessageId == null
+            ? null
+            : {'reply_to_message_id': replyToMessageId}),
       }),
     );
+    final data = _decodeMap(_readResponseBody(resp));
     if (resp.statusCode != 200) {
-      throw Exception('Envoi message (${resp.statusCode}): ${resp.body}');
+      throw Exception(
+        _extractApiErrorMessage(
+          data,
+          fallback: 'Impossible d\'envoyer le message',
+        ),
+      );
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true && data['message'] is Map) {
-      return Map<String, dynamic>.from(data['message']);
+    return _extractChatMessageData(
+      data,
+      fallback: 'Impossible d\'envoyer le message',
+    );
+  }
+
+  Future<Map<String, dynamic>> sendImageMessage({
+    required int conversationId,
+    required int userId,
+    required XFile image,
+    String? replyToMessageId,
+  }) async {
+    await _loadTokenIfNeeded();
+    final uri = Uri.parse('$_baseUrl/send_message.php');
+    final req = http.MultipartRequest('POST', uri);
+    req.headers.addAll(_buildHeaders(withAuth: true));
+    req.fields['conversation_id'] = conversationId.toString();
+    req.fields['user_id'] = userId.toString();
+    req.fields['message_type'] = 'image';
+    if (replyToMessageId != null) {
+      req.fields['reply_to_message_id'] = replyToMessageId;
     }
-    throw Exception(data['message'] ?? 'Impossible d\'envoyer le message');
+
+    if (kIsWeb) {
+      final bytes = await image.readAsBytes();
+      req.files.add(
+        http.MultipartFile.fromBytes('image', bytes, filename: image.name),
+      );
+    } else {
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          'image',
+          image.path,
+          filename: image.name,
+        ),
+      );
+    }
+
+    final streamed = await req.send();
+    final body = utf8.decode(
+      await streamed.stream.toBytes(),
+      allowMalformed: true,
+    );
+    final data = _decodeMap(body);
+    if (streamed.statusCode != 200) {
+      throw Exception(
+        _extractApiErrorMessage(
+          data,
+          fallback: 'Impossible d\'envoyer l\'image',
+        ),
+      );
+    }
+    return _extractChatMessageData(
+      data,
+      fallback: 'Impossible d\'envoyer l\'image',
+    );
+  }
+
+  String _readResponseBody(http.Response response) {
+    return utf8.decode(response.bodyBytes, allowMalformed: true);
+  }
+
+  Map<String, dynamic> _extractChatMessageData(
+    Map<String, dynamic> data, {
+    required String fallback,
+  }) {
+    if (data['success'] == true) {
+      final payload = data['data'] ?? data['message'];
+      if (payload is Map<String, dynamic>) {
+        return payload;
+      }
+      if (payload is Map) {
+        return Map<String, dynamic>.from(payload);
+      }
+    }
+    throw Exception(_extractApiErrorMessage(data, fallback: fallback));
+  }
+
+  String _extractApiErrorMessage(
+    Map<String, dynamic> data, {
+    required String fallback,
+  }) {
+    final message = data['message'];
+    if (message is String && message.trim().isNotEmpty) {
+      return message;
+    }
+    return fallback;
+  }
+
+  dynamic _decodeJsonValue(String source) {
+    dynamic current = source.trim();
+    if (current is! String || current.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    for (var depth = 0; depth < 3; depth++) {
+      if (current is! String) {
+        return current;
+      }
+
+      final candidate = current.trim();
+      if (candidate.isEmpty) {
+        return <String, dynamic>{};
+      }
+
+      current = jsonDecode(candidate);
+    }
+
+    return current;
+  }
+
+  Map<String, dynamic> _decodeMap(String source) {
+    final trimmed = source.trim();
+    if (trimmed.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    try {
+      final decoded = _decodeJsonValue(trimmed);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      if (decoded is String && decoded.trim().isNotEmpty) {
+        return <String, dynamic>{'message': decoded.trim()};
+      }
+    } catch (_) {
+      return <String, dynamic>{'message': trimmed};
+    }
+
+    return <String, dynamic>{'message': trimmed};
   }
 
   Future<void> deleteMessage({
@@ -475,8 +620,8 @@ class ApiService {
     if (resp.statusCode != 200) {
       throw Exception('Suppression (${resp.statusCode}): ${resp.body}');
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true) return;
+    final data = _decodeMap(_readResponseBody(resp));
+    if (data['success'] == true) return;
     throw Exception(data['message'] ?? 'Impossible de supprimer le message');
   }
 
@@ -499,9 +644,11 @@ class ApiService {
     if (resp.statusCode != 200) {
       throw Exception('Signalement (${resp.statusCode}): ${resp.body}');
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true) return;
-    throw Exception(data['message'] ?? 'Impossible de signaler la conversation');
+    final data = _decodeMap(_readResponseBody(resp));
+    if (data['success'] == true) return;
+    throw Exception(
+      data['message'] ?? 'Impossible de signaler la conversation',
+    );
   }
 
   Future<bool> toggleBlockConversation({
@@ -523,8 +670,8 @@ class ApiService {
     if (resp.statusCode != 200) {
       throw Exception('Blocage (${resp.statusCode}): ${resp.body}');
     }
-    final data = jsonDecode(resp.body);
-    if (data is Map && data['success'] == true) {
+    final data = _decodeMap(_readResponseBody(resp));
+    if (data['success'] == true) {
       return data['blocked'] == true;
     }
     throw Exception(data['message'] ?? 'Impossible de modifier le blocage');
@@ -593,14 +740,16 @@ class ApiService {
     }
     final data = jsonDecode(resp.body);
     if (data is Map && data['success'] != true) {
-      throw Exception(data['message']?.toString() ?? 'Signalement refusé');
+      throw Exception(
+        data['message']?.toString() ?? 'Signalement refusÃƒÆ’Ã‚Â©',
+      );
     }
   }
 
   // -------------------------------------------------------------
   // Notifications (likes / comments)
   // -------------------------------------------------------------
-  // Notifications paginées
+  // Notifications paginÃƒÆ’Ã‚Â©es
   Future<NotificationsResult> fetchNotificationsPaged({
     required int userId,
     int page = 1,
@@ -625,9 +774,9 @@ class ApiService {
     }
     final data = jsonDecode(resp.body);
     if (data is Map && data['success'] == true && data['items'] is List) {
-      final items = List<Map<String, dynamic>>.from(data['items'])
-          .map(ApiNotification.fromJson)
-          .toList();
+      final items = List<Map<String, dynamic>>.from(
+        data['items'],
+      ).map(ApiNotification.fromJson).toList();
       final unread = (data['unread_count'] is num)
           ? (data['unread_count'] as num).toInt()
           : int.tryParse(data['unread_count']?.toString() ?? '0') ?? 0;
@@ -636,7 +785,9 @@ class ApiService {
           : int.tryParse(data['total']?.toString() ?? '0') ?? items.length;
       final hasMore = data['has_more'] == true;
       final p = (data['page'] is num) ? (data['page'] as num).toInt() : page;
-      final pp = (data['per_page'] is num) ? (data['per_page'] as num).toInt() : perPage;
+      final pp = (data['per_page'] is num)
+          ? (data['per_page'] as num).toInt()
+          : perPage;
       return NotificationsResult(
         items: items,
         unreadCount: unread,
@@ -646,7 +797,9 @@ class ApiService {
         hasMore: hasMore,
       );
     }
-    throw Exception(data['message'] ?? 'Impossible de charger les notifications');
+    throw Exception(
+      data['message'] ?? 'Impossible de charger les notifications',
+    );
   }
 
   Future<int> fetchNotificationsCount({
@@ -672,7 +825,9 @@ class ApiService {
       final c = data['count'];
       return c is num ? c.toInt() : (int.tryParse(c?.toString() ?? '0') ?? 0);
     }
-    throw Exception(data['message'] ?? 'Impossible de compter les notifications');
+    throw Exception(
+      data['message'] ?? 'Impossible de compter les notifications',
+    );
   }
 
   Future<ListingModel> fetchListingById({
@@ -686,7 +841,7 @@ class ApiService {
       headers: _buildHeaders(withAuth: true, json: true),
       body: jsonEncode({
         'listing_id': listingId,
-        if (userId != null) 'user_id': userId,
+        ...?(userId == null ? null : {'user_id': userId}),
       }),
     );
     if (resp.statusCode != 200) {
@@ -790,7 +945,11 @@ class ApiListing {
       ownerId: json['user_id'] is num
           ? (json['user_id'] as num).toInt()
           : int.tryParse(json['user_id']?.toString() ?? '0') ?? 0,
-      ownerName: (json['owner_name'] ?? json['user_name'] ?? '').toString().trim().isNotEmpty
+      ownerName:
+          (json['owner_name'] ?? json['user_name'] ?? '')
+              .toString()
+              .trim()
+              .isNotEmpty
           ? (json['owner_name'] ?? json['user_name']).toString()
           : null,
       type: json['type']?.toString() ?? 'lost',
@@ -914,12 +1073,12 @@ class ApiNotification {
   });
 
   factory ApiNotification.empty() => ApiNotification(
-        type: 'like',
-        listingId: 0,
-        listingTitle: '',
-        actorName: '',
-        createdAt: DateTime.fromMillisecondsSinceEpoch(0),
-      );
+    type: 'like',
+    listingId: 0,
+    listingTitle: '',
+    actorName: '',
+    createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+  );
 
   factory ApiNotification.fromJson(Map<String, dynamic> json) {
     return ApiNotification(
@@ -928,7 +1087,9 @@ class ApiNotification {
       listingTitle: json['listing_title']?.toString() ?? '',
       actorName: json['actor_name']?.toString() ?? 'Utilisateur',
       content: json['content']?.toString(),
-      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.now(),
     );
   }
 }

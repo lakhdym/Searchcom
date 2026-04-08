@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 enum MessageStatus { sent, delivered, read }
@@ -15,7 +17,9 @@ class ChatUser {
 
   String get initials {
     final parts = name.trim().split(' ');
-    if (parts.length == 1) return parts.first.characters.take(2).toString().toUpperCase();
+    if (parts.length == 1) {
+      return parts.first.characters.take(2).toString().toUpperCase();
+    }
     return (parts.first.characters.take(1).toString() +
             parts.last.characters.take(1).toString())
         .toUpperCase();
@@ -26,12 +30,15 @@ class ChatMessage {
   final String id;
   final String conversationId;
   final String senderId;
+  final String messageType;
   final String? text;
-  final String? imagePath;
+  final String? mediaUrl;
+  final Uint8List? localImageBytes;
   final String? fileName;
   final int? fileSize;
   final bool isMe;
   final DateTime time;
+  final bool isUploading;
 
   MessageStatus? status;
   String? replyToMessageId;
@@ -44,23 +51,50 @@ class ChatMessage {
     required this.id,
     required this.conversationId,
     this.senderId = '',
+    this.messageType = 'text',
     this.text,
-    this.imagePath,
+    this.mediaUrl,
+    this.localImageBytes,
     this.fileName,
     this.fileSize,
     required this.isMe,
     required this.time,
+    this.isUploading = false,
     this.status,
     this.replyToMessageId,
     this.replyExcerpt,
     this.isDeletedForEveryone = false,
-    this.deletedText = 'Vous avez supprimé ce message',
+    this.deletedText = 'Message supprime',
   });
 
-  bool get isImage => imagePath != null;
+  bool get isImage =>
+      messageType == 'image' || mediaUrl != null || localImageBytes != null;
   bool get isFile => fileName != null;
-  bool get isText => text != null && !isImage && !isFile;
-  bool get showStatus => isMe && status != null && !isDeletedForEveryone;
+  bool get isText => !isImage && !isFile && (text?.isNotEmpty ?? false);
+  bool get showStatus =>
+      isMe && status != null && !isDeletedForEveryone && !isUploading;
+}
+
+String chatMessagePreviewText(
+  ChatMessage message, {
+  required String imageLabel,
+  required String fileLabel,
+}) {
+  if (message.isDeletedForEveryone) {
+    return message.deletedText;
+  }
+
+  final text = message.text?.trim();
+  if (text != null && text.isNotEmpty) {
+    return text;
+  }
+  if (message.isImage) {
+    return imageLabel;
+  }
+  if (message.isFile) {
+    return fileLabel;
+  }
+  return '';
 }
 
 class ChatConversation {

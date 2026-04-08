@@ -337,6 +337,7 @@
     "conversations_load_error":  "Impossible de charger les conversations",
     "messages_load_error":  "Impossible de charger les messages",
     "message_send_error":  "Impossible d\u0027envoyer le message",
+    "image_send_error":  "Impossible d\u0027envoyer l\u0027image",
     "verification_error":  "Impossible de vérifier ce code",
     "code_resend_error":  "Impossible de renvoyer le code",
     "validation_email_or_phone_required":  "Veuillez saisir votre email ou téléphone",

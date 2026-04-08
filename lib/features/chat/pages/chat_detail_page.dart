@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -10,13 +9,13 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_messages.dart';
 import '../../../core/errors/app_error_mapper.dart';
 import '../../../core/feedback/app_feedback.dart';
+import '../../../models/user_model.dart';
 import '../../../pages/app_error_page.dart';
-
-import '../models/chat_models.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
 import '../../../services/l10n_helper.dart';
-import '../../../models/user_model.dart';
+import '../../../widgets/image_viewer_page.dart';
+import '../models/chat_models.dart';
 
 class ChatDetailPage extends StatefulWidget {
   const ChatDetailPage({super.key, required this.conversation});
@@ -43,6 +42,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   bool _loading = true;
   String? _error;
   Timer? _refreshTimer;
+
+  int get _conversationId => int.tryParse(widget.conversation.id) ?? 0;
 
   @override
   void initState() {
@@ -83,54 +84,143 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final me = _me;
     if (me == null) return;
     try {
-      final convId = int.tryParse(widget.conversation.id) ?? 0;
-      final result = await ApiService.instance.getMessages(conversationId: convId, userId: me.id);
-      final items = (result['items'] as List<Map<String, dynamic>>);
-      final mapped = items.map((m) {
-        final senderId = m['sender_user_id']?.toString() ?? '';
-        final text = m['content']?.toString();
-        final createdAt = m['created_at']?.toString();
-        final replyId = m['reply_to_message_id']?.toString();
-        final rawDeleted = m['is_deleted_for_all'];
-        final isDeleted = rawDeleted == true ||
-            rawDeleted == 1 ||
-            rawDeleted == '1' ||
-            rawDeleted == 'true' ||
-            (m['message_type']?.toString() == 'system' && (text == '[deleted]' || text?.toLowerCase() == 'message supprimé'));
-        final deletedText = m['deleted_text']?.toString() ?? 'Message supprimé';
-        DateTime dt;
-        try {
-          dt = createdAt != null ? DateTime.parse(createdAt) : DateTime.now();
-        } catch (_) {
-          dt = DateTime.now();
-        }
-        return ChatMessage(
-          id: m['id'].toString(),
-          conversationId: widget.conversation.id,
-          senderId: senderId,
-          text: text,
-          isMe: senderId == me.id.toString(),
-          time: dt,
-          replyToMessageId: replyId,
-          isDeletedForEveryone: isDeleted,
-          deletedText: deletedText,
-        );
-      }).toList();
-      if (mounted) {
-        setState(() {
-          _messages = mapped;
-          _isBlocked = result['blocked'] == true;
-          _blockedByOther = result['blockedByOther'] == true;
-        });
+      final result = await ApiService.instance.getMessages(
+        conversationId: _conversationId,
+        userId: me.id,
+      );
+      final items = result['items'] as List<Map<String, dynamic>>;
+      final mapped = items
+          .map((item) => _mapApiMessage(item, currentUserId: me.id))
+          .toList();
+      final mergedMessages = _mergePendingLocalMessages(mapped);
+      if (!mounted) return;
+      setState(() {
+        _messages = mergedMessages;
+        _isBlocked = result['blocked'] == true;
+        _blockedByOther = result['blockedByOther'] == true;
+        _error = null;
+      });
+      if (mergedMessages.isNotEmpty) {
+        widget.conversation.lastMessage = mergedMessages.last;
       }
     } catch (e) {
-      if (mounted) {
-        final msg = e.toString();
-        setState(() {
-          _error = msg;
-        });
+      if (!mounted || silent) return;
+      setState(() {
+        _error = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.messagesLoadError(),
+        );
+      });
+    }
+  }
+
+  List<ChatMessage> _mergePendingLocalMessages(
+    List<ChatMessage> serverMessages,
+  ) {
+    final pendingLocals = _messages
+        .where((message) => message.id.startsWith('local_'))
+        .toList();
+    if (pendingLocals.isEmpty) {
+      return serverMessages;
+    }
+
+    final merged = [...serverMessages];
+    for (final pending in pendingLocals) {
+      final alreadyConfirmed = merged.any(
+        (serverMessage) => _isSamePendingMessage(pending, serverMessage),
+      );
+      if (!alreadyConfirmed) {
+        merged.add(pending);
       }
     }
+    merged.sort((a, b) => a.time.compareTo(b.time));
+    return merged;
+  }
+
+  bool _isSamePendingMessage(ChatMessage pending, ChatMessage serverMessage) {
+    if (!pending.id.startsWith('local_')) return false;
+    if (!pending.isMe || !serverMessage.isMe) return false;
+    if (pending.messageType != serverMessage.messageType) return false;
+    if (pending.replyToMessageId != serverMessage.replyToMessageId) {
+      return false;
+    }
+
+    final sameTimeWindow =
+        serverMessage.time.difference(pending.time).abs() <
+        const Duration(minutes: 2);
+    if (!sameTimeWindow) return false;
+
+    if (pending.isImage && serverMessage.isImage) {
+      return true;
+    }
+
+    return (pending.text ?? '') == (serverMessage.text ?? '');
+  }
+
+  ChatMessage _mapApiMessage(
+    Map<String, dynamic> data, {
+    required int currentUserId,
+  }) {
+    final senderId = data['sender_user_id']?.toString() ?? '';
+    final text = _normalizeText(data['content']?.toString());
+    final messageType = data['message_type']?.toString() ?? 'text';
+    final rawDeleted = data['is_deleted_for_all'];
+    final isDeleted =
+        rawDeleted == true ||
+        rawDeleted == 1 ||
+        rawDeleted == '1' ||
+        rawDeleted == 'true' ||
+        (messageType == 'system' &&
+            (text == '[deleted]' || text?.toLowerCase() == 'message supprime'));
+    return ChatMessage(
+      id: data['id'].toString(),
+      conversationId: widget.conversation.id,
+      senderId: senderId,
+      messageType: messageType,
+      text: text,
+      mediaUrl: _resolveChatMediaUrl(data['media_url']?.toString()),
+      isMe: senderId == currentUserId.toString(),
+      time: _parseMessageTime(data['created_at']?.toString()),
+      status: senderId == currentUserId.toString() ? MessageStatus.sent : null,
+      replyToMessageId: data['reply_to_message_id']?.toString(),
+      isDeletedForEveryone: isDeleted,
+      deletedText: data['deleted_text']?.toString() ?? 'Message supprime',
+    );
+  }
+
+  String? _resolveChatMediaUrl(String? raw) {
+    const uploadsBase = 'https://italents.ma/app/';
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http')) return trimmed;
+
+    var cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+    final uploadsIndex = cleaned.indexOf('uploads/');
+    if (uploadsIndex >= 0) {
+      cleaned = cleaned.substring(uploadsIndex);
+    } else if (!cleaned.startsWith('chat/')) {
+      cleaned = 'chat/$cleaned';
+    }
+
+    if (!cleaned.startsWith('uploads/')) {
+      cleaned = 'uploads/$cleaned';
+    }
+    return '$uploadsBase$cleaned';
+  }
+
+  DateTime _parseMessageTime(String? raw) {
+    try {
+      return raw != null ? DateTime.parse(raw) : DateTime.now();
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
+  String? _normalizeText(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   @override
@@ -149,9 +239,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _toggleSearch() {
@@ -169,11 +259,11 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       return;
     }
     final reasons = [
-      "Spam ou publicité",
+      "Spam ou publicitÃƒÂ©",
       "Discours haineux",
       "Arnaque / fraude",
-      "Contenu inapproprié",
-      "Autre"
+      "Contenu inappropriÃƒÂ©",
+      "Autre",
     ];
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -187,7 +277,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           children: [
             const Padding(
               padding: EdgeInsets.only(top: 8, bottom: 4),
-              child: Text("Signaler la conversation", style: TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(
+                "Signaler la conversation",
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
             ...reasons.map(
               (r) => ListTile(
@@ -209,7 +302,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         userId: me.id,
         reason: choice,
       );
-      _showSnack("Signalement enregistré et utilisateur bloqué");
+      _showSnack("Signalement enregistrÃƒÂ© et utilisateur bloquÃƒÂ©");
     } catch (e) {
       _showSnack(e.toString());
     }
@@ -219,7 +312,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   Future<void> _toggleBlock() async {
     if (_blockedByOther) {
-      _showSnack("Vous êtes bloqué dans cette conversation.");
+      _showSnack("Vous ÃƒÂªtes bloquÃƒÂ© dans cette conversation.");
       return;
     }
     final me = _me;
@@ -242,7 +335,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       if (!blocked) {
         _loadMessages(silent: true);
       }
-      _showSnack(blocked ? 'Utilisateur bloqué' : 'Blocage retiré');
+      _showSnack(blocked ? 'Utilisateur bloquÃƒÂ©' : 'Blocage retirÃƒÂ©');
     } catch (e) {
       _showSnack(e.toString());
     }
@@ -250,7 +343,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   void _sendText() {
     if (_isBlocked) {
-      _showSnack("Vous êtes bloqué dans cette conversation.");
+      _showSnack("Vous etes bloque dans cette conversation.");
       return;
     }
     final text = _messageController.text.trim();
@@ -264,29 +357,24 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       AppFeedback.showInfoSnackBar(context, AppMessages.sessionExpired());
       return;
     }
+
     final replyTarget = _replyTo;
-    final convId = int.tryParse(widget.conversation.id) ?? 0;
     final localMsg = ChatMessage(
-      id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'local_text_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: widget.conversation.id,
       senderId: me.id.toString(),
+      messageType: 'text',
       text: text,
       isMe: true,
       time: DateTime.now(),
       status: MessageStatus.sent,
       replyToMessageId: replyTarget?.id,
-      replyExcerpt:
-          replyTarget?.text ??
-          (replyTarget == null
-              ? null
-              : replyTarget.isImage
-                  ? '[Image]'
-                  : replyTarget.isFile
-                      ? '[Fichier]'
-                      : ''),
+      replyExcerpt: _replyExcerpt(replyTarget),
     );
+
     setState(() {
       _messages.add(localMsg);
+      widget.conversation.lastMessage = localMsg;
       widget.conversation.unreadCount = 0;
       _replyTo = null;
       _showEmoji = false;
@@ -296,80 +384,102 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
     try {
       final saved = await ApiService.instance.sendMessage(
-        conversationId: convId,
+        conversationId: _conversationId,
         userId: me.id,
         content: text,
         messageType: 'text',
         replyToMessageId: replyTarget?.id,
       );
-      final senderId = saved['sender_user_id']?.toString() ?? me.id.toString();
-      final createdAt = saved['created_at']?.toString();
-      DateTime dt;
-      try {
-        dt = createdAt != null ? DateTime.parse(createdAt) : DateTime.now();
-      } catch (_) {
-        dt = DateTime.now();
-      }
-      final confirmed = ChatMessage(
-        id: saved['id'].toString(),
-        conversationId: widget.conversation.id,
-        senderId: senderId,
-        text: saved['content']?.toString() ?? text,
-        isMe: senderId == me.id.toString(),
-        time: dt,
-        replyToMessageId: replyTarget?.id,
-      );
-      if (mounted) {
-        setState(() {
-          final idx = _messages.indexWhere((m) => m.id == localMsg.id);
-          if (idx != -1) {
-            _messages[idx] = confirmed;
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        final msg = e.toString();
-        final blocked = msg.toLowerCase().contains('bloqu');
-        setState(() {
-          _error = msg;
-          _isBlocked = blocked ? true : _isBlocked;
-          if (blocked) _blockedByOther = true;
-        });
-        if (blocked) {
-          _showSnack("Vous êtes bloqué dans cette conversation.");
+      final confirmed = _mapApiMessage(saved, currentUserId: me.id);
+      if (!mounted) return;
+      setState(() {
+        final idx = _messages.indexWhere(
+          (message) => message.id == localMsg.id,
+        );
+        if (idx != -1) {
+          _messages[idx] = confirmed;
+        } else {
+          _messages.add(confirmed);
         }
-      }
+        widget.conversation.lastMessage = confirmed;
+      });
+    } catch (e) {
+      _handleSendFailure(
+        e,
+        localMessageId: localMsg.id,
+        fallbackMessage: AppMessages.messageSendError(),
+      );
     }
   }
 
   Future<void> _pickImage() async {
-    final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-    final msg = ChatMessage(
-      id: 'img_${_messages.length}',
-      conversationId: widget.conversation.id,
-      imagePath: picked.path,
-      isMe: true,
-      time: DateTime.now(),
-      status: MessageStatus.sent,
-      replyToMessageId: _replyTo?.id,
-      replyExcerpt:
-          _replyTo?.text ??
-          (_replyTo == null
-              ? null
-              : _replyTo!.isImage
-              ? t('image_attachment')
-              : _replyTo!.isFile
-              ? t('file_attachment')
-              : ''),
-    );
-    setState(() {
-      _messages.add(msg);
-      _replyTo = null;
-    });
-    _scheduleStatusProgression(msg);
-    _scrollAfterInsert();
+    if (_isBlocked) {
+      _showSnack("Vous etes bloque dans cette conversation.");
+      return;
+    }
+
+    final me = _me;
+    if (me == null) {
+      AppFeedback.showInfoSnackBar(context, AppMessages.sessionExpired());
+      return;
+    }
+
+    ChatMessage? localMsg;
+    try {
+      final picked = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+
+      final imageBytes = await picked.readAsBytes();
+      final replyTarget = _replyTo;
+      final imageMessage = ChatMessage(
+        id: 'local_image_${DateTime.now().millisecondsSinceEpoch}',
+        conversationId: widget.conversation.id,
+        senderId: me.id.toString(),
+        messageType: 'image',
+        localImageBytes: imageBytes,
+        isMe: true,
+        time: DateTime.now(),
+        isUploading: true,
+        replyToMessageId: replyTarget?.id,
+        replyExcerpt: _replyExcerpt(replyTarget),
+      );
+      localMsg = imageMessage;
+
+      setState(() {
+        _messages.add(imageMessage);
+        widget.conversation.lastMessage = imageMessage;
+        widget.conversation.unreadCount = 0;
+        _replyTo = null;
+        _showEmoji = false;
+      });
+      _scrollAfterInsert();
+
+      final saved = await ApiService.instance.sendImageMessage(
+        conversationId: _conversationId,
+        userId: me.id,
+        image: picked,
+        replyToMessageId: replyTarget?.id,
+      );
+      final confirmed = _mapApiMessage(saved, currentUserId: me.id);
+      if (!mounted) return;
+      setState(() {
+        final idx = _messages.indexWhere(
+          (message) => message.id == imageMessage.id,
+        );
+        if (idx != -1) {
+          _messages[idx] = confirmed;
+        } else {
+          _messages.add(confirmed);
+        }
+        widget.conversation.lastMessage = confirmed;
+      });
+    } catch (e) {
+      _handleSendFailure(
+        e,
+        localMessageId: localMsg?.id,
+        fallbackMessage: t('image_send_error'),
+      );
+    }
   }
 
   Future<void> _pickFile() async {
@@ -377,30 +487,71 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     final msg = ChatMessage(
-      id: 'file_${_messages.length}',
+      id: 'local_file_${DateTime.now().millisecondsSinceEpoch}',
       conversationId: widget.conversation.id,
+      messageType: 'file',
       fileName: file.name,
       fileSize: file.size,
       isMe: true,
       time: DateTime.now(),
       status: MessageStatus.sent,
       replyToMessageId: _replyTo?.id,
-      replyExcerpt:
-          _replyTo?.text ??
-          (_replyTo == null
-              ? null
-              : _replyTo!.isImage
-              ? t('image_attachment')
-              : _replyTo!.isFile
-              ? t('file_attachment')
-              : ''),
+      replyExcerpt: _replyExcerpt(_replyTo),
     );
     setState(() {
       _messages.add(msg);
+      widget.conversation.lastMessage = msg;
+      widget.conversation.unreadCount = 0;
       _replyTo = null;
+      _showEmoji = false;
     });
     _scheduleStatusProgression(msg);
     _scrollAfterInsert();
+  }
+
+  Future<void> _openImageViewer(String imageUrl) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ImageViewerPage(images: [imageUrl])),
+    );
+  }
+
+  String? _replyExcerpt(ChatMessage? message) {
+    if (message == null) return null;
+    final excerpt = chatMessagePreviewText(
+      message,
+      imageLabel: t('image_attachment'),
+      fileLabel: t('file_attachment'),
+    ).trim();
+    return excerpt.isEmpty ? null : excerpt;
+  }
+
+  void _handleSendFailure(
+    Object error, {
+    String? localMessageId,
+    required String fallbackMessage,
+  }) {
+    if (!mounted) return;
+    final message = AppErrorMapper.message(
+      error,
+      fallbackMessage: fallbackMessage,
+    );
+    final normalized = message.toLowerCase();
+    final blocked = normalized.contains('bloqu');
+
+    setState(() {
+      if (localMessageId != null) {
+        _messages.removeWhere((item) => item.id == localMessageId);
+      }
+      if (_messages.isNotEmpty) {
+        widget.conversation.lastMessage = _messages.last;
+      }
+      if (blocked) {
+        _isBlocked = true;
+        _blockedByOther = true;
+      }
+    });
+
+    _showSnack(blocked ? 'Vous etes bloque dans cette conversation.' : message);
   }
 
   void _scrollAfterInsert() {
@@ -461,6 +612,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
 
     if (result == 'reply') {
+      if (!mounted) return;
       setState(() => _replyTo = message);
       FocusScope.of(context).unfocus();
     } else if (result == 'delete') {
@@ -503,7 +655,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final messageId = int.tryParse(msg.id);
     final deleteForAll = choice == 'all' && isMine;
 
-    // Snapshot for rollback en cas d'échec réseau
+    // Snapshot for rollback en cas d'ÃƒÂ©chec rÃƒÂ©seau
     final previous = List<ChatMessage>.from(_messages);
 
     if (choice == 'me') {
@@ -537,10 +689,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         // rollback UI
         setState(() {
           _messages = previous;
-          _error = "Suppression échouée : ${e.toString()}";
+          _error = "Suppression ÃƒÂ©chouÃƒÂ©e : ${e.toString()}";
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Échec de suppression, réessayez.")),
+          const SnackBar(
+            content: Text("Ãƒâ€°chec de suppression, rÃƒÂ©essayez."),
+          ),
         );
       }
     }
@@ -567,10 +721,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final textTheme = Theme.of(context).textTheme;
     final filteredMessages = (_searchMode && _searchQuery.isNotEmpty)
         ? _messages
-            .where((m) =>
-                !m.isDeletedForEveryone &&
-                (m.text ?? '').toLowerCase().contains(_searchQuery.toLowerCase()))
-            .toList()
+              .where(
+                (m) =>
+                    !m.isDeletedForEveryone &&
+                    (m.text ?? '').toLowerCase().contains(
+                      _searchQuery.toLowerCase(),
+                    ),
+              )
+              .toList()
         : _messages;
 
     final Map<String, ChatMessage> messageMap = {
@@ -601,7 +759,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 children: [
                   CircleAvatar(
                     radius: 18,
-                    backgroundColor: widget.conversation.user.avatarColor.withValues(alpha: 0.15),
+                    backgroundColor: widget.conversation.user.avatarColor
+                        .withValues(alpha: 0.15),
                     child: Text(
                       widget.conversation.user.initials,
                       style: textTheme.titleMedium?.copyWith(
@@ -613,19 +772,26 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   const SizedBox(width: 10),
                   Text(
                     widget.conversation.user.name,
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
         actions: [
           IconButton(
-            icon: Icon(_searchMode ? Icons.close : Icons.search, color: scheme.onSurface),
+            icon: Icon(
+              _searchMode ? Icons.close : Icons.search,
+              color: scheme.onSurface,
+            ),
             onPressed: _toggleSearch,
           ),
           if (!_blockedByOther) ...[
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, color: scheme.onSurface),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               onSelected: (value) {
                 switch (value) {
                   case 'search':
@@ -654,7 +820,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   child: ListTile(
                     dense: true,
                     leading: Icon(Icons.block, color: scheme.error),
-                    title: Text(_isBlocked ? 'Débloquer' : 'Bloquer'),
+                    title: Text(_isBlocked ? 'DÃƒÂ©bloquer' : 'Bloquer'),
                   ),
                 ),
               ],
@@ -667,12 +833,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         child: Column(
           children: [
             Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: filteredMessages.length,
-              itemBuilder: (context, index) {
-                final msg = filteredMessages[index];
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                itemCount: filteredMessages.length,
+                itemBuilder: (context, index) {
+                  final msg = filteredMessages[index];
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Align(
@@ -680,13 +849,18 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: GestureDetector(
-                        onLongPress: msg.isDeletedForEveryone ? null : () => _onLongPressMessage(msg),
+                        onLongPress: msg.isDeletedForEveryone
+                            ? null
+                            : () => _onLongPressMessage(msg),
                         behavior: HitTestBehavior.opaque,
                         child: MessageBubble(
                           message: msg,
                           repliedTo: msg.replyToMessageId != null
                               ? messageMap[msg.replyToMessageId]
                               : null,
+                          onOpenImage: msg.mediaUrl == null
+                              ? null
+                              : () => _openImageViewer(msg.mediaUrl!),
                         ),
                       ),
                     ),
@@ -698,12 +872,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
-                color: scheme.surfaceVariant,
+                color: scheme.surfaceContainerHighest,
                 child: Text(
                   _blockedByOther
-                      ? "Vous êtes bloqué par ce contact. Vous ne pouvez pas envoyer de messages."
-                      : "Conversation bloquée. Débloquez pour reprendre.",
-                  style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                      ? "Vous ÃƒÂªtes bloquÃƒÂ© par ce contact. Vous ne pouvez pas envoyer de messages."
+                      : "Conversation bloquÃƒÂ©e. DÃƒÂ©bloquez pour reprendre.",
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               )
             else ...[
@@ -727,11 +903,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 SizedBox(
                   height: 250,
                   child: EmojiPicker(
-                    onEmojiSelected: (category, emoji) => _insertEmoji(emoji.emoji),
-                    config: const Config(
-                      columns: 7,
-                      emojiSizeMax: 32,
-                    ),
+                    onEmojiSelected: (category, emoji) =>
+                        _insertEmoji(emoji.emoji),
+                    config: const Config(columns: 7, emojiSizeMax: 32),
                   ),
                 ),
             ],
@@ -743,10 +917,16 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 }
 
 class MessageBubble extends StatelessWidget {
-  const MessageBubble({super.key, required this.message, this.repliedTo});
+  const MessageBubble({
+    super.key,
+    required this.message,
+    this.repliedTo,
+    this.onOpenImage,
+  });
 
   final ChatMessage message;
   final ChatMessage? repliedTo;
+  final VoidCallback? onOpenImage;
 
   @override
   Widget build(BuildContext context) {
@@ -754,10 +934,11 @@ class MessageBubble extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final isMe = message.isMe;
     final isDeleted = message.isDeletedForEveryone;
-    // Fond identique aux bulles normales (demandé) ; texte peut rester plus neutre.
-    final bg = isMe ? scheme.primary : scheme.surfaceVariant;
+    final bg = isMe ? scheme.primary : scheme.surfaceContainerHighest;
     final fg = isDeleted
-        ? (isMe ? scheme.onPrimary.withValues(alpha: 0.85) : scheme.onSurfaceVariant)
+        ? (isMe
+              ? scheme.onPrimary.withValues(alpha: 0.85)
+              : scheme.onSurfaceVariant)
         : (isMe ? scheme.onPrimary : scheme.onSurface);
 
     return ConstrainedBox(
@@ -785,15 +966,15 @@ class MessageBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (isDeleted) ...[
+              if (isDeleted)
                 Text(
                   message.deletedText,
                   style: textTheme.bodyMedium?.copyWith(
                     color: fg.withValues(alpha: 0.85),
                     fontStyle: FontStyle.italic,
                   ),
-                ),
-              ] else ...[
+                )
+              else ...[
                 if (repliedTo != null)
                   Container(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -820,12 +1001,11 @@ class MessageBubble extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          repliedTo!.text ??
-                              (repliedTo!.isImage
-                                  ? t('image_attachment')
-                                  : repliedTo!.isFile
-                                  ? t('file_attachment')
-                                  : ''),
+                          chatMessagePreviewText(
+                            repliedTo!,
+                            imageLabel: t('image_attachment'),
+                            fileLabel: t('file_attachment'),
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodySmall?.copyWith(
@@ -835,21 +1015,16 @@ class MessageBubble extends StatelessWidget {
                       ],
                     ),
                   ),
-                if (message.isImage && message.imagePath != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      width: 240,
-                      child: Image.file(
-                        File(message.imagePath!),
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          height: 160,
-                          color: scheme.surfaceVariant,
-                          child: Icon(Icons.broken_image, color: fg),
-                        ),
-                      ),
-                    ),
+                if (message.isImage) ...[
+                  _ImageBubbleContent(
+                    message: message,
+                    foregroundColor: fg,
+                    placeholderColor: isMe
+                        ? scheme.onPrimary.withValues(alpha: 0.12)
+                        : scheme.surface,
+                    onTap: message.mediaUrl != null && !message.isUploading
+                        ? onOpenImage
+                        : null,
                   ),
                   const SizedBox(height: 6),
                 ] else if (message.isFile && message.fileName != null) ...[
@@ -933,6 +1108,99 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
+class _ImageBubbleContent extends StatelessWidget {
+  const _ImageBubbleContent({
+    required this.message,
+    required this.foregroundColor,
+    required this.placeholderColor,
+    this.onTap,
+  });
+
+  final ChatMessage message;
+  final Color foregroundColor;
+  final Color placeholderColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Stack(
+      alignment: Alignment.center,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(width: 240, height: 180, child: _buildImage()),
+        ),
+        if (message.isUploading)
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.4),
+              shape: BoxShape.circle,
+            ),
+            padding: const EdgeInsets.all(14),
+            child: const CircularProgressIndicator(
+              strokeWidth: 2.4,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+      ],
+    );
+
+    if (onTap == null) {
+      return content;
+    }
+    return GestureDetector(onTap: onTap, child: content);
+  }
+
+  Widget _buildImage() {
+    if (message.localImageBytes != null) {
+      return Image.memory(
+        message.localImageBytes!,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildErrorState(),
+      );
+    }
+    if (message.mediaUrl != null) {
+      return Image.network(
+        message.mediaUrl!,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return _buildLoadingState();
+        },
+        errorBuilder: (context, error, stackTrace) => _buildErrorState(),
+      );
+    }
+    return _buildErrorState();
+  }
+
+  Widget _buildLoadingState() {
+    return DecoratedBox(
+      decoration: BoxDecoration(color: placeholderColor),
+      child: Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2.2,
+          color: foregroundColor,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return DecoratedBox(
+      decoration: BoxDecoration(color: placeholderColor),
+      child: Center(
+        child: Icon(
+          Icons.broken_image_outlined,
+          color: foregroundColor,
+          size: 32,
+        ),
+      ),
+    );
+  }
+}
+
 class _StatusTicks extends StatelessWidget {
   const _StatusTicks({required this.status, required this.color});
   final MessageStatus status;
@@ -969,7 +1237,7 @@ class ReplyPreviewBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      color: scheme.surfaceVariant,
+      color: scheme.surfaceContainerHighest,
       child: Row(
         children: [
           Container(width: 3, height: 42, color: scheme.primary),
@@ -1071,7 +1339,7 @@ class ChatInputBar extends StatelessWidget {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: scheme.surfaceVariant.withValues(alpha: 0.7),
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: scheme.outlineVariant),
                 ),
@@ -1120,10 +1388,3 @@ class ChatInputBar extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
-

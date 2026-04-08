@@ -315,6 +315,7 @@
     "conversations_load_error":  "تعذر تحميل المحادثات",
     "messages_load_error":  "تعذر تحميل الرسائل",
     "message_send_error":  "تعذر إرسال الرسالة",
+    "image_send_error":  "تعذر إرسال الصورة",
     "verification_error":  "تعذر التحقق من هذا الرمز",
     "code_resend_error":  "تعذر إعادة إرسال الرمز",
     "validation_email_or_phone_required":  "يرجى إدخال بريدك الإلكتروني أو رقم هاتفك",
