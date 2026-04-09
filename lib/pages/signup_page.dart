@@ -1,20 +1,19 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
+import '../api_service_settings_extension.dart';
 import '../core/constants/app_messages.dart';
 import '../core/errors/app_error_mapper.dart';
 import '../core/feedback/app_feedback.dart';
 import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
-import '../services/auth_local_storage.dart';
 import '../services/api_service.dart';
 import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
-import '../state/auth_state.dart';
+import '../widgets/conditions_of_use_section.dart';
 import 'email_verification_page.dart';
 import 'login_page.dart';
 import 'phone_verification_page.dart';
 import 'verification_choice_page.dart';
-import 'home_shell.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -35,6 +34,20 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _obscureConfirm = true;
   bool _loading = false;
   bool _accepted = false;
+  late Future<String?> _conditionsFuture;
+  String? _conditionsLanguageCode;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final languageCode = watchLanguage(context).currentLanguageCode;
+    if (_conditionsLanguageCode != languageCode) {
+      _conditionsLanguageCode = languageCode;
+      _conditionsFuture = ApiService.instance.getConditions(
+        languageCode: languageCode,
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -49,6 +62,14 @@ class _SignUpPageState extends State<SignUpPage> {
   bool get _isEmailValid => _emailCtrl.text.trim().contains('@');
   bool get _isPhoneValid =>
       _phoneCtrl.text.replaceAll(RegExp(r'\D'), '').length >= 6;
+
+  void _retryConditions() {
+    setState(() {
+      _conditionsFuture = ApiService.instance.getConditions(
+        languageCode: _conditionsLanguageCode,
+      );
+    });
+  }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
@@ -87,7 +108,6 @@ class _SignUpPageState extends State<SignUpPage> {
       final hasEmail = emailVal.isNotEmpty;
       final hasPhone = phoneVal.isNotEmpty;
 
-      // Toujours diriger vers la vérification disponible
       if (hasEmail && hasPhone) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
@@ -117,10 +137,9 @@ class _SignUpPageState extends State<SignUpPage> {
         );
         return;
       }
-      // fallback si aucun moyen (ne devrait pas arriver)
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
     } catch (e) {
       if (!mounted) return;
       AppFeedback.showErrorSnackBar(
@@ -209,7 +228,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                       ),
                                     ),
                                     Text(
-                                      'Email ou téléphone, à  vous de choisir',
+                                      t('sign_up_subtitle'),
                                       style: textTheme.bodyMedium?.copyWith(
                                         color: scheme.onSurfaceVariant,
                                       ),
@@ -226,8 +245,10 @@ class _SignUpPageState extends State<SignUpPage> {
                                 hintText: t('full_name_hint'),
                                 prefixIcon: const Icon(Icons.person_outline),
                               ),
-                              validator: (v) =>
-                                  (v == null || v.trim().length < 2) ? 'Nom requis (min 2 caractéres)' : null,
+                              validator: (value) =>
+                                  (value == null || value.trim().length < 2)
+                                  ? t('min_2_chars')
+                                  : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -245,7 +266,7 @@ class _SignUpPageState extends State<SignUpPage> {
                               controller: _phoneCtrl,
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
-                                labelText: 'Téléphone',
+                                labelText: 'Telephone',
                                 hintText: '+212 6 12 34 56 78',
                                 prefixIcon: Icon(Icons.phone_outlined),
                               ).copyWith(labelText: t('phone_optional')),
@@ -265,10 +286,15 @@ class _SignUpPageState extends State<SignUpPage> {
                                         ? Icons.visibility_off_outlined
                                         : Icons.visibility_outlined,
                                   ),
-                                  onPressed: () => setState(() => _obscurePass = !_obscurePass),
+                                  onPressed: () => setState(
+                                    () => _obscurePass = !_obscurePass,
+                                  ),
                                 ),
                               ),
-                              validator: (v) => (v == null || v.length < 8) ? 'Au moins 8 caractéres' : null,
+                              validator: (value) =>
+                                  (value == null || value.length < 8)
+                                  ? t('validation_password_min_length')
+                                  : null,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
@@ -297,43 +323,22 @@ class _SignUpPageState extends State<SignUpPage> {
                                     _passwordCtrl.text,
                                   ),
                             ),
-                            const SizedBox(height: 12),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Checkbox(
-                                  value: _accepted,
-                                  onChanged: (v) {
-                                    setState(() => _accepted = v ?? false);
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text.rich(
-                                    TextSpan(
-                                      style: textTheme.bodyMedium?.copyWith(
-                                        color: scheme.onSurface,
-                                      ),
-                                      children: [
-                                        const TextSpan(text: "J'accepte les"),
-                                        TextSpan(
-                                          text: "Conditions d'utilisation",
-                                          style: TextStyle(
-                                            color: scheme.primary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(height: 16),
+                            ConditionsOfUseSection(
+                              conditionsFuture: _conditionsFuture,
+                              accepted: _accepted,
+                              onAcceptedChanged: (value) {
+                                setState(() => _accepted = value);
+                              },
+                              onRetry: _retryConditions,
                             ),
                             const SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: _loading ? null : _submit,
+                                onPressed: _loading || !_accepted
+                                    ? null
+                                    : _submit,
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 200),
                                   child: _loading
@@ -360,7 +365,7 @@ class _SignUpPageState extends State<SignUpPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text('Vous avez déjà  un compte ? '),
+                                const Text('Vous avez deja un compte ? '),
                                 TextButton(
                                   onPressed: () {
                                     if (Navigator.canPop(context)) {
@@ -392,13 +397,3 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
