@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../features/chat/pages/conversations_page.dart';
+import '../../comment_api_extension.dart';
+import '../../core/constants/app_messages.dart';
+import '../../core/errors/app_error_mapper.dart';
+import '../../core/feedback/app_feedback.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
 import '../../services/l10n_helper.dart';
+import '../comments/comment_action_dialogs.dart';
+import '../comments/comment_list_item.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
@@ -56,6 +62,7 @@ class _PublicationCardState extends State<PublicationCard>
   bool _liked = false;
   int _likesCount = 0;
   bool _likeBusy = false;
+  final Set<int> _commentActionIds = <int>{};
 
   @override
   void initState() {
@@ -164,7 +171,9 @@ class _PublicationCardState extends State<PublicationCard>
     setState(() => _likeBusy = true);
 
     try {
-      final result = await ApiService.instance.toggleLike(widget.publication.id);
+      final result = await ApiService.instance.toggleLike(
+        widget.publication.id,
+      );
       if (!mounted) return;
       setState(() {
         _liked = result.liked;
@@ -235,8 +244,8 @@ class _PublicationCardState extends State<PublicationCard>
             final name = like.fullName.isNotEmpty
                 ? like.fullName
                 : ((like.userId != null && like.userId != 0)
-                    ? "Utilisateur #${like.userId}"
-                    : "Utilisateur");
+                      ? "Utilisateur #${like.userId}"
+                      : "Utilisateur");
             return ListTile(
               dense: true,
               leading: CircleAvatar(
@@ -319,6 +328,111 @@ class _PublicationCardState extends State<PublicationCard>
     }
   }
 
+  void _replaceComment(ApiListingComment updatedComment) {
+    final index = _comments.indexWhere((item) => item.id == updatedComment.id);
+    if (index < 0) return;
+    _comments[index] = updatedComment;
+  }
+
+  void _setCommentBusy(int commentId, bool busy) {
+    setState(() {
+      if (busy) {
+        _commentActionIds.add(commentId);
+      } else {
+        _commentActionIds.remove(commentId);
+      }
+    });
+  }
+
+  Future<void> _editComment(ApiListingComment comment) async {
+    final updatedText = await CommentActionDialogs.showEditDialog(
+      context,
+      initialContent: comment.content,
+    );
+    if (!mounted || updatedText == null) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      final updatedComment = await ApiService.instance.updateComment(
+        commentId: comment.id,
+        content: updatedText,
+      );
+      if (!mounted) return;
+      setState(() => _replaceComment(updatedComment));
+      AppFeedback.showSuccessSnackBar(context, t('comment_updated_success'));
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_update_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
+  Future<void> _deleteComment(ApiListingComment comment) async {
+    final confirmed = await CommentActionDialogs.showDeleteConfirmation(
+      context,
+    );
+    if (!mounted || !confirmed) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      final deletedComment = await ApiService.instance.deleteComment(
+        commentId: comment.id,
+      );
+      if (!mounted) return;
+      setState(() => _replaceComment(deletedComment));
+      AppFeedback.showSuccessSnackBar(context, t('comment_deleted_success'));
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_delete_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
+  Future<void> _reportComment(ApiListingComment comment) async {
+    final canComment = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    if (!canComment) {
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_report'));
+      return;
+    }
+
+    final report = await CommentActionDialogs.showReportSheet(context);
+    if (!mounted || report == null) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      await ApiService.instance.reportComment(
+        commentId: comment.id,
+        reason: report.reason,
+        details: report.details,
+      );
+      if (!mounted) return;
+      AppFeedback.showSuccessSnackBar(context, AppMessages.reportSentSuccess());
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_report_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
   Future<void> _openFullDetails() async {
     if (!_commentsLoaded && !_loadingComments) {
       await _loadComments();
@@ -390,16 +504,20 @@ class _PublicationCardState extends State<PublicationCard>
         ? "PERDU"
         : "TROUV\u00C9";
     final radius = BorderRadius.circular(16);
-    final commentCount =
-        _commentsLoaded ? _comments.length : publication.commentsCount;
+    final commentCount = _commentsLoaded
+        ? _comments.length
+        : publication.commentsCount;
     final hasPhone = publication.ownerPhone?.trim().isNotEmpty ?? false;
     // Masquer les contacts si c'est ma propre publication
-    final hasContactOptions = !_isOwner &&
+    final hasContactOptions =
+        !_isOwner &&
         (publication.contactChat ||
             (publication.contactWhatsApp && hasPhone) ||
             (publication.contactCall && hasPhone));
     final longDescription = publication.description.length > 140;
-    final formattedEventDate = formatPublicationEventDate(publication.eventDate);
+    final formattedEventDate = formatPublicationEventDate(
+      publication.eventDate,
+    );
 
     return Card(
       margin: EdgeInsets.zero,
@@ -417,7 +535,8 @@ class _PublicationCardState extends State<PublicationCard>
                 width: double.infinity,
                 child: PageView.builder(
                   controller: _pageController,
-                  onPageChanged: (index) => setState(() => _currentImage = index),
+                  onPageChanged: (index) =>
+                      setState(() => _currentImage = index),
                   itemCount: publication.imageUrls.length,
                   itemBuilder: (context, index) {
                     final image = publication.imageUrls[index];
@@ -447,7 +566,9 @@ class _PublicationCardState extends State<PublicationCard>
                   right: 0,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(publication.imageUrls.length, (index) {
+                    children: List.generate(publication.imageUrls.length, (
+                      index,
+                    ) {
                       final active = index == _currentImage;
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
@@ -627,7 +748,7 @@ class _PublicationCardState extends State<PublicationCard>
                     ],
                   ),
                 ],
-              /*
+                /*
                 if (hasContactOptions) ...[
                   const SizedBox(height: 10),
                   Wrap(
@@ -749,7 +870,9 @@ class _PublicationCardState extends State<PublicationCard>
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             alignment: Alignment.topCenter,
-            child: _showComments ? _buildCommentsSection() : const SizedBox.shrink(),
+            child: _showComments
+                ? _buildCommentsSection()
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -780,10 +903,7 @@ class _PublicationCardState extends State<PublicationCard>
               children: [
                 const Text(
                   "Impossible de charger les commentaires.",
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
+                  style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -806,10 +926,7 @@ class _PublicationCardState extends State<PublicationCard>
               padding: EdgeInsets.symmetric(vertical: 6),
               child: Text(
                 "Aucun commentaire",
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF6B7280),
-                ),
+                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
               ),
             )
           else ...[
@@ -892,66 +1009,20 @@ class _PublicationCardState extends State<PublicationCard>
     final author = comment.fullName.isNotEmpty
         ? comment.fullName
         : ((comment.userId != null && comment.userId != 0)
-            ? "Utilisateur #${comment.userId}"
-            : "Utilisateur");
-    final initial = author.isNotEmpty ? author[0] : '?';
+              ? "${t('guest_user')} #${comment.userId}"
+              : t('guest_user'));
     final timeLabel = _formatRelative(comment.createdAt);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: const Color(0xFFE5E7EB),
-            child: Text(
-              initial,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF111827),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      author,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    Text(
-                      timeLabel,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF9CA3AF),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  comment.content,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF374151),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return CommentListItem(
+      comment: comment,
+      authorLabel: author,
+      timeLabel: timeLabel,
+      currentUserId: _meId,
+      isBusy: _commentActionIds.contains(comment.id),
+      compact: true,
+      onEdit: _editComment,
+      onDelete: _deleteComment,
+      onReport: _reportComment,
     );
   }
 
@@ -994,12 +1065,13 @@ class _PublicationCardState extends State<PublicationCard>
     });
   }
 
-  bool get _isOwner =>
-      _meId != null && widget.publication.ownerId == _meId;
+  bool get _isOwner => _meId != null && widget.publication.ownerId == _meId;
 
   Future<void> _launchWhatsApp(String rawPhone) async {
     if (_isOwner) {
-      _showSnack("Vos coordonnées WhatsApp sont déjà visibles pour les autres utilisateurs.");
+      _showSnack(
+        "Vos coordonnées WhatsApp sont déjà visibles pour les autres utilisateurs.",
+      );
       return;
     }
     final normalized = _normalizedPhone(rawPhone);
@@ -1055,13 +1127,15 @@ class _PublicationCardState extends State<PublicationCard>
       _showSnack("Connectez-vous pour discuter avec le propriétaire.");
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ConversationsPage()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ConversationsPage()));
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildContactChip({
@@ -1080,6 +1154,3 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 }
-
-
-

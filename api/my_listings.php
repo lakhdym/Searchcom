@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/comment_utils.php';
 
 $body = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -62,6 +63,7 @@ $offset = ($page - 1) * $perPage;
 
 try {
     $pdo = get_pdo();
+    ensure_comment_schema($pdo);
 
     // Total
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM listings l WHERE $whereSql");
@@ -77,7 +79,13 @@ try {
         NULL AS category_name,
         (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY p.position ASC, p.id ASC LIMIT 1) AS cover_photo_url,
         (SELECT COUNT(*) FROM listing_likes ll WHERE ll.listing_id = l.id) AS likes_count,
-        (SELECT COUNT(*) FROM listing_comments lc WHERE lc.listing_id = l.id AND lc.status = 'visible') AS comments_count,
+        (
+          SELECT COUNT(*)
+          FROM listing_comments lc
+          WHERE lc.listing_id = l.id
+            AND lc.deleted_at IS NULL
+            AND COALESCE(lc.status, 'visible') = 'visible'
+        ) AS comments_count,
         (SELECT COUNT(*) FROM listing_likes ll2 WHERE ll2.listing_id = l.id AND ll2.user_id = :uid) AS liked_by_me,
         (SELECT status FROM payments pay WHERE pay.listing_id = l.id AND pay.purpose = 'publish' ORDER BY pay.id DESC LIMIT 1) AS payment_status
       FROM listings l

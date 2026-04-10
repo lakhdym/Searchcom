@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/comment_utils.php';
 
 $body = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -29,13 +30,20 @@ if ($listingId <= 0) {
 
 try {
     $pdo = get_pdo();
+    ensure_comment_schema($pdo);
 
     $stmt = $pdo->prepare("
         SELECT l.*,
                c.name_fr AS category_name,
                (SELECT url FROM listing_photos p WHERE p.listing_id = l.id ORDER BY p.position, p.id LIMIT 1) AS cover_photo_url,
                (SELECT COUNT(*) FROM listing_likes ll WHERE ll.listing_id = l.id) AS likes_count,
-               (SELECT COUNT(*) FROM listing_comments lc WHERE lc.listing_id = l.id) AS comments_count,
+               (
+                 SELECT COUNT(*)
+                 FROM listing_comments lc
+                 WHERE lc.listing_id = l.id
+                   AND lc.deleted_at IS NULL
+                   AND COALESCE(lc.status, 'visible') <> 'hidden'
+               ) AS comments_count,
                CASE WHEN :uid > 0 THEN
                  (SELECT 1 FROM listing_likes ll WHERE ll.listing_id = l.id AND ll.user_id = :uid LIMIT 1)
                ELSE 0 END AS liked_by_me

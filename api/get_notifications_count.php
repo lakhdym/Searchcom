@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/comment_utils.php';
 
 $body = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -27,6 +28,7 @@ if ($userId <= 0) {
 
 try {
     $pdo = get_pdo();
+    ensure_comment_schema($pdo);
 
     // table pour mémoriser la dernière consultation
     $pdo->exec("CREATE TABLE IF NOT EXISTS notification_reads (
@@ -54,7 +56,11 @@ try {
             FROM listing_comments c
             JOIN listings l ON l.id = c.listing_id
             JOIN users u ON u.id = c.user_id
-            WHERE l.user_id = :uid AND u.id <> :uid AND c.created_at > :lastSeen
+            WHERE l.user_id = :uid
+              AND u.id <> :uid
+              AND c.created_at > :lastSeen
+              AND c.deleted_at IS NULL
+              AND COALESCE(c.status, 'visible') <> 'hidden'
         ) ev
     ";
 

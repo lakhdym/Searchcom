@@ -49,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/comment_utils.php';
 
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['Authorization'] ?? '');
 $payload = null;
@@ -56,6 +57,7 @@ $payload = null;
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = get_pdo();
+ensure_comment_schema($pdo);
 
 /**
  * Transforme une ligne de la table `listings` en structure JSON simplifiée
@@ -262,6 +264,8 @@ function fetch_comments_counts(PDO $pdo, array $listingIds): array
         SELECT listing_id, COUNT(*) AS cnt
         FROM listing_comments
         WHERE listing_id IN ($placeholders)
+          AND deleted_at IS NULL
+          AND COALESCE(status, 'visible') <> 'hidden'
         GROUP BY listing_id
     ";
 

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../../comment_api_extension.dart';
 import '../../core/constants/app_messages.dart';
 import '../../core/errors/app_error_mapper.dart';
 import '../../core/feedback/app_feedback.dart';
-
 import '../../services/api_service.dart' show ApiListingComment, ApiService;
+import '../../services/auth_local_storage.dart';
 import '../../services/l10n_helper.dart';
+import '../../state/auth_state.dart';
+import '../comments/comment_action_dialogs.dart';
+import '../comments/comment_list_item.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_date_formatter.dart';
@@ -48,6 +52,8 @@ class _PublicationFullDetailsSheetState
   bool _commentsLoaded = false;
   String? _commentsError;
   bool _submittingComment = false;
+  int? _currentUserId;
+  final Set<int> _commentActionIds = <int>{};
 
   @override
   void initState() {
@@ -56,7 +62,9 @@ class _PublicationFullDetailsSheetState
     _comments = List<ApiListingComment>.from(widget.initialComments);
     _canComment = ApiService.instance.isAuthenticated;
     _commentsLoaded = _comments.isNotEmpty;
+    _currentUserId = currentUser.value?.id;
     _syncCommentAccess();
+    _loadCurrentUser();
     if (!_commentsLoaded) {
       _loadComments();
     }
@@ -155,6 +163,118 @@ class _PublicationFullDetailsSheetState
     final canComment = await ApiService.instance.syncStoredAuthSession();
     if (!mounted) return;
     setState(() => _canComment = canComment);
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final me = currentUser.value ?? await AuthLocalStorage.instance.getUser();
+    if (!mounted) return;
+    setState(() => _currentUserId = me?.id);
+  }
+
+  void _replaceComment(ApiListingComment updatedComment) {
+    final index = _comments.indexWhere((item) => item.id == updatedComment.id);
+    if (index < 0) return;
+    _comments[index] = updatedComment;
+    widget.onCommentsChanged?.call(List<ApiListingComment>.from(_comments));
+  }
+
+  void _setCommentBusy(int commentId, bool busy) {
+    setState(() {
+      if (busy) {
+        _commentActionIds.add(commentId);
+      } else {
+        _commentActionIds.remove(commentId);
+      }
+    });
+  }
+
+  Future<void> _editComment(ApiListingComment comment) async {
+    final updatedText = await CommentActionDialogs.showEditDialog(
+      context,
+      initialContent: comment.content,
+    );
+    if (!mounted || updatedText == null) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      final updatedComment = await ApiService.instance.updateComment(
+        commentId: comment.id,
+        content: updatedText,
+      );
+      if (!mounted) return;
+      setState(() => _replaceComment(updatedComment));
+      AppFeedback.showSuccessSnackBar(context, t('comment_updated_success'));
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_update_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
+  Future<void> _deleteComment(ApiListingComment comment) async {
+    final confirmed = await CommentActionDialogs.showDeleteConfirmation(
+      context,
+    );
+    if (!mounted || !confirmed) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      final deletedComment = await ApiService.instance.deleteComment(
+        commentId: comment.id,
+      );
+      if (!mounted) return;
+      setState(() => _replaceComment(deletedComment));
+      AppFeedback.showSuccessSnackBar(context, t('comment_deleted_success'));
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_delete_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
+  Future<void> _reportComment(ApiListingComment comment) async {
+    final canComment = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    if (!canComment) {
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_report'));
+      return;
+    }
+
+    final report = await CommentActionDialogs.showReportSheet(context);
+    if (!mounted || report == null) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      await ApiService.instance.reportComment(
+        commentId: comment.id,
+        reason: report.reason,
+        details: report.details,
+      );
+      if (!mounted) return;
+      AppFeedback.showSuccessSnackBar(context, AppMessages.reportSentSuccess());
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_report_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
   }
 
   Future<void> _openImageViewer(int initialIndex) async {
@@ -353,7 +473,9 @@ class _PublicationFullDetailsSheetState
     watchLanguage(context);
     final publication = widget.publication;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    final formattedEventDate = formatPublicationEventDate(publication.eventDate);
+    final formattedEventDate = formatPublicationEventDate(
+      publication.eventDate,
+    );
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
@@ -556,49 +678,15 @@ class _PublicationFullDetailsSheetState
                                     : t('guest_user'));
                           final timeLabel = _formatRelative(comment.createdAt);
 
-                          return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                              radius: 18,
-                              backgroundColor: const Color(0xFFE5E7EB),
-                              child: Text(
-                                author.isNotEmpty ? author[0] : '?',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF111827),
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              author,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF111827),
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 2),
-                                Text(
-                                  timeLabel,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFF9CA3AF),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  comment.content,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF111827),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          return CommentListItem(
+                            comment: comment,
+                            authorLabel: author,
+                            timeLabel: timeLabel,
+                            currentUserId: _currentUserId,
+                            isBusy: _commentActionIds.contains(comment.id),
+                            onEdit: _editComment,
+                            onDelete: _deleteComment,
+                            onReport: _reportComment,
                           );
                         },
                       ),

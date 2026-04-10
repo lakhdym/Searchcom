@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_messages.dart';
 import '../core/errors/app_error_mapper.dart';
 import '../core/feedback/app_feedback.dart';
+import '../comment_api_extension.dart';
 
 import '../models/listing_model.dart';
 import '../services/my_listings_api_service.dart';
 import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
+import '../services/l10n_helper.dart';
+import '../state/auth_state.dart';
+import '../widgets/comments/comment_action_dialogs.dart';
+import '../widgets/comments/comment_list_item.dart';
 import 'found_form_page.dart';
 import 'home_page.dart';
 
@@ -25,7 +30,7 @@ String _resolveImageUrl(String? raw) {
   String cleaned = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
   final uploadsIndex = cleaned.indexOf('uploads/');
   if (uploadsIndex >= 0) {
-    cleaned = cleaned.substring(uploadsIndex); // garde dÃ¨s "uploads/..."
+    cleaned = cleaned.substring(uploadsIndex); // garde dÃƒÆ’Ã‚Â¨s "uploads/..."
   }
   if (cleaned.startsWith('uploads/')) {
     return '$_uploadsBase$cleaned';
@@ -149,7 +154,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         ),
       ),
     );
-    // RafraÃ®chir la liste aprÃ¨s retour
+    // RafraÃƒÆ’Ã‚Â®chir la liste aprÃƒÆ’Ã‚Â¨s retour
     if (mounted) {
       _load();
     }
@@ -248,7 +253,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Mettez votre annonce en avant pour augmenter sa visibilitÃ©.',
+                'Mettez votre annonce en avant pour augmenter sa visibilitÃƒÆ’Ã‚Â©.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
@@ -310,11 +315,11 @@ class _ListingCard extends StatelessWidget {
       case 'pending_payment':
         return 'En attente';
       case 'published':
-        return 'PubliÃ©e';
+        return 'PubliÃƒÆ’Ã‚Â©e';
       case 'hidden':
-        return 'CachÃ©e';
+        return 'CachÃƒÆ’Ã‚Â©e';
       case 'archived':
-        return 'ArchivÃ©e';
+        return 'ArchivÃƒÆ’Ã‚Â©e';
       default:
         return item.status;
     }
@@ -353,14 +358,14 @@ class _ListingCard extends StatelessWidget {
                       _Badge(
                         label: item.type == 'lost'
                             ? "J'ai perdu"
-                            : "J'ai trouvÃ©",
+                            : "J'ai trouvÃƒÆ’Ã‚Â©",
                         color: _typeColor(scheme),
                       ),
                       const SizedBox(width: 6),
                       _Badge(label: _statusLabel(), color: scheme.primary),
                       if (item.isBoosted) ...[
                         const SizedBox(width: 6),
-                        _Badge(label: 'BoostÃ©e', color: scheme.tertiary),
+                        _Badge(label: 'BoostÃƒÆ’Ã‚Â©e', color: scheme.tertiary),
                       ],
                     ],
                   ),
@@ -505,6 +510,8 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
   bool _likeBusy = false;
   late final PageController _pageCtrl;
   int _currentImage = 0;
+  int? _currentUserId;
+  final Set<int> _commentActionIds = <int>{};
 
   List<String> get _images {
     if (widget.item.photoObjects.isNotEmpty) {
@@ -523,8 +530,15 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
     super.initState();
     _pageCtrl = PageController();
     _loadComments();
+    _loadCurrentUser();
     _likesCount = widget.item.likesCount;
     _liked = widget.item.likedByMe;
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final me = currentUser.value ?? await AuthLocalStorage.instance.getUser();
+    if (!mounted) return;
+    setState(() => _currentUserId = me?.id);
   }
 
   Future<void> _loadComments() async {
@@ -585,6 +599,115 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
     }
   }
 
+  void _replaceComment(ApiListingComment updatedComment) {
+    final index = _comments.indexWhere((item) => item.id == updatedComment.id);
+    if (index < 0) return;
+    _comments[index] = updatedComment;
+  }
+
+  void _setCommentBusy(int commentId, bool busy) {
+    setState(() {
+      if (busy) {
+        _commentActionIds.add(commentId);
+      } else {
+        _commentActionIds.remove(commentId);
+      }
+    });
+  }
+
+  Future<void> _editComment(ApiListingComment comment) async {
+    final updatedText = await CommentActionDialogs.showEditDialog(
+      context,
+      initialContent: comment.content,
+    );
+    if (!mounted || updatedText == null) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      final updatedComment = await ApiService.instance.updateComment(
+        commentId: comment.id,
+        content: updatedText,
+      );
+      if (!mounted) return;
+      setState(() {
+        _replaceComment(updatedComment);
+      });
+      AppFeedback.showSuccessSnackBar(context, t('comment_updated_success'));
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_update_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
+  Future<void> _deleteComment(ApiListingComment comment) async {
+    final confirmed = await CommentActionDialogs.showDeleteConfirmation(
+      context,
+    );
+    if (!mounted || !confirmed) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      final deletedComment = await ApiService.instance.deleteComment(
+        commentId: comment.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _replaceComment(deletedComment);
+      });
+      AppFeedback.showSuccessSnackBar(context, t('comment_deleted_success'));
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_delete_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
+  Future<void> _reportComment(ApiListingComment comment) async {
+    final canReport = await ApiService.instance.syncStoredAuthSession();
+    if (!mounted) return;
+    if (!canReport) {
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_report'));
+      return;
+    }
+
+    final report = await CommentActionDialogs.showReportSheet(context);
+    if (!mounted || report == null) return;
+
+    _setCommentBusy(comment.id, true);
+    try {
+      await ApiService.instance.reportComment(
+        commentId: comment.id,
+        reason: report.reason,
+        details: report.details,
+      );
+      if (!mounted) return;
+      AppFeedback.showSuccessSnackBar(context, AppMessages.reportSentSuccess());
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showErrorSnackBar(
+        context,
+        AppErrorMapper.message(e, fallbackMessage: t('comment_report_error')),
+      );
+    } finally {
+      if (mounted) {
+        _setCommentBusy(comment.id, false);
+      }
+    }
+  }
+
   Future<void> _toggleLike() async {
     if (_likeBusy) return;
     setState(() => _likeBusy = true);
@@ -613,6 +736,24 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
     }
   }
 
+  String _formatRelative(DateTime? date) {
+    if (date == null) return '';
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return t('just_now');
+    if (diff.inMinutes < 60) {
+      return t('minutes_ago').replaceFirst('{count}', '${diff.inMinutes}');
+    }
+    if (diff.inHours < 24) {
+      return t('hours_ago').replaceFirst('{count}', '${diff.inHours}');
+    }
+    if (diff.inDays < 7) {
+      return t('days_ago').replaceFirst('{count}', '${diff.inDays}');
+    }
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-${month}-${day}';
+  }
+
   @override
   void dispose() {
     _commentCtrl.dispose();
@@ -622,6 +763,7 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return DraggableScrollableSheet(
@@ -722,7 +864,7 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                   _Badge(
                     label: widget.item.type == 'lost'
                         ? "J'ai perdu"
-                        : "J'ai trouvÃ©",
+                        : "J'ai trouve",
                     color: widget.item.type == 'lost'
                         ? Colors.red
                         : Colors.green,
@@ -766,7 +908,7 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                       color: _liked ? scheme.primary : scheme.onSurfaceVariant,
                     ),
                   ),
-                  Text('$_likesCount'),
+                  Text('${_likesCount}'),
                   const SizedBox(width: 16),
                   const Icon(Icons.comment_outlined, size: 20),
                   const SizedBox(width: 6),
@@ -774,7 +916,7 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                 ],
               ),
               const SizedBox(height: 12),
-              Text('Commentaires', style: textTheme.titleMedium),
+              Text(t('comments'), style: textTheme.titleMedium),
               const SizedBox(height: 8),
               if (_loadingComments)
                 const Center(
@@ -787,38 +929,34 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                 Text(_commentsError!, style: TextStyle(color: scheme.error))
               else if (_comments.isEmpty)
                 Text(
-                  'Aucun commentaire pour le moment',
+                  t('no_comments'),
                   style: textTheme.bodyMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 )
               else
-                ..._comments.map(
-                  (c) => ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      backgroundColor: scheme.primary.withOpacity(0.1),
-                      child: Text(
-                        c.fullName.isNotEmpty
-                            ? c.fullName[0].toUpperCase()
-                            : '?',
-                      ),
-                    ),
-                    title: Text(
-                      c.fullName,
-                      style: textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(c.content),
-                  ),
-                ),
+                ..._comments.map((comment) {
+                  final author = comment.fullName.isNotEmpty
+                      ? comment.fullName
+                      : ((comment.userId != null && comment.userId != 0)
+                            ? '${t('guest_user')} #${comment.userId}'
+                            : t('guest_user'));
+                  return CommentListItem(
+                    comment: comment,
+                    authorLabel: author,
+                    timeLabel: _formatRelative(comment.createdAt),
+                    currentUserId: _currentUserId,
+                    isBusy: _commentActionIds.contains(comment.id),
+                    onEdit: _editComment,
+                    onDelete: _deleteComment,
+                    onReport: _reportComment,
+                  );
+                }),
               const SizedBox(height: 12),
               TextField(
                 controller: _commentCtrl,
                 decoration: InputDecoration(
-                  labelText: 'Ajouter un commentaire',
+                  labelText: t('add_comment'),
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.send),
                     onPressed: _addComment,
@@ -839,11 +977,11 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
       case 'pending_payment':
         return 'En attente';
       case 'published':
-        return 'PubliÃ©e';
+        return 'Publiee';
       case 'hidden':
-        return 'CachÃ©e';
+        return 'Cachee';
       case 'archived':
-        return 'ArchivÃ©e';
+        return 'Archivee';
       default:
         return status;
     }
@@ -975,12 +1113,12 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.inbox_outlined, size: 48, color: scheme.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
-            'Vous nâ€™avez encore aucune publication',
+            'Vous nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢avez encore aucune publication',
             style: textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
-            'CrÃ©ez votre premiÃ¨re annonce pour la voir ici.',
+            'CrÃƒÆ’Ã‚Â©ez votre premiÃƒÆ’Ã‚Â¨re annonce pour la voir ici.',
             style: textTheme.bodyMedium?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -989,7 +1127,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 16),
           FilledButton(
             onPressed: onCreate,
-            child: const Text('CrÃ©er une publication'),
+            child: const Text('CrÃƒÆ’Ã‚Â©er une publication'),
           ),
         ],
       ),
