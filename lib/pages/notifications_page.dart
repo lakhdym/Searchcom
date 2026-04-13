@@ -3,12 +3,17 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/auth_local_storage.dart';
 import '../models/user_model.dart';
-import '../models/listing_model.dart';
 import '../widgets/home/home_models.dart';
 import '../widgets/home/publication_full_details_sheet.dart';
+import 'main_app_shell.dart';
 
 class NotificationsPage extends StatefulWidget {
-  const NotificationsPage({super.key});
+  const NotificationsPage({
+    super.key,
+    this.currentIndex = mainAppShellHomeIndex,
+  });
+
+  final int currentIndex;
 
   @override
   State<NotificationsPage> createState() => _NotificationsPageState();
@@ -180,7 +185,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: widget.currentIndex,
       appBar: AppBar(
         title: const Text('Notifications'),
         backgroundColor: scheme.surface,

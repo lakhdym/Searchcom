@@ -11,6 +11,7 @@ import '../../../core/errors/app_error_mapper.dart';
 import '../../../core/feedback/app_feedback.dart';
 import '../../../models/user_model.dart';
 import '../../../pages/app_error_page.dart';
+import '../../../pages/main_app_shell.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
 import '../../../services/l10n_helper.dart';
@@ -704,7 +705,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     if (_loading) {
-      return Scaffold(
+      return AuthenticatedScaffold(
+        currentIndex: mainAppShellChatIndex,
         backgroundColor: scheme.surface,
         appBar: AppBar(title: Text(t('conversation'))),
         body: const Center(child: CircularProgressIndicator()),
@@ -735,7 +737,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       for (final m in _messages) m.id: m,
     };
 
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellChatIndex,
       backgroundColor: scheme.surface,
       appBar: AppBar(
         backgroundColor: scheme.surface,

@@ -6,6 +6,7 @@ import '../core/feedback/app_feedback.dart';
 import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
 import '../services/l10n_helper.dart';
+import 'main_app_shell.dart';
 import '../state/auth_state.dart';
 
 class ChangePasswordPage extends StatefulWidget {
@@ -72,7 +73,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellSettingsIndex,
       appBar: AppBar(title: Text(t('change_password'))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

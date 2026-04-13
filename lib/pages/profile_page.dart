@@ -12,6 +12,7 @@ import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
 import '../state/auth_state.dart';
 import 'login_page.dart';
+import 'main_app_shell.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -54,84 +55,89 @@ class _ProfilePageState extends State<ProfilePage> {
     watchLanguage(context);
     final textTheme = Theme.of(context).textTheme;
 
-    return ValueListenableBuilder<UserModel?>(
-      valueListenable: currentUser,
-      builder: (context, user, _) {
-        if (_loadingUser) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (user == null) {
-          return _EmptyProfile(
-            onReconnect: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-              );
-            },
-          );
-        }
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellProfileIndex,
+      isTabRoot: true,
+      showDefaultTopNavBar: true,
+      body: ValueListenableBuilder<UserModel?>(
+        valueListenable: currentUser,
+        builder: (context, user, _) {
+          if (_loadingUser) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (user == null) {
+            return _EmptyProfile(
+              onReconnect: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                );
+              },
+            );
+          }
 
-        final preferredLang = _langLabel(user.preferredLang);
-        final roleLabel = user.role == 'admin' ? 'Admin' : t('personal_info');
+          final preferredLang = _langLabel(user.preferredLang);
+          final roleLabel = user.role == 'admin' ? 'Admin' : t('personal_info');
 
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ProfileHeaderCard(
-                  user: user,
-                  roleLabel: roleLabel,
-                  profileUrl: _publicProfileUrl ?? _buildProfileUrl(user),
-                ),
-                const SizedBox(height: 16),
-                Text(t('personal_info'), style: textTheme.titleMedium),
-                const SizedBox(height: 8),
-                _InfoSection(
-                  items: [
-                    _InfoItem(
-                      Icons.badge_outlined,
-                      t('full_name'),
-                      user.fullName,
-                    ),
-                    _InfoItem(Icons.mail_outline, t('email'), user.email),
-                    _InfoItem(
-                      Icons.phone_outlined,
-                      t('phone'),
-                      user.phone?.isNotEmpty == true
-                          ? user.phone!
-                          : t('user_not_provided'),
-                    ),
-                    _InfoItem(
-                      Icons.language_outlined,
-                      t('preferred_language'),
-                      preferredLang,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(t('summary'), style: textTheme.titleMedium),
-                const SizedBox(height: 8),
-                _StatsRow(
-                  items: [
-                    _StatItem(
-                      label: t('active_publications_label'),
-                      value: '0',
-                      icon: Icons.campaign_outlined,
-                    ),
-                    _StatItem(
-                      label: t('resolved_publications_label'),
-                      value: '0',
-                      icon: Icons.verified_outlined,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-              ],
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ProfileHeaderCard(
+                    user: user,
+                    roleLabel: roleLabel,
+                    profileUrl: _publicProfileUrl ?? _buildProfileUrl(user),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(t('personal_info'), style: textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  _InfoSection(
+                    items: [
+                      _InfoItem(
+                        Icons.badge_outlined,
+                        t('full_name'),
+                        user.fullName,
+                      ),
+                      _InfoItem(Icons.mail_outline, t('email'), user.email),
+                      _InfoItem(
+                        Icons.phone_outlined,
+                        t('phone'),
+                        user.phone?.isNotEmpty == true
+                            ? user.phone!
+                            : t('user_not_provided'),
+                      ),
+                      _InfoItem(
+                        Icons.language_outlined,
+                        t('preferred_language'),
+                        preferredLang,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(t('summary'), style: textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  _StatsRow(
+                    items: [
+                      _StatItem(
+                        label: t('active_publications_label'),
+                        value: '0',
+                        icon: Icons.campaign_outlined,
+                      ),
+                      _StatItem(
+                        label: t('resolved_publications_label'),
+                        value: '0',
+                        icon: Icons.verified_outlined,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

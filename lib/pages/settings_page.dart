@@ -9,7 +9,8 @@ import '../services/language_service.dart';
 import '../services/theme_service.dart';
 import 'change_password_page.dart';
 import 'edit_profile_page.dart';
-import 'home_shell.dart';
+import 'home_page.dart';
+import 'main_app_shell.dart';
 import 'my_listings_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -70,7 +71,9 @@ class SettingsPage extends StatelessWidget {
     final themeService = watchTheme(context);
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellSettingsIndex,
+      isTabRoot: true,
       appBar: AppBar(title: Text(tr(context, 'settings')), centerTitle: false),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -219,7 +222,7 @@ class SettingsPage extends StatelessWidget {
 
     AppFeedback.showSuccessSnackBar(context, AppMessages.logoutSuccess());
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeShell()),
+      MaterialPageRoute(builder: (_) => const HomePage()),
       (route) => false,
     );
   }

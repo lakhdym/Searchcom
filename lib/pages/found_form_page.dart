@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../widgets/payment_modal.dart';
 import '../widgets/top_nav_bar.dart';
 import 'login_page.dart';
+import 'main_app_shell.dart';
 
 class FoundFormPage extends StatefulWidget {
   const FoundFormPage({
@@ -208,6 +209,7 @@ class _FoundFormPageState extends State<FoundFormPage> {
         if (!mounted) return;
 
         if (result.requiresPayment) {
+          var paymentConfirmed = false;
           final priceLabel = '${result.amount ?? ''} ${result.currency ?? ''}'
               .trim();
           await PaymentModal.show(
@@ -222,15 +224,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
               return true;
             },
             onPaymentSuccess: () {
-              if (!mounted) return;
-              AppFeedback.showSuccessSnackBar(
-                context,
-                AppMessages.paymentConfirmedListingPublished(),
-              );
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              paymentConfirmed = true;
             },
           );
           if (!mounted) return;
+          if (!paymentConfirmed) return;
         }
       }
 
@@ -246,7 +244,11 @@ class _FoundFormPageState extends State<FoundFormPage> {
             ? AppMessages.listingUpdatedSuccess()
             : AppMessages.listingPublishedSuccess(),
       );
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (isEdit) {
+        Navigator.of(context).pop(true);
+        return;
+      }
+      openAuthenticatedSection(context, index: mainAppShellHomeIndex);
     } catch (e) {
       if (!mounted) return;
       AppFeedback.showErrorSnackBar(
@@ -269,7 +271,8 @@ class _FoundFormPageState extends State<FoundFormPage> {
     final isMobile = MediaQuery.of(context).size.width < 640;
     final accent = widget.type == 'lost' ? Colors.redAccent : Colors.green;
 
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellCreateIndex,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: TopNavBar(
         showBack: true,

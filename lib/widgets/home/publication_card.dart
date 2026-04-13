@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../features/chat/pages/conversations_page.dart';
 import '../../comment_api_extension.dart';
 import '../../core/constants/app_messages.dart';
 import '../../core/errors/app_error_mapper.dart';
 import '../../core/feedback/app_feedback.dart';
+import '../../pages/main_app_shell.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
 import '../../services/l10n_helper.dart';
@@ -1127,9 +1127,7 @@ class _PublicationCardState extends State<PublicationCard>
       _showSnack("Connectez-vous pour discuter avec le propriétaire.");
       return;
     }
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ConversationsPage()));
+    openAuthenticatedSection(context, index: mainAppShellChatIndex);
   }
 
   void _showSnack(String message) {

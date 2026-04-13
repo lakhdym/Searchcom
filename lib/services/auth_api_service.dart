@@ -7,7 +7,6 @@ import '../models/user_model.dart';
 import 'api_service.dart';
 import 'auth_local_storage.dart';
 import '../state/auth_state.dart';
-import '../models/listing_model.dart';
 
 class ApiException implements Exception {
   final String message;

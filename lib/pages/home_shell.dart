@@ -13,8 +13,6 @@ import 'home_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
 import 'notifications_page.dart';
-import '../services/auth_local_storage.dart';
-import '../services/api_service.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key, this.initialIndex = 2});

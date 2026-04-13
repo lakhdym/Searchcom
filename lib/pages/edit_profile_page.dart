@@ -7,6 +7,7 @@ import '../core/forms/app_validators.dart';
 import '../services/auth_api_service.dart';
 import '../services/auth_local_storage.dart';
 import '../services/l10n_helper.dart';
+import 'main_app_shell.dart';
 import '../state/auth_state.dart';
 
 class EditProfilePage extends StatefulWidget {
@@ -97,7 +98,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellSettingsIndex,
       appBar: AppBar(
         title: Text(t('edit_profile')),
         backgroundColor: scheme.surface,

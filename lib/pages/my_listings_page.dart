@@ -14,7 +14,7 @@ import '../state/auth_state.dart';
 import '../widgets/comments/comment_action_dialogs.dart';
 import '../widgets/comments/comment_list_item.dart';
 import 'found_form_page.dart';
-import 'home_page.dart';
+import 'main_app_shell.dart';
 
 const _fallbackListingImage =
     'https://via.placeholder.com/600x400?text=Annonce';
@@ -144,7 +144,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
   }
 
   Future<void> _openEdit(ListingModel item) async {
-    await Navigator.of(context).push(
+    final updated = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => FoundFormPage(
           type: item.type,
@@ -155,7 +155,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
       ),
     );
     // RafraÃƒÆ’Ã‚Â®chir la liste aprÃƒÆ’Ã‚Â¨s retour
-    if (mounted) {
+    if (mounted && updated == true) {
       _load();
     }
   }
@@ -163,7 +163,8 @@ class _MyListingsPageState extends State<MyListingsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellSettingsIndex,
       backgroundColor: scheme.surface,
       appBar: AppBar(
         title: const Text('Mes publications'),
@@ -171,9 +172,10 @@ class _MyListingsPageState extends State<MyListingsPage> {
           Padding(
             padding: const EdgeInsets.only(right: 10),
             child: FilledButton.icon(
-              onPressed: () => Navigator.of(
+              onPressed: () => openAuthenticatedSection(
                 context,
-              ).push(MaterialPageRoute(builder: (_) => const HomePage())),
+                index: mainAppShellCreateIndex,
+              ),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Nouvelle'),
               style: FilledButton.styleFrom(
@@ -209,9 +211,10 @@ class _MyListingsPageState extends State<MyListingsPage> {
               )
             else if (_items.isEmpty)
               _EmptyState(
-                onCreate: () => Navigator.of(
+                onCreate: () => openAuthenticatedSection(
                   context,
-                ).push(MaterialPageRoute(builder: (_) => const HomePage())),
+                  index: mainAppShellCreateIndex,
+                ),
               )
             else
               ..._items.map(

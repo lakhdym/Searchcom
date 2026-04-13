@@ -11,14 +11,19 @@ import '../widgets/home/home_action_card.dart';
 import '../widgets/home/home_search_bar.dart';
 import '../widgets/home/recent_publications_section.dart';
 import '../widgets/top_nav_bar.dart';
-import 'notifications_page.dart';
 import 'found_form_page.dart';
 import 'login_page.dart';
+import 'main_app_shell.dart';
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key, this.showAppBar = true});
+  const HomePage({
+    super.key,
+    this.showAppBar = true,
+    this.authenticated = false,
+  });
 
   final bool showAppBar;
+  final bool authenticated;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -161,43 +166,47 @@ class _HomePageState extends State<HomePage> {
             children: [lostCard, const SizedBox(height: 20), foundCard],
           );
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F7FB),
-      appBar: widget.showAppBar
-          ? TopNavBar(
-              onNotifications: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const NotificationsPage()),
-                );
-              },
-            )
-          : null,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              cardsSection,
-              const SizedBox(height: 20),
-              RecentPublicationsSection(
-                scrollController: _scrollController,
-                refreshListenable: _feedRefreshSignal,
-                headerBuilder: (onSearchChanged) => Column(
-                  children: [
-                    SearchBarWithFilter(
-                      onChanged: onSearchChanged,
-                      onFilterTap: () {},
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+    final content = SafeArea(
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            cardsSection,
+            const SizedBox(height: 20),
+            RecentPublicationsSection(
+              scrollController: _scrollController,
+              refreshListenable: _feedRefreshSignal,
+              headerBuilder: (onSearchChanged) => Column(
+                children: [
+                  SearchBarWithFilter(
+                    onChanged: onSearchChanged,
+                    onFilterTap: () {},
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
+    );
+
+    if (widget.authenticated) {
+      return AuthenticatedScaffold(
+        currentIndex: mainAppShellHomeIndex,
+        isTabRoot: true,
+        showDefaultTopNavBar: widget.showAppBar,
+        backgroundColor: const Color(0xFFF7F7FB),
+        body: content,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7FB),
+      appBar: widget.showAppBar ? const TopNavBar() : null,
+      body: content,
     );
   }
 }

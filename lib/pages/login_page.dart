@@ -10,9 +10,7 @@ import '../services/auth_local_storage.dart';
 import '../services/l10n_helper.dart';
 import '../services/language_service.dart';
 import '../state/auth_state.dart';
-import 'email_verification_page.dart';
-import 'home_shell.dart';
-import 'phone_verification_page.dart';
+import 'main_app_shell.dart';
 import 'signup_page.dart';
 import 'forgot_password_page.dart';
 import 'verification_choice_page.dart';
@@ -61,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
       );
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
+        MaterialPageRoute(builder: (_) => const MainAppShell()),
         (route) => false,
       );
       return;
@@ -98,7 +96,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       AppFeedback.showSuccessSnackBar(context, AppMessages.loginSuccess());
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShell()),
+        MaterialPageRoute(builder: (_) => const MainAppShell()),
         (route) => false,
       );
     } on EmailVerificationRequiredException catch (e) {
@@ -134,9 +132,6 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  void _openForgotPassword() {
   }
 
   @override

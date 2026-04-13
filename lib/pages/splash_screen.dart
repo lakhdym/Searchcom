@@ -5,8 +5,8 @@ import '../services/auth_local_storage.dart';
 import '../services/language_service.dart';
 import '../state/auth_state.dart';
 import 'home_page.dart';
-import 'home_shell.dart';
 import 'language_selection_page.dart';
+import 'main_app_shell.dart';
 
 /// Splash screen : redirige vers Home si langue stockee, sinon vers le choix de langue.
 class SplashScreen extends StatefulWidget {
@@ -41,7 +41,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (!mounted) return;
       Navigator.of(
         context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const HomeShell()));
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const MainAppShell()));
       return;
     }
 

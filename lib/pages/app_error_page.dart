@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/constants/app_messages.dart';
 import '../services/l10n_helper.dart';
-import 'home_shell.dart';
+import 'main_app_shell.dart';
 
 enum AppErrorKind {
   notFound,
@@ -220,7 +220,7 @@ class AppErrorPage extends StatelessWidget {
 
   void _goHome(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeShell()),
+      MaterialPageRoute(builder: (_) => const MainAppShell()),
       (route) => false,
     );
   }

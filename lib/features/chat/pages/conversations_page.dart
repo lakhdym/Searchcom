@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/user_model.dart';
+import '../../../pages/main_app_shell.dart';
 import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
 import '../../../services/l10n_helper.dart';
@@ -54,7 +55,9 @@ class _ConversationsPageState extends State<ConversationsPage> {
           (conversation.listingTitle?.toLowerCase().contains(_query) ?? false);
     }).toList();
 
-    return Scaffold(
+    return AuthenticatedScaffold(
+      currentIndex: mainAppShellChatIndex,
+      isTabRoot: true,
       backgroundColor: scheme.surface,
       appBar: AppBar(
         backgroundColor: scheme.surface,
