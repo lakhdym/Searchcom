@@ -180,10 +180,44 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return '${dt.day}/${dt.month}/${dt.year}';
   }
 
+  Widget _buildEmptyState(ThemeData theme) {
+    final scheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(24, 96, 24, 24),
+      children: [
+        Icon(
+          Icons.notifications_none_rounded,
+          size: 56,
+          color: scheme.onSurfaceVariant,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Aucune notification pour le moment',
+          textAlign: TextAlign.center,
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Les likes et commentaires sur vos annonces apparaitront ici.',
+          textAlign: TextAlign.center,
+          style: textTheme.bodyMedium?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
 
     return AuthenticatedScaffold(
       currentIndex: widget.currentIndex,
@@ -206,7 +240,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       ),
                     ],
                   )
+                : _items.isEmpty && _unseenCount == 0 && !_hasMore
+                    ? _buildEmptyState(theme)
                 : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     itemCount: _items.length + (_unseenCount > 0 ? 1 : 0) + (_hasMore ? 1 : 0),
                     separatorBuilder: (_, __) => const SizedBox(height: 8),

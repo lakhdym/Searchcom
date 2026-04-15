@@ -261,13 +261,9 @@ class _AuthenticatedScaffoldState extends State<AuthenticatedScaffold> {
 
       int notifTotal = 0;
       try {
-        final notifResult = await ApiService.instance.fetchNotificationsPaged(
+        notifTotal = await ApiService.instance.fetchNotificationsCount(
           userId: user.id,
-          page: 1,
-          perPage: 1,
-          markRead: false,
         );
-        notifTotal = notifResult.unreadCount;
       } catch (_) {
         // Ignore notification failures so the connected shell stays usable.
       }

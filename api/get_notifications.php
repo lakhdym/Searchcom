@@ -1,4 +1,8 @@
-﻿<?php
+<?php
+
+if (ob_get_level() === 0) {
+    ob_start();
+}
 
 header('Content-Type: application/json; charset=UTF-8');
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
@@ -7,14 +11,14 @@ header('Vary: Origin');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
+require_once __DIR__ . '/config.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    echo json_encode(['ok' => true]);
-    exit;
+    json_response(['ok' => true]);
 }
 
-require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/comment_utils.php';
+require_once __DIR__ . '/notification_utils.php';
 
 $body = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -42,13 +46,7 @@ if ($userId <= 0) {
 try {
     $pdo = get_pdo();
     ensure_comment_schema($pdo);
-
-    // table last_seen
-    $pdo->exec("CREATE TABLE IF NOT EXISTS notification_reads (
-        user_id BIGINT PRIMARY KEY,
-        last_seen_at DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00',
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+    ensure_notification_schema($pdo);
 
     $stmt = $pdo->prepare('SELECT last_seen_at FROM notification_reads WHERE user_id = :uid');
     $stmt->execute([':uid' => $userId]);
@@ -108,7 +106,7 @@ try {
     $params = [':uid' => $userId];
     $sql = "
         SELECT * FROM (
-            SELECT 
+            SELECT
                 'like' AS type,
                 ll.created_at,
                 ll.listing_id,
@@ -120,7 +118,7 @@ try {
             JOIN users u ON u.id = ll.user_id
             WHERE l.user_id = :uid AND u.id <> :uid
             UNION ALL
-            SELECT 
+            SELECT
                 'comment' AS type,
                 c.created_at,
                 c.listing_id,

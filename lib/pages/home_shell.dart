@@ -262,13 +262,9 @@ class _HomeShellState extends State<HomeShell> {
       });
       int notifTotal = 0;
       try {
-        final notifResult = await ApiService.instance.fetchNotificationsPaged(
+        notifTotal = await ApiService.instance.fetchNotificationsCount(
           userId: user.id,
-          page: 1,
-          perPage: 1,
-          markRead: false,
         );
-        notifTotal = notifResult.unreadCount;
       } catch (_) {
         // on ignore les erreurs de notif pour ne pas bloquer le badge chat
       }

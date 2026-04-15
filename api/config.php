@@ -1,5 +1,9 @@
 <?php
 
+if (PHP_SAPI !== 'cli' && ob_get_level() === 0) {
+    ob_start();
+}
+
 const DB_HOST = 'localhost';
 const DB_NAME = 'italents_searchcom';
 const DB_USER = 'italents_flutter';
@@ -52,24 +56,16 @@ function get_pdo(): PDO
 const JWT_SECRET = 'f3724ea34aa84913e27a4c581604ssdgk8f6g2azelazeddinea0fe4a256b6406bc4ff931fec59';
 const JWT_TTL = 3600;
 
-function json_response($data, int $status = 200)
+function json_response(array $data, int $status = 200): void
 {
-    if (!headers_sent()) {
-        header('Content-Type: application/json; charset=UTF-8');
+    if (ob_get_length()) {
+        @ob_clean();
     }
 
     http_response_code($status);
 
-    if (is_string($data)) {
-        $trimmed = trim($data);
-        if ($trimmed !== '') {
-            $first = $trimmed[0];
-            $last = substr($trimmed, -1);
-            if (($first === '{' && $last === '}') || ($first === '[' && $last === ']')) {
-                echo $trimmed;
-                exit;
-            }
-        }
+    if (!headers_sent()) {
+        header('Content-Type: application/json; charset=UTF-8');
     }
 
     echo json_encode(

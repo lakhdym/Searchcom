@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/comment_utils.php';
+require_once __DIR__ . '/notification_utils.php';
 
 $body = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,6 +32,7 @@ if ($listingId <= 0) {
 try {
     $pdo = get_pdo();
     ensure_comment_schema($pdo);
+    ensure_notification_schema($pdo);
 
     $stmt = $pdo->prepare("
         SELECT l.*,
