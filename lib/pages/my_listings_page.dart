@@ -256,7 +256,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Mettez votre annonce en avant pour augmenter sa visibilitÃƒÆ’Ã‚Â©.',
+                'Mettez votre annonce en avant pour augmenter sa visibilité.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
@@ -318,11 +318,11 @@ class _ListingCard extends StatelessWidget {
       case 'pending_payment':
         return 'En attente';
       case 'published':
-        return 'PubliÃƒÆ’Ã‚Â©e';
+        return 'Publiée';
       case 'hidden':
-        return 'CachÃƒÆ’Ã‚Â©e';
+        return 'Cachée';
       case 'archived':
-        return 'ArchivÃƒÆ’Ã‚Â©e';
+        return 'Archivée';
       default:
         return item.status;
     }
@@ -361,14 +361,14 @@ class _ListingCard extends StatelessWidget {
                       _Badge(
                         label: item.type == 'lost'
                             ? "J'ai perdu"
-                            : "J'ai trouvÃƒÆ’Ã‚Â©",
+                            : "J'ai trouvé",
                         color: _typeColor(scheme),
                       ),
                       const SizedBox(width: 6),
                       _Badge(label: _statusLabel(), color: scheme.primary),
                       if (item.isBoosted) ...[
                         const SizedBox(width: 6),
-                        _Badge(label: 'BoostÃƒÆ’Ã‚Â©e', color: scheme.tertiary),
+                        _Badge(label: 'Boostée', color: scheme.tertiary),
                       ],
                     ],
                   ),
@@ -1121,7 +1121,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'CrÃƒÆ’Ã‚Â©ez votre premiÃƒÆ’Ã‚Â¨re annonce pour la voir ici.',
+            'Créez votre premiÃƒÆ’Ã‚Â¨re annonce pour la voir ici.',
             style: textTheme.bodyMedium?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -1130,7 +1130,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 16),
           FilledButton(
             onPressed: onCreate,
-            child: const Text('CrÃƒÆ’Ã‚Â©er une publication'),
+            child: const Text('Créer une publication'),
           ),
         ],
       ),
