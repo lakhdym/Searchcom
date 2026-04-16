@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 require_once __DIR__ . '/config.php';
 
+
 $body = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $userId      = isset($body['user_id']) ? (int)$body['user_id'] : 0;
