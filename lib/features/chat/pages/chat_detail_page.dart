@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+// import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -902,15 +902,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   setState(() => _showEmoji = !_showEmoji);
                 },
               ),
-              if (_showEmoji)
-                SizedBox(
-                  height: 250,
-                  child: EmojiPicker(
-                    onEmojiSelected: (category, emoji) =>
-                        _insertEmoji(emoji.emoji),
-                    config: const Config(columns: 7, emojiSizeMax: 32),
-                  ),
-                ),
+              // Temporarily commented out emoji picker
+              // if (_showEmoji)
+              //   SizedBox(
+              //     height: 250,
+              //     child: EmojiPicker(
+              //       onEmojiSelected: (category, emoji) =>
+              //           _insertEmoji(emoji.emoji),
+              //       config: const Config(
+              //         emojiViewConfig: EmojiViewConfig(
+              //           columns: 7,
+              //           emojiSizeMax: 32,
+              //         ),
+              //       ),
+              //     ),
+              //   ),
             ],
           ],
         ),
