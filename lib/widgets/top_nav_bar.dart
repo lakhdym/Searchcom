@@ -82,6 +82,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                       if (ctx.mounted) {
                         Navigator.of(ctx).pop();
                       }
+                      if (!context.mounted) return;
                       AppFeedback.showSuccessSnackBar(
                         context,
                         AppMessages.languageChangedSuccess(),
@@ -105,23 +106,26 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final languageService = watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final resolvedTitle = title ?? tr(context, 'app_name');
 
     return Container(
       height: 56,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: scheme.surface,
+        color: isDark ? scheme.surface.withValues(alpha: 0.92) : scheme.surface,
         boxShadow: [
           BoxShadow(
-            color: scheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+            blurRadius: isDark ? 18 : 10,
+            offset: const Offset(0, 6),
           ),
         ],
         border: Border(
           bottom: BorderSide(
-            color: scheme.outlineVariant.withValues(alpha: 0.6),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : scheme.outlineVariant.withValues(alpha: 0.6),
             width: 0.6,
           ),
         ),
@@ -174,16 +178,16 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               IconButton(
                 onPressed:
-                onNotifications ??
-                () => AppFeedback.showInfoSnackBar(
-                  context,
-                  AppMessages.featureComingSoon(),
-                ),
+                    onNotifications ??
+                    () => AppFeedback.showInfoSnackBar(
+                      context,
+                      AppMessages.featureComingSoon(),
+                    ),
                 icon: Icon(
-              Icons.notifications_none,
-              color: scheme.onSurface,
-              size: 22,
-            ),
+                  Icons.notifications_none,
+                  color: scheme.onSurface,
+                  size: 22,
+                ),
                 splashRadius: 22,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minHeight: 40, minWidth: 40),
@@ -193,7 +197,10 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
                   right: 4,
                   top: 4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: scheme.error,
                       borderRadius: BorderRadius.circular(999),

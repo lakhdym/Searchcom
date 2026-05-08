@@ -16,13 +16,12 @@ class FilterSegmentedControl extends StatelessWidget {
   Widget build(BuildContext context) {
     watchLanguage(context);
     const pillHeight = 60.0;
-    const bgColor = Color(0xFFF5F6F8);
-    const textInactive = Color(0xFF6B7280);
-    const textActive = Color(0xFF0F172A);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final shadow = BoxShadow(
-      color: Colors.black.withValues(alpha: 0.08),
-      blurRadius: 6,
-      offset: const Offset(0, 2),
+      color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+      blurRadius: isDark ? 16 : 6,
+      offset: const Offset(0, 6),
     );
 
     final labels = [t('filter_all'), t('filter_lost'), t('filter_found')];
@@ -31,8 +30,13 @@ class FilterSegmentedControl extends StatelessWidget {
       height: pillHeight,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: isDark ? scheme.surfaceContainer : const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.transparent,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -50,8 +54,17 @@ class FilterSegmentedControl extends StatelessWidget {
                   vertical: 11,
                 ),
                 decoration: BoxDecoration(
-                  color: isActive ? Colors.white : Colors.transparent,
+                  color: isActive
+                      ? (isDark
+                            ? scheme.primary.withValues(alpha: 0.2)
+                            : Colors.white)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isActive && isDark
+                        ? scheme.primary.withValues(alpha: 0.32)
+                        : Colors.transparent,
+                  ),
                   boxShadow: isActive ? [shadow] : [],
                 ),
                 child: Text(
@@ -59,7 +72,9 @@ class FilterSegmentedControl extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
-                    color: isActive ? textActive : textInactive,
+                    color: isActive
+                        ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ),

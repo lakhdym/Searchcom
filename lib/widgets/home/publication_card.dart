@@ -220,6 +220,7 @@ class _PublicationCardState extends State<PublicationCard>
       context: context,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
         if (_likesLoading) {
           return const Padding(
             padding: EdgeInsets.all(24),
@@ -234,11 +235,11 @@ class _PublicationCardState extends State<PublicationCard>
         }
 
         if (_likes.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(16),
+          return Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
               "Aucun like pour l'instant.",
-              style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
             ),
           );
         }
@@ -258,21 +259,21 @@ class _PublicationCardState extends State<PublicationCard>
               dense: true,
               leading: CircleAvatar(
                 radius: 18,
-                backgroundColor: const Color(0xFFE5E7EB),
+                backgroundColor: scheme.surfaceContainer,
                 child: Text(
                   name.isNotEmpty ? name[0] : '?',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
+                    color: scheme.onSurface,
                   ),
                 ),
               ),
               title: Text(
                 name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF111827),
+                  color: scheme.onSurface,
                 ),
               ),
               subtitle: Text(
@@ -504,6 +505,8 @@ class _PublicationCardState extends State<PublicationCard>
   @override
   Widget build(BuildContext context) {
     watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final publication = widget.publication;
     final badgeColor = publication.status == PublicationStatus.perdu
         ? widget.red
@@ -511,7 +514,13 @@ class _PublicationCardState extends State<PublicationCard>
     final badgeLabel = publication.status == PublicationStatus.perdu
         ? "PERDU"
         : "TROUV\u00C9";
-    final radius = BorderRadius.circular(16);
+    final radius = BorderRadius.circular(18);
+    final cardColor = isDark ? scheme.surface : Colors.white;
+    final cardBorder = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFFE5E7EB);
+    final textPrimary = scheme.onSurface;
+    final textSecondary = scheme.onSurfaceVariant;
     final commentCount = _commentsLoaded
         ? _comments.length
         : publication.commentsCount;
@@ -532,10 +541,22 @@ class _PublicationCardState extends State<PublicationCard>
       publication.eventDate,
     );
 
-    return Card(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
       margin: EdgeInsets.zero,
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: radius),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: radius,
+        border: Border.all(color: cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.08),
+            blurRadius: isDark ? 28 : 18,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -560,7 +581,9 @@ class _PublicationCardState extends State<PublicationCard>
                         image,
                         fit: BoxFit.cover,
                         errorBuilder: (_, error, stackTrace) => Container(
-                          color: Colors.grey.shade300,
+                          color: isDark
+                              ? scheme.surfaceContainer
+                              : Colors.grey.shade300,
                           child: const Icon(
                             Icons.image,
                             size: 48,
@@ -607,8 +630,17 @@ class _PublicationCardState extends State<PublicationCard>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: badgeColor,
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      colors: [badgeColor, badgeColor.withValues(alpha: 0.78)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: badgeColor.withValues(alpha: 0.25),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: Text(
                     badgeLabel,
@@ -631,8 +663,11 @@ class _PublicationCardState extends State<PublicationCard>
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: isDark
+                              ? scheme.surface.withValues(alpha: 0.86)
+                              : Colors.white.withValues(alpha: 0.9),
                           shape: BoxShape.circle,
+                          border: Border.all(color: cardBorder),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.08),
@@ -641,10 +676,10 @@ class _PublicationCardState extends State<PublicationCard>
                             ),
                           ],
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.more_horiz,
                           size: 18,
-                          color: Color(0xFF4B5563),
+                          color: textSecondary,
                         ),
                       ),
                     ),
@@ -666,10 +701,10 @@ class _PublicationCardState extends State<PublicationCard>
                         publication.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF111827),
+                          color: textPrimary,
                         ),
                       ),
                     ),
@@ -677,10 +712,10 @@ class _PublicationCardState extends State<PublicationCard>
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.calendar_today_outlined,
                           size: 14,
-                          color: Color(0xFF9CA3AF),
+                          color: widget.mutedGray,
                         ),
                         const SizedBox(width: 4),
                         Text(
@@ -702,7 +737,7 @@ class _PublicationCardState extends State<PublicationCard>
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
-                    color: widget.textGray,
+                    color: textSecondary,
                     height: 1.3,
                   ),
                 ),
@@ -731,7 +766,7 @@ class _PublicationCardState extends State<PublicationCard>
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 13,
-                          color: widget.textGray,
+                          color: textSecondary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -754,7 +789,7 @@ class _PublicationCardState extends State<PublicationCard>
                           '${t('event_date')}: $formattedEventDate',
                           style: TextStyle(
                             fontSize: 13,
-                            color: widget.textGray,
+                            color: textSecondary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -765,7 +800,7 @@ class _PublicationCardState extends State<PublicationCard>
               ],
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
+          Divider(height: 1, thickness: 1, color: cardBorder),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
@@ -790,10 +825,7 @@ class _PublicationCardState extends State<PublicationCard>
                       const SizedBox(width: 4),
                       Text(
                         "$_likesCount",
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF111827),
-                        ),
+                        style: TextStyle(fontSize: 13, color: textPrimary),
                       ),
                     ],
                   ),
@@ -803,18 +835,15 @@ class _PublicationCardState extends State<PublicationCard>
                   onTap: _toggleComments,
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.mode_comment_outlined,
                         size: 18,
-                        color: Color(0xFF6B7280),
+                        color: textSecondary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         "$commentCount",
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF111827),
-                        ),
+                        style: TextStyle(fontSize: 13, color: textPrimary),
                       ),
                     ],
                   ),
@@ -859,6 +888,7 @@ class _PublicationCardState extends State<PublicationCard>
   }
 
   Widget _buildCommentsSection() {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       child: Column(
@@ -880,9 +910,12 @@ class _PublicationCardState extends State<PublicationCard>
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   "Impossible de charger les commentaires.",
-                  style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -901,11 +934,11 @@ class _PublicationCardState extends State<PublicationCard>
               ],
             )
           else if (_comments.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text(
                 "Aucun commentaire",
-                style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+                style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
               ),
             )
           else ...[
@@ -921,11 +954,11 @@ class _PublicationCardState extends State<PublicationCard>
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   onPressed: _openFullDetails,
-                  child: const Text(
+                  child: Text(
                     "Voir plus de commentaires",
                     style: TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF6B7280),
+                      color: scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -937,8 +970,11 @@ class _PublicationCardState extends State<PublicationCard>
             const SizedBox(height: 6),
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFF3F4F6),
+                color: scheme.surfaceContainer,
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.7),
+                ),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
@@ -948,6 +984,7 @@ class _PublicationCardState extends State<PublicationCard>
                       controller: _commentController,
                       minLines: 1,
                       maxLines: 3,
+                      style: TextStyle(color: scheme.onSurface),
                       decoration: const InputDecoration(
                         hintText: "\u00C9crire un commentaire\u2026",
                         border: InputBorder.none,

@@ -124,6 +124,8 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth >= 760;
 
@@ -131,8 +133,10 @@ class _HomePageState extends State<HomePage> {
       title: t('i_lost_item'),
       subtitle: t('i_lost_subtitle'),
       height: 150,
-      backgroundColor: const Color(0xFFFFF1F1),
-      smallIconBackground: const Color(0xFFFFE4E4),
+      backgroundColor: isDark ? scheme.surface : const Color(0xFFFFF1F1),
+      smallIconBackground: isDark
+          ? const Color(0xFF3A1F2A)
+          : const Color(0xFFFFE4E4),
       smallIcon: Icons.heart_broken,
       smallIconColor: const Color(0xFFE53935),
       bigIcon: Icons.search,
@@ -144,8 +148,10 @@ class _HomePageState extends State<HomePage> {
       title: t('i_found_item'),
       subtitle: t('i_found_subtitle'),
       height: 150,
-      backgroundColor: const Color(0xFFF1FBF5),
-      smallIconBackground: const Color(0xFFDFF5E7),
+      backgroundColor: isDark ? scheme.surface : const Color(0xFFF1FBF5),
+      smallIconBackground: isDark
+          ? const Color(0xFF2F2A18)
+          : const Color(0xFFDFF5E7),
       smallIcon: Icons.handshake,
       smallIconColor: const Color(0xFFF9A825),
       bigIcon: Icons.check_circle,
@@ -169,7 +175,7 @@ class _HomePageState extends State<HomePage> {
     final content = SafeArea(
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -198,15 +204,20 @@ class _HomePageState extends State<HomePage> {
         currentIndex: mainAppShellHomeIndex,
         isTabRoot: true,
         showDefaultTopNavBar: widget.showAppBar,
-        backgroundColor: const Color(0xFFF7F7FB),
+        backgroundColor: scheme.scaffoldBackground(context),
         body: content,
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7FB),
+      backgroundColor: scheme.scaffoldBackground(context),
       appBar: widget.showAppBar ? const TopNavBar() : null,
       body: content,
     );
   }
+}
+
+extension _HomePageScheme on ColorScheme {
+  Color scaffoldBackground(BuildContext context) =>
+      Theme.of(context).scaffoldBackgroundColor;
 }

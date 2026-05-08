@@ -91,14 +91,21 @@ class PublicationActionsMenu {
     return PopupMenuItem<void>(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       onTap: onTap,
-      child: PublicationMenuRow(
-        bg: (iconColor == Colors.red)
-            ? const Color(0xFFFFE5E5)
-            : const Color(0xFFF3F4F6),
-        icon: icon,
-        iconColor: iconColor ?? const Color(0xFF4B5563),
-        label: label,
-        textColor: textColor ?? const Color(0xFF111827),
+      child: Builder(
+        builder: (context) {
+          final scheme = Theme.of(context).colorScheme;
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final resolvedIcon = iconColor ?? scheme.onSurfaceVariant;
+          return PublicationMenuRow(
+            bg: (iconColor == Colors.red)
+                ? Colors.red.withValues(alpha: isDark ? 0.16 : 0.12)
+                : scheme.surfaceContainer,
+            icon: icon,
+            iconColor: resolvedIcon,
+            label: label,
+            textColor: textColor ?? scheme.onSurface,
+          );
+        },
       ),
     );
   }
@@ -117,7 +124,7 @@ class PublicationActionsMenu {
       buffer.write(' - ${publication.cityArea}');
     }
     buffer.write('\n$url');
-    await Share.share(buffer.toString());
+    await SharePlus.instance.share(ShareParams(text: buffer.toString()));
   }
 
   static Future<void> _reportListing(

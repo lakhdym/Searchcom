@@ -27,6 +27,8 @@ class PublicationContactMenu {
     required String? ownerPhone,
     required Color purple,
   }) async {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final phone = ownerPhone?.trim() ?? '';
     final hasPhone = phone.isNotEmpty;
     final isOwner = ownerId.toString() == currentUserId.toString();
@@ -44,10 +46,13 @@ class PublicationContactMenu {
           value: 'wa',
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: PublicationMenuRow(
-            bg: const Color(0xFFE8F8EF),
+            bg: isDark
+                ? const Color(0xFF25D366).withValues(alpha: 0.14)
+                : const Color(0xFFE8F8EF),
             icon: Icons.chat_bubble,
             iconColor: const Color(0xFF25D366),
             label: 'WhatsApp',
+            textColor: scheme.onSurface,
           ),
         ),
       );
@@ -58,10 +63,13 @@ class PublicationContactMenu {
           value: 'call',
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: PublicationMenuRow(
-            bg: const Color(0xFFE8ECFF),
+            bg: isDark
+                ? const Color(0xFF2563EB).withValues(alpha: 0.14)
+                : const Color(0xFFE8ECFF),
             icon: Icons.call,
             iconColor: const Color(0xFF2563EB),
             label: t('phone_call'),
+            textColor: scheme.onSurface,
           ),
         ),
       );
@@ -72,10 +80,13 @@ class PublicationContactMenu {
           value: 'chat',
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: PublicationMenuRow(
-            bg: const Color(0xFFF1E9FF),
+            bg: isDark
+                ? purple.withValues(alpha: 0.16)
+                : const Color(0xFFF1E9FF),
             icon: Icons.chat_bubble_outline,
             iconColor: purple,
             label: t('internal_chat'),
+            textColor: scheme.onSurface,
           ),
         ),
       );

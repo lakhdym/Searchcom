@@ -81,7 +81,7 @@ class _HomeShellState extends State<HomeShell> {
       valueListenable: authState,
       builder: (context, loggedIn, _) {
         return Scaffold(
-          backgroundColor: scheme.surface,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: TopNavBar(
             notificationCount: _notifCount,
             onNotifications: () async {
@@ -101,9 +101,9 @@ class _HomeShellState extends State<HomeShell> {
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             height: 70,
-            backgroundColor: scheme.surface,
-            indicatorColor: scheme.primary.withValues(alpha: 0.12),
-            surfaceTintColor: scheme.surfaceTint,
+            backgroundColor: scheme.surface.withValues(alpha: 0.94),
+            indicatorColor: scheme.primary.withValues(alpha: 0.2),
+            surfaceTintColor: Colors.transparent,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             onDestinationSelected: (i) async {
               if (i == 1) {
@@ -336,5 +336,3 @@ class _PlaceholderPage extends StatelessWidget {
     );
   }
 }
-
-

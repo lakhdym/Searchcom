@@ -3,9 +3,17 @@ import 'package:flutter/material.dart';
 import '../services/theme_service.dart';
 
 class AppTheme {
-  static const Color primaryViolet = Color(0xFF7C3AED);
+  static const Color primaryViolet = Color(0xFF8B5CF6);
   static const Color successGreen = Color(0xFF10B981);
   static const Color errorRed = Color(0xFFEF4444);
+  static const Color darkScaffold = Color(0xFF0F172A);
+  static const Color darkSurface = Color(0xFF1E293B);
+  static const Color darkSurfaceSecondary = Color(0xFF243041);
+  static const Color darkAccent = Color(0xFF8B5CF6);
+  static const Color darkTextPrimary = Color(0xFFFFFFFF);
+  static const Color darkTextSecondary = Color(0xFFCBD5E1);
+  static const Color darkTextMuted = Color(0xFF94A3B8);
+  static const Color darkBorder = Color(0x0FFFFFFF);
 
   static const Color _lightPrimaryVioletLight = Color(0xFFEDE9FE);
   static const Color _lightPrimaryVioletLighter = Color(0xFFDDD6FE);
@@ -20,18 +28,18 @@ class AppTheme {
   static const Color _lightBorderMedium = Color(0xFFD1D5DB);
   static const Color _lightInputBackground = Color(0xFFF3F3F5);
 
-  static const Color _darkPrimaryVioletLight = Color(0xFF24153F);
-  static const Color _darkPrimaryVioletLighter = Color(0xFF312055);
+  static const Color _darkPrimaryVioletLight = Color(0xFF312255);
+  static const Color _darkPrimaryVioletLighter = Color(0xFF3B2A67);
   static const Color _darkPrimaryVioletMedium = Color(0xFFC4B5FD);
-  static const Color _darkPrimaryVioletDark = Color(0xFFE9DDFF);
-  static const Color _darkBackgroundWhite = Color(0xFF111827);
-  static const Color _darkBackgroundGray = Color(0xFF0B1120);
-  static const Color _darkTextPrimary = Color(0xFFF8FAFC);
-  static const Color _darkTextSecondary = Color(0xFFCBD5E1);
-  static const Color _darkTextMuted = Color(0xFF94A3B8);
-  static const Color _darkBorderLight = Color(0xFF273449);
-  static const Color _darkBorderMedium = Color(0xFF364152);
-  static const Color _darkInputBackground = Color(0xFF0F172A);
+  static const Color _darkPrimaryVioletDark = Color(0xFFF1EAFE);
+  static const Color _darkBackgroundWhite = darkSurface;
+  static const Color _darkBackgroundGray = darkScaffold;
+  static const Color _darkTextPrimary = darkTextPrimary;
+  static const Color _darkTextSecondary = darkTextSecondary;
+  static const Color _darkTextMuted = darkTextMuted;
+  static const Color _darkBorderLight = darkBorder;
+  static const Color _darkBorderMedium = Color(0x1AFFFFFF);
+  static const Color _darkInputBackground = darkSurfaceSecondary;
 
   static bool get _isDark => ThemeService.instance.isDark;
 
@@ -82,6 +90,9 @@ class AppTheme {
     final secondary = isDark
         ? _darkPrimaryVioletLight
         : _lightPrimaryVioletLight;
+    final surfaceContainer = isDark
+        ? darkSurfaceSecondary
+        : _lightInputBackground;
 
     final colorScheme =
         ColorScheme.fromSeed(
@@ -92,7 +103,12 @@ class AppTheme {
           onPrimary: Colors.white,
           secondary: secondary,
           onSecondary: textPrimaryColor,
+          secondaryContainer: surfaceContainer,
+          onSecondaryContainer: textPrimaryColor,
           surface: surface,
+          surfaceContainer: surfaceContainer,
+          surfaceContainerHigh: isDark ? const Color(0xFF2A374A) : Colors.white,
+          surfaceTint: Colors.transparent,
           onSurface: textPrimaryColor,
           onSurfaceVariant: textSecondaryColor,
           outline: borderMediumColor,
@@ -108,8 +124,25 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffold,
       canvasColor: surface,
+      navigationBarTheme: NavigationBarThemeData(
+        height: 72,
+        backgroundColor: isDark
+            ? darkSurface.withValues(alpha: 0.92)
+            : _lightBackgroundWhite,
+        indicatorColor: primaryViolet.withValues(alpha: isDark ? 0.2 : 0.12),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            color: selected ? primaryViolet : textMutedColor,
+          );
+        }),
+      ),
       appBarTheme: AppBarTheme(
-        backgroundColor: surface,
+        backgroundColor: isDark ? darkSurface.withValues(alpha: 0.88) : surface,
         foregroundColor: textPrimaryColor,
         elevation: 0,
         centerTitle: false,
@@ -130,10 +163,21 @@ class AppTheme {
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: isDark ? darkSurface : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: isDark ? 12 : 8,
+        shadowColor: Colors.black.withValues(alpha: isDark ? 0.32 : 0.12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: borderLightColor),
+        ),
+        textStyle: TextStyle(color: textPrimaryColor),
+      ),
       cardTheme: CardThemeData(
         color: surface,
-        elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+        elevation: isDark ? 8 : 0,
+        shadowColor: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: borderLightColor, width: 1),
@@ -175,7 +219,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryViolet, width: 2),
+          borderSide: const BorderSide(color: primaryViolet, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,

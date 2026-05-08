@@ -27,10 +27,8 @@ class RecentPublicationsSection extends StatefulWidget {
 }
 
 class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
-  static const _purple = Color(0xFF6C2BFF);
   static const _red = Color(0xFFFF3B30);
   static const _green = Color(0xFF34C759);
-  static const _textGray = Color(0xFF6B7280);
   static const _mutedGray = Color(0xFF9CA3AF);
   static const _pageSize = 5;
   static const _loadMoreSize = 5;
@@ -221,6 +219,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   @override
   Widget build(BuildContext context) {
     watchLanguage(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -234,16 +234,30 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1A1A1A),
+                  fontWeight: FontWeight.w800,
+                  color: scheme.onSurface,
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            IconButton(
-              tooltip: t('refresh'),
-              onPressed: _refreshFeed,
-              icon: const Icon(Icons.refresh),
+            Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? scheme.surfaceContainer.withValues(alpha: 0.82)
+                    : scheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : scheme.outlineVariant.withValues(alpha: 0.6),
+                ),
+              ),
+              child: IconButton(
+                tooltip: t('refresh'),
+                onPressed: _refreshFeed,
+                icon: const Icon(Icons.refresh),
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -259,6 +273,13 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   }
 
   Widget _buildBody() {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final purple = scheme.primary;
+    final textGray = scheme.onSurfaceVariant;
+    final mutedGray = isDark
+        ? scheme.onSurfaceVariant.withValues(alpha: 0.72)
+        : _mutedGray;
     if (_loading) {
       return const Center(
         child: Padding(
@@ -275,7 +296,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           children: [
             Text(
               _error!,
-              style: const TextStyle(color: _textGray),
+              style: TextStyle(color: scheme.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
@@ -291,7 +312,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
         child: Center(
           child: Text(
             _query.isEmpty ? t('no_listings_yet') : t('no_search_results'),
-            style: const TextStyle(color: _textGray),
+            style: TextStyle(color: scheme.onSurfaceVariant),
           ),
         ),
       );
@@ -313,11 +334,11 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
               final publication = _filtered[index];
               return PublicationCard(
                 publication: publication,
-                purple: _purple,
+                purple: purple,
                 red: _red,
                 green: _green,
-                textGray: _textGray,
-                mutedGray: _mutedGray,
+                textGray: textGray,
+                mutedGray: mutedGray,
               );
             },
           ),
@@ -336,9 +357,9 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
               child: Center(
                 child: Text(
                   t('viewed_all_listings'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: _mutedGray,
+                    color: mutedGray,
                     fontStyle: FontStyle.italic,
                   ),
                 ),

@@ -26,9 +26,7 @@ int clampMainAppShellIndex(int index) =>
 void openAuthenticatedSection(BuildContext context, {required int index}) {
   Navigator.of(context).pushAndRemoveUntil(
     MaterialPageRoute(
-      builder: (_) => MainAppShell(
-        initialIndex: clampMainAppShellIndex(index),
-      ),
+      builder: (_) => MainAppShell(initialIndex: clampMainAppShellIndex(index)),
     ),
     (route) => false,
   );
@@ -130,18 +128,19 @@ class _AuthenticatedScaffoldState extends State<AuthenticatedScaffold> {
       builder: (context, loggedIn, _) {
         return Scaffold(
           resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
-          backgroundColor: widget.backgroundColor ?? scheme.surface,
+          backgroundColor:
+              widget.backgroundColor ??
+              Theme.of(context).scaffoldBackgroundColor,
           appBar: resolvedAppBar,
           body: widget.body,
           bottomNavigationBar: loggedIn
               ? NavigationBar(
                   selectedIndex: resolvedIndex,
                   height: 70,
-                  backgroundColor: scheme.surface,
-                  indicatorColor: scheme.primary.withValues(alpha: 0.12),
-                  surfaceTintColor: scheme.surfaceTint,
-                  labelBehavior:
-                      NavigationDestinationLabelBehavior.alwaysShow,
+                  backgroundColor: scheme.surface.withValues(alpha: 0.94),
+                  indicatorColor: scheme.primary.withValues(alpha: 0.2),
+                  surfaceTintColor: Colors.transparent,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                   onDestinationSelected: _onDestinationSelected,
                   destinations: _buildDestinations(scheme),
                 )
@@ -448,10 +447,7 @@ class _CreateOptionCard extends StatelessWidget {
 }
 
 class _ShellDestination {
-  const _ShellDestination({
-    required this.title,
-    required this.icon,
-  });
+  const _ShellDestination({required this.title, required this.icon});
 
   final String title;
   final IconData icon;
