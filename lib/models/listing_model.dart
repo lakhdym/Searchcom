@@ -72,9 +72,22 @@ class ListingModel {
     } else if (catRaw is String) {
       parsedCategoryId = int.tryParse(catRaw);
     }
+    int parseUserId() {
+      final raw =
+          json['user_id'] ??
+          json['userId'] ??
+          json['owner_id'] ??
+          json['ownerId'] ??
+          json['id_user'] ??
+          json['idUser'];
+      return raw is num
+          ? raw.toInt()
+          : int.tryParse(raw?.toString() ?? '0') ?? 0;
+    }
+
     return ListingModel(
       id: json['id'] is String ? int.parse(json['id']) : json['id'] ?? 0,
-      userId: json['user_id'] is String ? int.parse(json['user_id']) : json['user_id'] ?? 0,
+      userId: parseUserId(),
       type: json['type'] ?? 'lost',
       status: json['status'] ?? 'draft',
       title: json['title'] ?? '',
@@ -84,23 +97,36 @@ class ListingModel {
       city: json['city'] as String?,
       locationText: json['location_text'] as String?,
       eventDate: json['event_date'] as String?,
-      contactChat: (json['contact_chat'] == 1 || json['contact_chat'] == '1' || json['contact_chat'] == true),
-      contactWhatsApp: (json['contact_whatsapp'] == 1 ||
+      contactChat:
+          (json['contact_chat'] == 1 ||
+          json['contact_chat'] == '1' ||
+          json['contact_chat'] == true),
+      contactWhatsApp:
+          (json['contact_whatsapp'] == 1 ||
           json['contact_whatsapp'] == '1' ||
           json['contact_whatsapp'] == true),
-      contactCall: (json['contact_call'] == 1 || json['contact_call'] == '1' || json['contact_call'] == true),
+      contactCall:
+          (json['contact_call'] == 1 ||
+          json['contact_call'] == '1' ||
+          json['contact_call'] == true),
       isBoosted: boosted,
       publishedAt: json['published_at'] as String?,
       createdAt: json['created_at'] ?? '',
       updatedAt: json['updated_at'] as String?,
       coverPhotoUrl: json['cover_photo_url'] as String?,
-      photoObjects: (json['photos'] as List<dynamic>?)
+      photoObjects:
+          (json['photos'] as List<dynamic>?)
               ?.map(ListingPhoto.fromDynamic)
               .whereType<ListingPhoto>()
               .toList() ??
           const [],
-      photos: (json['photos'] as List<dynamic>?)
-              ?.map((e) => e is Map<String, dynamic> ? e['url']?.toString() ?? '' : e.toString())
+      photos:
+          (json['photos'] as List<dynamic>?)
+              ?.map(
+                (e) => e is Map<String, dynamic>
+                    ? e['url']?.toString() ?? ''
+                    : e.toString(),
+              )
               .where((e) => e.isNotEmpty)
               .toList() ??
           const [],
@@ -110,7 +136,10 @@ class ListingModel {
       commentsCount: json['comments_count'] is num
           ? (json['comments_count'] as num).toInt()
           : int.tryParse(json['comments_count']?.toString() ?? '0') ?? 0,
-      likedByMe: json['liked_by_me'] == 1 || json['liked_by_me'] == true || json['liked_by_me'] == '1',
+      likedByMe:
+          json['liked_by_me'] == 1 ||
+          json['liked_by_me'] == true ||
+          json['liked_by_me'] == '1',
       paymentStatus: json['payment_status'] as String?,
     );
   }

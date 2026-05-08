@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../comment_api_extension.dart';
 import '../../core/constants/app_messages.dart';
 import '../../core/errors/app_error_mapper.dart';
 import '../../core/feedback/app_feedback.dart';
-import '../../pages/main_app_shell.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
 import '../../services/l10n_helper.dart';
+import '../../state/auth_state.dart';
 import '../comments/comment_action_dialogs.dart';
 import '../comments/comment_list_item.dart';
 import '../image_viewer_page.dart';
 import 'home_models.dart';
 import 'publication_actions_menu.dart';
-import 'publication_contact_chip.dart';
 import 'publication_contact_menu.dart';
 import 'publication_date_formatter.dart';
 import 'publication_full_details_sheet.dart';
@@ -72,14 +70,24 @@ class _PublicationCardState extends State<PublicationCard>
     _likesCount = widget.publication.likesCount;
     _canComment = ApiService.instance.isAuthenticated;
     _syncCommentAccess();
+    currentUser.addListener(_syncCurrentUser);
     _loadMe();
   }
 
   @override
   void dispose() {
+    currentUser.removeListener(_syncCurrentUser);
     _commentController.dispose();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _syncCurrentUser() {
+    if (!mounted) return;
+    setState(() {
+      _meId = currentUser.value?.id;
+      _meLoaded = true;
+    });
   }
 
   void _toggleComments() {
@@ -507,10 +515,15 @@ class _PublicationCardState extends State<PublicationCard>
     final commentCount = _commentsLoaded
         ? _comments.length
         : publication.commentsCount;
+    final currentUserId = _currentUserId;
+    final listing = publication;
+    final isOwner = listing.userId.toString() == currentUserId.toString();
+    debugPrint(
+      'currentUserId=$currentUserId listingUserId=${listing.userId} isOwner=$isOwner',
+    );
     final hasPhone = publication.ownerPhone?.trim().isNotEmpty ?? false;
-    // Masquer les contacts si c'est ma propre publication
     final hasContactOptions =
-        !_isOwner &&
+        !isOwner &&
         (publication.contactChat ||
             (publication.contactWhatsApp && hasPhone) ||
             (publication.contactCall && hasPhone));
@@ -607,35 +620,36 @@ class _PublicationCardState extends State<PublicationCard>
                   ),
                 ),
               ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Builder(
-                  builder: (buttonContext) => GestureDetector(
-                    onTap: () => _showPublicationMenu(buttonContext),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.more_horiz,
-                        size: 18,
-                        color: Color(0xFF4B5563),
+              if (_meLoaded && !isOwner)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Builder(
+                    builder: (buttonContext) => GestureDetector(
+                      onTap: () => _showPublicationMenu(buttonContext),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.more_horiz,
+                          size: 18,
+                          color: Color(0xFF4B5563),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           Padding(
@@ -748,41 +762,6 @@ class _PublicationCardState extends State<PublicationCard>
                     ],
                   ),
                 ],
-                /*
-                if (hasContactOptions) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (publication.contactWhatsApp && hasPhone)
-                        _buildContactChip(
-                          icon: Icons.chat_bubble,
-                          label: "WhatsApp",
-                          color: const Color(0xFF25D366),
-                          bg: const Color(0xFFE8F8EF),
-                          onTap: () =>
-                              _launchWhatsApp(publication.ownerPhone ?? ''),
-                        ),
-                      if (publication.contactCall && hasPhone)
-                        _buildContactChip(
-                          icon: Icons.call,
-                          label: "Appeler",
-                          color: const Color(0xFF2563EB),
-                          bg: const Color(0xFFE8ECFF),
-                          onTap: () => _launchCall(publication.ownerPhone ?? ''),
-                        ),
-                      if (publication.contactChat)
-                        _buildContactChip(
-                          icon: Icons.chat_bubble_outline,
-                          label: "Chat",
-                          color: widget.purple,
-                          bg: const Color(0xFFF1E9FF),
-                          onTap: _openInternalChat,
-                        ),
-                    ],
-                  ),
-                ],*/
               ],
             ),
           ),
@@ -841,7 +820,7 @@ class _PublicationCardState extends State<PublicationCard>
                   ),
                 ),
                 const Spacer(),
-                if (hasContactOptions && _meLoaded && !_isOwner)
+                if (hasContactOptions && _meLoaded && !isOwner)
                   Builder(
                     builder: (buttonContext) {
                       return Material(
@@ -1031,6 +1010,8 @@ class _PublicationCardState extends State<PublicationCard>
       context: context,
       listingId: widget.publication.id,
       listingTitle: widget.publication.title,
+      ownerId: widget.publication.ownerId,
+      currentUserId: _currentUserId,
       ownerName: widget.publication.ownerName,
       contactWhatsApp: widget.publication.contactWhatsApp,
       contactCall: widget.publication.contactCall,
@@ -1047,17 +1028,8 @@ class _PublicationCardState extends State<PublicationCard>
     );
   }
 
-  String? _normalizedPhone(String raw) {
-    if (raw.isEmpty) return null;
-    var cleaned = raw.replaceAll(RegExp(r'[^0-9+]'), '');
-    if (cleaned.startsWith('00')) {
-      cleaned = cleaned.substring(2);
-    }
-    return cleaned.isEmpty ? null : cleaned;
-  }
-
   Future<void> _loadMe() async {
-    final user = await AuthLocalStorage.instance.getUser();
+    final user = currentUser.value ?? await AuthLocalStorage.instance.getUser();
     if (!mounted) return;
     setState(() {
       _meId = user?.id;
@@ -1065,90 +1037,5 @@ class _PublicationCardState extends State<PublicationCard>
     });
   }
 
-  bool get _isOwner => _meId != null && widget.publication.ownerId == _meId;
-
-  Future<void> _launchWhatsApp(String rawPhone) async {
-    if (_isOwner) {
-      _showSnack(
-        "Vos coordonnées WhatsApp sont déjà visibles pour les autres utilisateurs.",
-      );
-      return;
-    }
-    final normalized = _normalizedPhone(rawPhone);
-    if (normalized == null) {
-      _showSnack("Num\u00E9ro WhatsApp indisponible");
-      return;
-    }
-
-    final uri = Uri.parse('https://wa.me/$normalized');
-    try {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        _showSnack("Impossible d'ouvrir WhatsApp");
-      }
-    } catch (_) {
-      if (mounted) {
-        _showSnack("Impossible d'ouvrir WhatsApp");
-      }
-    }
-  }
-
-  Future<void> _launchCall(String rawPhone) async {
-    if (_isOwner) {
-      _showSnack("Votre numéro est déjà visible pour les autres utilisateurs.");
-      return;
-    }
-    final normalized = _normalizedPhone(rawPhone);
-    if (normalized == null) {
-      _showSnack("Num\u00E9ro d'appel indisponible");
-      return;
-    }
-
-    final uri = Uri(scheme: 'tel', path: normalized);
-    try {
-      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && mounted) {
-        _showSnack("Impossible d'ouvrir le composeur");
-      }
-    } catch (_) {
-      if (mounted) {
-        _showSnack("Impossible d'ouvrir le composeur");
-      }
-    }
-  }
-
-  Future<void> _openInternalChat() async {
-    if (_isOwner) {
-      _showSnack("Vous êtes le propriétaire : le chat n'est pas nécessaire.");
-      return;
-    }
-    final loggedIn = await AuthLocalStorage.instance.isLoggedIn();
-    if (!loggedIn) {
-      _showSnack("Connectez-vous pour discuter avec le propriétaire.");
-      return;
-    }
-    openAuthenticatedSection(context, index: mainAppShellChatIndex);
-  }
-
-  void _showSnack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Widget _buildContactChip({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color? color,
-    Color? bg,
-  }) {
-    return PublicationContactChip(
-      icon: icon,
-      label: label,
-      onTap: onTap,
-      color: color ?? widget.purple,
-      bg: bg ?? Colors.grey.shade100,
-    );
-  }
+  String? get _currentUserId => _meId?.toString();
 }

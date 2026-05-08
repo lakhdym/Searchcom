@@ -90,7 +90,7 @@ class HomeListingItem {
   });
 
   factory HomeListingItem.fromJson(Map<String, dynamic> json) {
-    String _fixUtf8(String? v) {
+    String fixUtf8(String? v) {
       if (v == null) return '';
       try {
         return utf8.decode(latin1.encode(v));
@@ -98,25 +98,36 @@ class HomeListingItem {
         return v;
       }
     }
+
     final images = (json['images'] is List)
         ? (json['images'] as List).map((e) => e.toString()).toList()
         : <String>[];
+    int? parseOwnerId() {
+      final raw =
+          json['owner_id'] ??
+          json['ownerId'] ??
+          json['user_id'] ??
+          json['userId'] ??
+          json['id_user'] ??
+          json['idUser'];
+      return raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+    }
+
     return HomeListingItem(
       id: (json['id'] as num).toInt(),
-      ownerId: () {
-        final raw = json['owner_id'] ?? json['user_id'];
-        return raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
-      }(),
+      ownerId: parseOwnerId(),
       ownerName: () {
         final raw = (json['owner_name'] ?? json['user_name'] ?? '').toString();
-        final fixed = _fixUtf8(raw).trim();
+        final fixed = fixUtf8(raw).trim();
         return fixed.isNotEmpty ? fixed : null;
       }(),
       type: json['type']?.toString() ?? 'lost',
-      title: _fixUtf8(json['title']?.toString()),
-      description: _fixUtf8(json['description']?.toString()),
-      location: _fixUtf8(json['location']?.toString() ?? json['city']?.toString()),
-      city: _fixUtf8(json['city']?.toString()),
+      title: fixUtf8(json['title']?.toString()),
+      description: fixUtf8(json['description']?.toString()),
+      location: fixUtf8(
+        json['location']?.toString() ?? json['city']?.toString(),
+      ),
+      city: fixUtf8(json['city']?.toString()),
       date: json['date']?.toString() ?? '',
       eventDate: json['event_date']?.toString(),
       imageUrl: json['imageUrl']?.toString(),

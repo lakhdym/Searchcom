@@ -45,6 +45,8 @@ class Publication {
 
   String get primaryImage =>
       imageUrls.isNotEmpty ? imageUrls.first : fallbackImageUrl;
+
+  int get userId => ownerId;
 }
 
 const String fallbackImageUrl =

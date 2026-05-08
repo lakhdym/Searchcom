@@ -1,0 +1,129 @@
+[03-Mar-2026 14:31:25 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 153
+[03-Mar-2026 14:32:37 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 162
+[03-Mar-2026 14:35:51 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:36:02 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:42:55 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:47:19 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:50:20 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:51:02 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:55:21 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 161
+[03-Mar-2026 14:56:47 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 167
+[03-Mar-2026 14:57:59 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 167
+[03-Mar-2026 15:03:41 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 168
+[03-Mar-2026 15:04:23 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 168
+[03-Mar-2026 15:12:16 UTC] PHP Parse error:  syntax error, unexpected token "\" in /home/italents/public_html/app/api/annonces.php on line 168
+[03-Mar-2026 22:47:59 UTC] PHP Fatal error:  Uncaught PDOException: SQLSTATE[28000] [1045] Access denied for user 'italents_flutter'@'localhost' (using password: YES) in /home/italents/public_html/app/api/config.php:15
+Stack trace:
+#0 /home/italents/public_html/app/api/config.php(15): PDO->__construct()
+#1 /home/italents/public_html/app/api/annonces.php(46): get_pdo()
+#2 {main}
+  thrown in /home/italents/public_html/app/api/config.php on line 15
+[09-Mar-2026 13:44:24 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[09-Mar-2026 13:47:35 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[09-Mar-2026 14:12:56 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[09-Mar-2026 14:15:09 UTC] PHP Warning:  Undefined array key "email_verified_at" in /home/italents/public_html/app/api/login.php on line 51
+[30-Mar-2026 13:16:38 UTC] [OTP WhatsApp] +212625232125 -> code 814921
+[30-Mar-2026 13:19:06 UTC] [OTP WhatsApp] +212625232125 -> code 822165
+[30-Mar-2026 13:33:37 UTC] [OTP WhatsApp] +212625232125 -> code 629056
+[01-Apr-2026 09:03:21 UTC] [OTP WhatsApp] +212709636261 -> code 062832
+[01-Apr-2026 09:04:28 UTC] [OTP WhatsApp] +212709636261 -> code 691728
+[01-Apr-2026 09:11:15 UTC] [OTP WhatsApp] +212709636261 -> code 845038
+[01-Apr-2026 09:13:06 UTC] [OTP WhatsApp] +212709636261 -> code 617740
+[01-Apr-2026 09:17:17 UTC] [OTP WhatsApp] +212709636261 -> code 990685
+[01-Apr-2026 09:19:44 UTC] [OTP WhatsApp] +212709636261 -> code 385914
+[01-Apr-2026 09:21:06 UTC] [OTP WhatsApp] +212678585654 -> code 882583
+[01-Apr-2026 09:27:00 UTC] [OTP WhatsApp] +212678585654 -> code 229716
+[01-Apr-2026 09:29:06 UTC] [OTP WhatsApp] +212678585654 -> code 267129
+[01-Apr-2026 09:33:27 UTC] [OTP WhatsApp] +212678585654 -> code 433651
+[01-Apr-2026 09:44:26 UTC] [OTP WhatsApp] +21225362512 -> code 883251
+[01-Apr-2026 14:50:55 UTC] [OTP WhatsApp] +212653232521 -> code 247535
+[02-Apr-2026 09:42:11 UTC] [OTP WhatsApp] +21270636232 -> code 162465
+[07-Apr-2026 15:04:04 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:04 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:07 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:10 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:10 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:13 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:16 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:16 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:20 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:20 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_messages.php:29
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_messages.php on line 29
+[07-Apr-2026 15:04:22 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:22 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:24 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_messages.php:29
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_messages.php on line 29
+[07-Apr-2026 15:04:25 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:28 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:28 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:29 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_messages.php:29
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_messages.php on line 29
+[07-Apr-2026 15:04:31 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:34 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function require_authenticated_user_id() in /home/italents/public_html/app/api/get_conversations.php:24
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 24
+[07-Apr-2026 15:04:34 UTC] PHP Warning:  require_once(/home/italents/public_html/app/api/config.php): Failed to open stream: No such file or directory in /home/italents/public_html/app/api/get_conversations.php on line 16
+[07-Apr-2026 15:04:34 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home/italents/public_html/app/api/config.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/italents/public_html/app/api/get_conversations.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_conversations.php on line 16
+[07-Apr-2026 15:04:35 UTC] PHP Warning:  require_once(/home/italents/public_html/app/api/config.php): Failed to open stream: No such file or directory in /home/italents/public_html/app/api/get_messages.php on line 16
+[07-Apr-2026 15:04:35 UTC] PHP Fatal error:  Uncaught Error: Failed opening required '/home/italents/public_html/app/api/config.php' (include_path='.:/opt/alt/php82/usr/share/pear:/opt/alt/php82/usr/share/php:/usr/share/pear:/usr/share/php') in /home/italents/public_html/app/api/get_messages.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/italents/public_html/app/api/get_messages.php on line 16
+[18-Apr-2026 18:15:08 UTC] [register.php] SQLSTATE[23000]: Integrity constraint violation: 1048 Column 'email' cannot be null @ /home/italents/public_html/app/api/register.php:143
+[20-Apr-2026 12:35:52 UTC] [register.php] SQLSTATE[08004] [1040] Too many connections @ /home/italents/public_html/app/api/config.php:48
+[20-Apr-2026 12:36:23 UTC] [OTP WhatsApp] 0698268156 -> code 642309

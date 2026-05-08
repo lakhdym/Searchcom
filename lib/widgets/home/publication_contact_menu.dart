@@ -18,6 +18,8 @@ class PublicationContactMenu {
     required BuildContext context,
     required int listingId,
     required String listingTitle,
+    required int ownerId,
+    required String? currentUserId,
     String? ownerName,
     required bool contactWhatsApp,
     required bool contactCall,
@@ -27,6 +29,13 @@ class PublicationContactMenu {
   }) async {
     final phone = ownerPhone?.trim() ?? '';
     final hasPhone = phone.isNotEmpty;
+    final isOwner = ownerId.toString() == currentUserId.toString();
+    debugPrint(
+      'currentUserId=$currentUserId listingUserId=$ownerId isOwner=$isOwner',
+    );
+    if (isOwner) {
+      return;
+    }
 
     final items = <PopupMenuEntry<String>>[];
     if (contactWhatsApp && hasPhone) {
@@ -170,6 +179,7 @@ class PublicationContactMenu {
     required Color avatarColor,
   }) async {
     final user = await AuthLocalStorage.instance.getUser();
+    if (!context.mounted) return;
     if (user == null) {
       AppFeedback.showInfoSnackBar(context, t('sign_in_to_chat'));
       return;
@@ -210,6 +220,7 @@ class PublicationContactMenu {
         ),
       );
     } catch (e) {
+      if (!context.mounted) return;
       _showError(
         context,
         AppErrorMapper.message(e, fallbackMessage: t('cannot_open_chat')),

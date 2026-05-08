@@ -940,11 +940,22 @@ class ApiListing {
     final imgs = (json['images'] is List)
         ? (json['images'] as List).map((e) => e.toString()).toList()
         : <String>[];
+    int parseOwnerId() {
+      final raw =
+          json['owner_id'] ??
+          json['ownerId'] ??
+          json['user_id'] ??
+          json['userId'] ??
+          json['id_user'] ??
+          json['idUser'];
+      return raw is num
+          ? raw.toInt()
+          : int.tryParse(raw?.toString() ?? '0') ?? 0;
+    }
+
     return ApiListing(
       id: (json['id'] as num).toInt(),
-      ownerId: json['user_id'] is num
-          ? (json['user_id'] as num).toInt()
-          : int.tryParse(json['user_id']?.toString() ?? '0') ?? 0,
+      ownerId: parseOwnerId(),
       ownerName:
           (json['owner_name'] ?? json['user_name'] ?? '')
               .toString()
