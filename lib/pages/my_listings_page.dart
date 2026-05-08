@@ -39,6 +39,65 @@ String _resolveImageUrl(String? raw) {
   return '${_uploadsBase}uploads/annonces/$cleaned';
 }
 
+String _listingStatusLabel(String status) {
+  switch (status) {
+    case 'draft':
+      return t('status_draft');
+    case 'pending':
+    case 'pending_payment':
+      return t('status_pending');
+    case 'published':
+      return t('status_published');
+    case 'hidden':
+      return t('status_hidden');
+    case 'archived':
+      return t('status_archived');
+    case 'rejected':
+      return t('status_rejected');
+    default:
+      return status;
+  }
+}
+
+String _listingTypeLabel(String type) {
+  switch (type) {
+    case 'lost':
+      return t('i_lost');
+    case 'found':
+      return t('i_found');
+    default:
+      return type;
+  }
+}
+
+String _listingCategoryLabel(String? categoryName) {
+  final normalized = (categoryName ?? '').trim().toLowerCase();
+  switch (normalized) {
+    case 'electronics':
+    case 'electronique':
+    case 'électronique':
+      return t('electronics');
+    case 'clothing':
+    case 'vetements':
+    case 'vêtements':
+      return t('clothing');
+    case 'furniture':
+    case 'meubles':
+      return t('furniture');
+    case 'vehicles':
+    case 'vehicules':
+    case 'véhicules':
+      return t('vehicles');
+    case 'other':
+    case 'autre':
+      return t('other');
+    default:
+      return categoryName?.trim().isNotEmpty == true
+          ? categoryName!.trim()
+          : '';
+  }
+}
+
 class MyListingsPage extends StatefulWidget {
   const MyListingsPage({super.key});
 
@@ -95,20 +154,23 @@ class _MyListingsPageState extends State<MyListingsPage> {
   Future<void> _delete(int id) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer'),
-        content: const Text('Supprimer cette publication ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        watchLanguage(ctx);
+        return AlertDialog(
+          title: Text(tr(ctx, 'delete')),
+          content: Text(tr(ctx, 'delete_publication_confirm')),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr(ctx, 'cancel_button')),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr(ctx, 'delete')),
+            ),
+          ],
+        );
+      },
     );
     if (confirm != true) return;
     try {
@@ -162,22 +224,23 @@ class _MyListingsPageState extends State<MyListingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     return AuthenticatedScaffold(
       currentIndex: mainAppShellSettingsIndex,
       backgroundColor: scheme.surface,
       appBar: AppBar(
-        title: const Text('Mes publications'),
+        title: Text(t('my_publications')),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 10),
+            padding: const EdgeInsetsDirectional.only(end: 10),
             child: FilledButton.icon(
               onPressed: () => openAuthenticatedSection(
                 context,
                 index: mainAppShellCreateIndex,
               ),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Nouvelle'),
+              label: Text(t('new_publication')),
               style: FilledButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(
@@ -242,6 +305,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
+        watchLanguage(ctx);
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           child: Column(
@@ -249,30 +313,30 @@ class _MyListingsPageState extends State<MyListingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Booster cette publication',
+                tr(ctx, 'boost_this_publication'),
                 style: textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                'Mettez votre annonce en avant pour augmenter sa visibilité.',
+                tr(ctx, 'boost_visibility_description'),
                 style: textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 16),
               _BoostPlanTile(
-                title: 'Plan Standard',
-                subtitle: 'Mise en avant 3 jours',
+                title: tr(ctx, 'standard_plan'),
+                subtitle: tr(ctx, 'boost_3_days'),
                 price: '29 MAD',
                 icon: Icons.rocket_launch_outlined,
                 color: scheme.primary,
               ),
               const SizedBox(height: 10),
               _BoostPlanTile(
-                title: 'Plan Premium',
-                subtitle: 'Boost 7 jours + badge premium',
+                title: tr(ctx, 'premium_plan'),
+                subtitle: tr(ctx, 'boost_7_days_premium_badge'),
                 price: '59 MAD',
                 icon: Icons.trending_up_rounded,
                 color: scheme.secondary,
@@ -281,7 +345,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               FilledButton.icon(
                 onPressed: () => Navigator.pop(ctx),
                 icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Continuer'),
+                label: Text(tr(ctx, 'continue_button')),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                 ),
@@ -311,25 +375,9 @@ class _ListingCard extends StatelessWidget {
   Color _typeColor(ColorScheme scheme) =>
       item.type == 'lost' ? Colors.red : Colors.green;
 
-  String _statusLabel() {
-    switch (item.status) {
-      case 'draft':
-        return 'Brouillon';
-      case 'pending_payment':
-        return 'En attente';
-      case 'published':
-        return 'Publiée';
-      case 'hidden':
-        return 'Cachée';
-      case 'archived':
-        return 'Archivée';
-      default:
-        return item.status;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     return Container(
@@ -359,16 +407,26 @@ class _ListingCard extends StatelessWidget {
                   Row(
                     children: [
                       _Badge(
-                        label: item.type == 'lost'
-                            ? "J'ai perdu"
-                            : "J'ai trouvé",
+                        label: _listingTypeLabel(item.type),
                         color: _typeColor(scheme),
                       ),
                       const SizedBox(width: 6),
-                      _Badge(label: _statusLabel(), color: scheme.primary),
+                      _Badge(
+                        label: _listingStatusLabel(item.status),
+                        color: scheme.primary,
+                      ),
                       if (item.isBoosted) ...[
                         const SizedBox(width: 6),
-                        _Badge(label: 'Boostée', color: scheme.tertiary),
+                        _Badge(label: t('boosted'), color: scheme.tertiary),
+                      ],
+                      if (_listingCategoryLabel(
+                        item.categoryName,
+                      ).isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        _Badge(
+                          label: _listingCategoryLabel(item.categoryName),
+                          color: scheme.secondary,
+                        ),
                       ],
                     ],
                   ),
@@ -397,7 +455,7 @@ class _ListingCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
-                          item.city ?? 'Ville inconnue',
+                          item.city ?? t('unknown_city'),
                           maxLines: 1,
                           style: textTheme.labelMedium,
                           overflow: TextOverflow.ellipsis,
@@ -427,15 +485,27 @@ class _ListingCard extends StatelessWidget {
                   onEdit();
                 }
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'view', child: Text('Voir')),
-                PopupMenuItem(value: 'edit', child: Text('Modifier')),
-                PopupMenuItem(
-                  value: 'boost',
-                  child: Row(children: [Text('Booster')]),
-                ),
-                PopupMenuItem(value: 'delete', child: Text('Supprimer')),
-              ],
+              itemBuilder: (menuContext) {
+                watchLanguage(menuContext);
+                return [
+                  PopupMenuItem(
+                    value: 'view',
+                    child: Text(tr(menuContext, 'view_details')),
+                  ),
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: Text(tr(menuContext, 'edit')),
+                  ),
+                  PopupMenuItem(
+                    value: 'boost',
+                    child: Text(tr(menuContext, 'boost')),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(tr(menuContext, 'delete')),
+                  ),
+                ];
+              },
             ),
           ],
         ),
@@ -470,6 +540,7 @@ class _Cover extends StatelessWidget {
   final String? url;
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final resolvedUrl = _resolveImageUrl(url);
     return ClipRRect(
@@ -865,18 +936,25 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
               Row(
                 children: [
                   _Badge(
-                    label: widget.item.type == 'lost'
-                        ? "J'ai perdu"
-                        : "J'ai trouve",
+                    label: _listingTypeLabel(widget.item.type),
                     color: widget.item.type == 'lost'
                         ? Colors.red
                         : Colors.green,
                   ),
                   const SizedBox(width: 6),
                   _Badge(
-                    label: _statusLabel(widget.item.status),
+                    label: _listingStatusLabel(widget.item.status),
                     color: scheme.primary,
                   ),
+                  if (_listingCategoryLabel(
+                    widget.item.categoryName,
+                  ).isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _Badge(
+                      label: _listingCategoryLabel(widget.item.categoryName),
+                      color: scheme.secondary,
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 12),
@@ -886,7 +964,7 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      widget.item.city ?? 'Ville inconnue',
+                      widget.item.city ?? t('unknown_city'),
                       style: textTheme.bodyMedium,
                     ),
                   ),
@@ -971,23 +1049,6 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
         );
       },
     );
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'draft':
-        return 'Brouillon';
-      case 'pending_payment':
-        return 'En attente';
-      case 'published':
-        return 'Publiee';
-      case 'hidden':
-        return 'Cachee';
-      case 'archived':
-        return 'Archivee';
-      default:
-        return status;
-    }
   }
 }
 
@@ -1091,7 +1152,7 @@ class _SearchBar extends StatelessWidget {
           ),
           border: InputBorder.none,
           prefixIcon: const Icon(Icons.search),
-          hintText: 'Rechercher une publication',
+          hintText: t('search_publication'),
           suffixIcon: IconButton(
             icon: const Icon(Icons.clear),
             onPressed: onClear,
@@ -1107,6 +1168,7 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback onCreate;
   @override
   Widget build(BuildContext context) {
+    watchLanguage(context);
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     return Padding(
@@ -1116,12 +1178,13 @@ class _EmptyState extends StatelessWidget {
           Icon(Icons.inbox_outlined, size: 48, color: scheme.onSurfaceVariant),
           const SizedBox(height: 12),
           Text(
-            'Vous nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢avez encore aucune publication',
+            t('no_publications_yet'),
             style: textTheme.titleMedium,
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            'Créez votre premiÃƒÆ’Ã‚Â¨re annonce pour la voir ici.',
+            t('create_first_listing_hint'),
             style: textTheme.bodyMedium?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -1130,7 +1193,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 16),
           FilledButton(
             onPressed: onCreate,
-            child: const Text('Créer une publication'),
+            child: Text(t('create_publication_button')),
           ),
         ],
       ),
