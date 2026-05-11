@@ -54,7 +54,8 @@ function get_pdo(): PDO
 }
 
 const JWT_SECRET = 'f3724ea34aa84913e27a4c581604ssdgk8f6g2azelazeddinea0fe4a256b6406bc4ff931fec59';
-const JWT_TTL = 3600;
+// Set to 0 or a negative value to keep users connected until they log out.
+const JWT_TTL = 0;
 
 function json_response(array $data, int $status = 200): void
 {
@@ -109,7 +110,7 @@ function verify_jwt(string $token): ?array
         return null;
     }
 
-    if (isset($payload['exp']) && time() > $payload['exp']) {
+    if (JWT_TTL > 0 && isset($payload['exp']) && time() > $payload['exp']) {
         return null;
     }
 

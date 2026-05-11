@@ -648,18 +648,20 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
       return;
     }
     try {
-      await ApiService.instance.addComment(
+      final newComment = await ApiService.instance.addComment(
         listingId: widget.item.id,
         content: text,
       );
+      if (!mounted) return;
+      setState(() {
+        _comments.insert(0, newComment);
+        _commentsError = null;
+      });
       _commentCtrl.clear();
-      await _loadComments();
-      if (mounted) {
-        AppFeedback.showSuccessSnackBar(
-          context,
-          AppMessages.commentAddedSuccess(),
-        );
-      }
+      AppFeedback.showSuccessSnackBar(
+        context,
+        AppMessages.commentAddedSuccess(),
+      );
     } catch (e) {
       if (mounted) {
         AppFeedback.showErrorSnackBar(
@@ -815,12 +817,15 @@ class _ListingDetailsSheetState extends State<_ListingDetailsSheet> {
     final diff = DateTime.now().difference(date);
     if (diff.inMinutes < 1) return t('just_now');
     if (diff.inMinutes < 60) {
+      if (diff.inMinutes == 1) return t('minute_ago');
       return t('minutes_ago').replaceFirst('{count}', '${diff.inMinutes}');
     }
     if (diff.inHours < 24) {
+      if (diff.inHours == 1) return t('hour_ago');
       return t('hours_ago').replaceFirst('{count}', '${diff.inHours}');
     }
     if (diff.inDays < 7) {
+      if (diff.inDays == 1) return t('day_ago');
       return t('days_ago').replaceFirst('{count}', '${diff.inDays}');
     }
     final month = date.month.toString().padLeft(2, '0');

@@ -132,6 +132,7 @@ class _HomePageState extends State<HomePage> {
     final lostCard = HomeActionCard(
       title: t('i_lost_item'),
       subtitle: t('i_lost_subtitle'),
+      ctaLabel: t('create'),
       height: 150,
       backgroundColor: isDark ? scheme.surface : const Color(0xFFFFF1F1),
       smallIconBackground: isDark
@@ -141,12 +142,15 @@ class _HomePageState extends State<HomePage> {
       smallIconColor: const Color(0xFFE53935),
       bigIcon: Icons.search,
       bigIconColor: const Color(0xFFE53935).withValues(alpha: 0.08),
+      motionBias: 1,
       onTap: _openLost,
     );
 
     final foundCard = HomeActionCard(
       title: t('i_found_item'),
       subtitle: t('i_found_subtitle'),
+      ctaLabel: t('create'),
+      ctaColor: const Color(0xFF2E7D32),
       height: 150,
       backgroundColor: isDark ? scheme.surface : const Color(0xFFF1FBF5),
       smallIconBackground: isDark
@@ -156,6 +160,7 @@ class _HomePageState extends State<HomePage> {
       smallIconColor: const Color(0xFFF9A825),
       bigIcon: Icons.check_circle,
       bigIconColor: const Color(0xFF2E7D32).withValues(alpha: 0.08),
+      motionBias: -1,
       onTap: _openFound,
     );
 

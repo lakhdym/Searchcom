@@ -83,13 +83,17 @@ try {
 
     unset($user['password_hash']);
 
-    $token = create_jwt([
+    $payload = [
         'sub' => (int)$user['id'],
         'email' => $user['email'],
         'role' => $user['role'],
         'iat' => time(),
-        'exp' => time() + JWT_TTL,
-    ]);
+    ];
+    if (JWT_TTL > 0) {
+        $payload['exp'] = time() + JWT_TTL;
+    }
+
+    $token = create_jwt($payload);
 
     json_response([
         'success' => true,

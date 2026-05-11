@@ -49,6 +49,7 @@ class _PublicationFullDetailsSheetState
   int _currentImageIndex = 0;
   bool _canComment = false;
   bool _loadingComments = false;
+  bool _commentsSyncing = false;
   bool _commentsLoaded = false;
   String? _commentsError;
   bool _submittingComment = false;
@@ -65,7 +66,9 @@ class _PublicationFullDetailsSheetState
     _currentUserId = currentUser.value?.id;
     _syncCommentAccess();
     _loadCurrentUser();
-    if (!_commentsLoaded) {
+    if (_commentsLoaded) {
+      _loadComments(silent: true);
+    } else {
       _loadComments();
     }
   }
@@ -77,11 +80,16 @@ class _PublicationFullDetailsSheetState
     super.dispose();
   }
 
-  Future<void> _loadComments() async {
-    setState(() {
-      _loadingComments = true;
-      _commentsError = null;
-    });
+  Future<void> _loadComments({bool silent = false}) async {
+    if (_commentsSyncing) return;
+    _commentsSyncing = true;
+
+    if (!silent) {
+      setState(() {
+        _loadingComments = true;
+        _commentsError = null;
+      });
+    }
 
     try {
       final comments = await ApiService.instance.fetchComments(
@@ -91,20 +99,24 @@ class _PublicationFullDetailsSheetState
       setState(() {
         _comments = comments;
         _commentsLoaded = true;
+        _commentsError = null;
       });
       widget.onCommentsChanged?.call(List<ApiListingComment>.from(_comments));
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentsError = AppErrorMapper.message(
-          e,
-          fallbackMessage: AppMessages.commentsLoadError(),
-        );
-      });
+      if (!silent) {
+        setState(() {
+          _commentsError = AppErrorMapper.message(
+            e,
+            fallbackMessage: AppMessages.commentsLoadError(),
+          );
+        });
+      }
     } finally {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() => _loadingComments = false);
       }
+      _commentsSyncing = false;
     }
   }
 
@@ -294,12 +306,15 @@ class _PublicationFullDetailsSheetState
     final diff = DateTime.now().difference(date);
     if (diff.inMinutes < 1) return t('just_now');
     if (diff.inMinutes < 60) {
+      if (diff.inMinutes == 1) return t('minute_ago');
       return t('minutes_ago').replaceFirst('{count}', '${diff.inMinutes}');
     }
     if (diff.inHours < 24) {
+      if (diff.inHours == 1) return t('hour_ago');
       return t('hours_ago').replaceFirst('{count}', '${diff.inHours}');
     }
     if (diff.inDays < 7) {
+      if (diff.inDays == 1) return t('day_ago');
       return t('days_ago').replaceFirst('{count}', '${diff.inDays}');
     }
     final month = date.month.toString().padLeft(2, '0');

@@ -43,8 +43,10 @@ $payload = [
     'email' => $email,
     'role' => 'user',
     'iat' => time(),
-    'exp' => time() + JWT_TTL,
 ];
+if (JWT_TTL > 0) {
+    $payload['exp'] = time() + JWT_TTL;
+}
 
 $token = create_jwt($payload);
 

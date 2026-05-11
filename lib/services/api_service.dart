@@ -82,6 +82,7 @@ class ApiService {
     final query = <String, String>{
       'limit': limit.toString(),
       'offset': offset.toString(),
+      '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       ...?(type == null ? null : <String, String>{'type': type}),
     };
     final uri = Uri.parse(
@@ -285,7 +286,9 @@ class ApiService {
   // Commentaires
   // -------------------------------------------------------------
   Future<List<ApiListingComment>> fetchComments(int listingId) async {
-    final uri = Uri.parse('$_baseUrl/comments.php?listing_id=$listingId');
+    final uri = Uri.parse(
+      '$_baseUrl/comments.php?listing_id=$listingId&_ts=${DateTime.now().millisecondsSinceEpoch}',
+    );
     final resp = await _client.get(uri, headers: _buildHeaders(withAuth: true));
     if (resp.statusCode != 200) {
       throw Exception(
@@ -327,7 +330,9 @@ class ApiService {
   // Likes
   // -------------------------------------------------------------
   Future<List<ApiListingLike>> fetchLikes(int listingId) async {
-    final uri = Uri.parse('$_baseUrl/likes.php?listing_id=$listingId');
+    final uri = Uri.parse(
+      '$_baseUrl/likes.php?listing_id=$listingId&_ts=${DateTime.now().millisecondsSinceEpoch}',
+    );
     final resp = await _client.get(uri, headers: _buildHeaders(withAuth: true));
     if (resp.statusCode != 200) {
       throw Exception(

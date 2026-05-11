@@ -43,6 +43,46 @@ class Publication {
     this.ownerName,
   });
 
+  Publication copyWith({
+    int? id,
+    int? ownerId,
+    String? title,
+    PublicationStatus? status,
+    List<String>? imageUrls,
+    String? dateText,
+    String? eventDate,
+    String? description,
+    String? cityArea,
+    int? likesCount,
+    int? commentsCount,
+    bool? likedByMe,
+    bool? contactChat,
+    bool? contactWhatsApp,
+    bool? contactCall,
+    String? ownerPhone,
+    String? ownerName,
+  }) {
+    return Publication(
+      id: id ?? this.id,
+      ownerId: ownerId ?? this.ownerId,
+      title: title ?? this.title,
+      status: status ?? this.status,
+      imageUrls: imageUrls ?? this.imageUrls,
+      dateText: dateText ?? this.dateText,
+      eventDate: eventDate ?? this.eventDate,
+      description: description ?? this.description,
+      cityArea: cityArea ?? this.cityArea,
+      likesCount: likesCount ?? this.likesCount,
+      commentsCount: commentsCount ?? this.commentsCount,
+      likedByMe: likedByMe ?? this.likedByMe,
+      contactChat: contactChat ?? this.contactChat,
+      contactWhatsApp: contactWhatsApp ?? this.contactWhatsApp,
+      contactCall: contactCall ?? this.contactCall,
+      ownerPhone: ownerPhone ?? this.ownerPhone,
+      ownerName: ownerName ?? this.ownerName,
+    );
+  }
+
   String get primaryImage =>
       imageUrls.isNotEmpty ? imageUrls.first : fallbackImageUrl;
 

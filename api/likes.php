@@ -21,6 +21,9 @@ set_error_handler(function ($severity, $message, $file, $line) {
 });
 
 header('Content-Type: application/json; charset=UTF-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowed = [

@@ -26,6 +26,7 @@ class PublicationCard extends StatefulWidget {
     required this.green,
     required this.textGray,
     required this.mutedGray,
+    this.onPublicationChanged,
   });
 
   final Publication publication;
@@ -34,6 +35,7 @@ class PublicationCard extends StatefulWidget {
   final Color green;
   final Color textGray;
   final Color mutedGray;
+  final ValueChanged<Publication>? onPublicationChanged;
 
   @override
   State<PublicationCard> createState() => _PublicationCardState();
@@ -50,6 +52,7 @@ class _PublicationCardState extends State<PublicationCard>
   bool _meLoaded = false;
   List<ApiListingComment> _comments = [];
   bool _loadingComments = false;
+  bool _commentsSyncing = false;
   bool _commentsLoaded = false;
   String? _commentsError;
   List<ApiListingLike> _likes = [];
@@ -82,6 +85,16 @@ class _PublicationCardState extends State<PublicationCard>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant PublicationCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.publication.likesCount != widget.publication.likesCount ||
+        oldWidget.publication.likedByMe != widget.publication.likedByMe) {
+      _likesCount = widget.publication.likesCount;
+      _liked = widget.publication.likedByMe;
+    }
+  }
+
   void _syncCurrentUser() {
     if (!mounted) return;
     setState(() {
@@ -90,15 +103,36 @@ class _PublicationCardState extends State<PublicationCard>
     });
   }
 
+  void _emitPublicationChanged({
+    int? likesCount,
+    int? commentsCount,
+    bool? likedByMe,
+  }) {
+    final callback = widget.onPublicationChanged;
+    if (callback == null) return;
+
+    callback(
+      widget.publication.copyWith(
+        likesCount: likesCount ?? _likesCount,
+        commentsCount:
+            commentsCount ??
+            (_commentsLoaded
+                ? _comments.length
+                : widget.publication.commentsCount),
+        likedByMe: likedByMe ?? _liked,
+      ),
+    );
+  }
+
   void _toggleComments() {
     final willShow = !_showComments;
     setState(() => _showComments = willShow);
-    if (willShow && !_commentsLoaded && !_loadingComments) {
-      _loadComments();
+    if (!willShow) {
+      return;
     }
-    if (willShow) {
-      _syncCommentAccess();
-    }
+
+    _syncCommentAccess();
+    _loadComments(silent: _commentsLoaded);
   }
 
   Future<void> _syncCommentAccess() async {
@@ -107,32 +141,45 @@ class _PublicationCardState extends State<PublicationCard>
     setState(() => _canComment = canComment);
   }
 
-  Future<void> _loadComments() async {
-    setState(() {
-      _loadingComments = true;
+  Future<void> _loadComments({bool silent = false}) async {
+    if (_commentsSyncing) return;
+    _commentsSyncing = true;
+
+    if (!silent) {
+      setState(() {
+        _loadingComments = true;
+        _commentsError = null;
+      });
+    } else {
       _commentsError = null;
-    });
+    }
 
     try {
       final comments = await ApiService.instance.fetchComments(
         widget.publication.id,
       );
       if (!mounted) return;
+      final commentsCount = comments.length;
       setState(() {
         _comments = comments;
         _commentsLoaded = true;
+        _commentsError = null;
       });
+      _emitPublicationChanged(commentsCount: commentsCount);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentsError = e.toString();
-      });
+      if (!silent) {
+        setState(() {
+          _commentsError = e.toString();
+        });
+      }
     } finally {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() {
           _loadingComments = false;
         });
       }
+      _commentsSyncing = false;
     }
   }
 
@@ -145,11 +192,13 @@ class _PublicationCardState extends State<PublicationCard>
     try {
       final likes = await ApiService.instance.fetchLikes(widget.publication.id);
       if (!mounted) return;
+      final likesCount = likes.length;
       setState(() {
         _likes = likes;
         _likesLoaded = true;
-        _likesCount = likes.length;
+        _likesCount = likesCount;
       });
+      _emitPublicationChanged(likesCount: likesCount);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -183,12 +232,18 @@ class _PublicationCardState extends State<PublicationCard>
         widget.publication.id,
       );
       if (!mounted) return;
+      final nextLiked = result.liked;
+      final nextLikesCount = result.likesCount;
       setState(() {
-        _liked = result.liked;
-        _likesCount = result.likesCount;
+        _liked = nextLiked;
+        _likesCount = nextLikesCount;
         _likesLoaded = false;
         _likes = [];
       });
+      _emitPublicationChanged(
+        likesCount: nextLikesCount,
+        likedByMe: nextLiked,
+      );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -311,11 +366,13 @@ class _PublicationCardState extends State<PublicationCard>
         content: text,
       );
       if (!mounted) return;
+      final nextComments = <ApiListingComment>[newComment, ..._comments];
       setState(() {
-        _comments.insert(0, newComment);
+        _comments = nextComments;
         _commentsLoaded = true;
         _showComments = true;
       });
+      _emitPublicationChanged(commentsCount: nextComments.length);
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
@@ -471,6 +528,7 @@ class _PublicationCardState extends State<PublicationCard>
               _commentsLoaded = true;
               _commentsError = null;
             });
+            _emitPublicationChanged(commentsCount: comments.length);
           },
         );
       },
@@ -493,10 +551,19 @@ class _PublicationCardState extends State<PublicationCard>
   String _formatRelative(DateTime? date) {
     if (date == null) return '';
     final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1) return "A l'instant";
-    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
-    if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
-    if (diff.inDays < 7) return "Il y a ${diff.inDays} j";
+    if (diff.inMinutes < 1) return t('just_now');
+    if (diff.inMinutes < 60) {
+      if (diff.inMinutes == 1) return t('minute_ago');
+      return t('minutes_ago').replaceFirst('{count}', '${diff.inMinutes}');
+    }
+    if (diff.inHours < 24) {
+      if (diff.inHours == 1) return t('hour_ago');
+      return t('hours_ago').replaceFirst('{count}', '${diff.inHours}');
+    }
+    if (diff.inDays < 7) {
+      if (diff.inDays == 1) return t('day_ago');
+      return t('days_ago').replaceFirst('{count}', '${diff.inDays}');
+    }
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return "${date.year}-$month-$day";
@@ -521,15 +588,12 @@ class _PublicationCardState extends State<PublicationCard>
         : const Color(0xFFE5E7EB);
     final textPrimary = scheme.onSurface;
     final textSecondary = scheme.onSurfaceVariant;
-    final commentCount = _commentsLoaded
+    final commentCount = (_showComments && _commentsLoaded)
         ? _comments.length
         : publication.commentsCount;
     final currentUserId = _currentUserId;
     final listing = publication;
     final isOwner = listing.userId.toString() == currentUserId.toString();
-    debugPrint(
-      'currentUserId=$currentUserId listingUserId=${listing.userId} isOwner=$isOwner',
-    );
     final hasPhone = publication.ownerPhone?.trim().isNotEmpty ?? false;
     final hasContactOptions =
         !isOwner &&

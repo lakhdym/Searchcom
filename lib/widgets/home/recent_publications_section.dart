@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -26,21 +28,26 @@ class RecentPublicationsSection extends StatefulWidget {
       _RecentPublicationsSectionState();
 }
 
-class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
+class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
+    with WidgetsBindingObserver {
   static const _red = Color(0xFFFF3B30);
   static const _green = Color(0xFF34C759);
   static const _mutedGray = Color(0xFF9CA3AF);
   static const _pageSize = 5;
   static const _loadMoreSize = 5;
   static const _prefetchThreshold = 180.0;
+  static const _backgroundRefreshInterval = Duration(seconds: 6);
 
   List<Publication> _publications = [];
   bool _loading = true;
+  bool _refreshing = false;
   bool _loadingMore = false;
   bool _hasMore = true;
   String? _error;
   int _offset = 0;
   int _requestSerial = 0;
+  Timer? _backgroundRefreshTimer;
+  AppLifecycleState? _appLifecycleState;
 
   int _selectedIndex = 0;
   String _query = '';
@@ -48,8 +55,10 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.scrollController?.addListener(_handleScroll);
     widget.refreshListenable?.addListener(_handleExternalRefresh);
+    _startBackgroundRefresh();
     _refreshFeed();
   }
 
@@ -68,9 +77,35 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
   @override
   void dispose() {
+    _backgroundRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     widget.scrollController?.removeListener(_handleScroll);
     widget.refreshListenable?.removeListener(_handleExternalRefresh);
     super.dispose();
+  }
+
+  bool get _isPageVisible {
+    final route = ModalRoute.of(context);
+    final isRouteCurrent = route == null || route.isCurrent;
+    final isAppResumed =
+        _appLifecycleState == null ||
+        _appLifecycleState == AppLifecycleState.resumed;
+    return isRouteCurrent && isAppResumed;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleState = state;
+  }
+
+  void _startBackgroundRefresh() {
+    _backgroundRefreshTimer?.cancel();
+    _backgroundRefreshTimer = Timer.periodic(_backgroundRefreshInterval, (_) {
+      if (!mounted || !_isPageVisible || _loading || _refreshing || _loadingMore) {
+        return;
+      }
+      _refreshFeed(silent: _publications.isNotEmpty);
+    });
   }
 
   String? get _selectedType {
@@ -93,11 +128,13 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   }
 
   void _handleExternalRefresh() {
-    _refreshFeed();
+    _refreshFeed(silent: _publications.isNotEmpty);
   }
 
-  Future<void> _refreshFeed() async {
-    await _loadPublications(reset: true);
+  Future<void> _refreshFeed({bool silent = false}) async {
+    if (_refreshing || _loadingMore) return;
+    if (_loading && _publications.isNotEmpty) return;
+    await _loadPublications(reset: true, silent: silent);
   }
 
   Publication _mapListing(HomeListingItem listing) {
@@ -139,12 +176,29 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
     }
   }
 
-  Future<void> _loadPublications({bool reset = false}) async {
+  void _updatePublication(Publication updatedPublication) {
+    final index = _publications.indexWhere(
+      (item) => item.id == updatedPublication.id,
+    );
+    if (index < 0) return;
+
+    setState(() {
+      _publications[index] = _publications[index].copyWith(
+        likesCount: updatedPublication.likesCount,
+        commentsCount: updatedPublication.commentsCount,
+        likedByMe: updatedPublication.likedByMe,
+      );
+    });
+  }
+
+  Future<void> _loadPublications({bool reset = false, bool silent = false}) async {
     final requestLimit = reset ? _pageSize : _loadMoreSize;
+    final canSilentRefresh = reset && silent && _publications.isNotEmpty;
 
     if (reset) {
       setState(() {
-        _loading = true;
+        _loading = !canSilentRefresh;
+        _refreshing = canSilentRefresh;
         _loadingMore = false;
         _hasMore = true;
         _offset = 0;
@@ -174,12 +228,14 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
 
       setState(() {
         if (reset) {
-          _publications = [];
+          _publications = nextItems;
+        } else {
+          _appendUniquePublications(nextItems);
         }
-        _appendUniquePublications(nextItems);
         _offset = nextOffset + receivedCount;
         _hasMore = receivedCount == requestLimit;
         _loading = false;
+        _refreshing = false;
         _loadingMore = false;
       });
     } catch (e) {
@@ -190,6 +246,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           fallbackMessage: AppMessages.listingsLoadError(),
         );
         _loading = false;
+        _refreshing = false;
         _loadingMore = false;
       });
     }
@@ -254,7 +311,9 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
               ),
               child: IconButton(
                 tooltip: t('refresh'),
-                onPressed: _refreshFeed,
+                onPressed: _loading
+                    ? null
+                    : () => _refreshFeed(silent: _publications.isNotEmpty),
                 icon: const Icon(Icons.refresh),
                 color: scheme.onSurfaceVariant,
               ),
@@ -333,12 +392,14 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
             itemBuilder: (context, index) {
               final publication = _filtered[index];
               return PublicationCard(
+                key: ValueKey<int>(publication.id),
                 publication: publication,
                 purple: purple,
                 red: _red,
                 green: _green,
                 textGray: textGray,
                 mutedGray: mutedGray,
+                onPublicationChanged: _updatePublication,
               );
             },
           ),

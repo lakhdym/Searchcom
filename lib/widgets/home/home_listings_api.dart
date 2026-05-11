@@ -21,6 +21,7 @@ class HomeListingsApi {
     final query = <String, String>{
       'limit': limit.toString(),
       'offset': offset.toString(),
+      '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       ...?(type == null ? null : <String, String>{'type': type}),
     };
     final uri = Uri.parse(
