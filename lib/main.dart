@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/navigation/app_route_observer.dart';
 import 'core/feedback/app_feedback.dart';
 import 'pages/app_error_page.dart';
 import 'pages/splash_screen.dart';
@@ -56,6 +57,7 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      navigatorObservers: [appRouteObserver],
       onUnknownRoute: (_) =>
           MaterialPageRoute(builder: (_) => AppErrorPage.notFound()),
       builder: (context, child) {

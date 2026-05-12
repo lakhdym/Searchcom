@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_messages.dart';
 import '../../core/errors/app_error_mapper.dart';
+import '../../core/navigation/app_route_observer.dart';
 import '../../services/l10n_helper.dart';
 import 'filter_segmented_control.dart';
 import 'home_listings_api.dart';
@@ -29,7 +30,7 @@ class RecentPublicationsSection extends StatefulWidget {
 }
 
 class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, RouteAware {
   static const _red = Color(0xFFFF3B30);
   static const _green = Color(0xFF34C759);
   static const _mutedGray = Color(0xFF9CA3AF);
@@ -48,6 +49,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
   int _requestSerial = 0;
   Timer? _backgroundRefreshTimer;
   AppLifecycleState? _appLifecycleState;
+  ModalRoute<dynamic>? _route;
+  bool _isCurrentRoute = true;
 
   int _selectedIndex = 0;
   String _query = '';
@@ -76,26 +79,66 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextRoute = ModalRoute.of(context);
+    if (_route == nextRoute) return;
+
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
+
+    _route = nextRoute;
+    if (nextRoute != null) {
+      appRouteObserver.subscribe(this, nextRoute);
+      _isCurrentRoute = nextRoute.isCurrent;
+    } else {
+      _isCurrentRoute = true;
+    }
+  }
+
+  @override
   void dispose() {
     _backgroundRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+    }
     widget.scrollController?.removeListener(_handleScroll);
     widget.refreshListenable?.removeListener(_handleExternalRefresh);
     super.dispose();
   }
 
   bool get _isPageVisible {
-    final route = ModalRoute.of(context);
-    final isRouteCurrent = route == null || route.isCurrent;
     final isAppResumed =
         _appLifecycleState == null ||
         _appLifecycleState == AppLifecycleState.resumed;
-    return isRouteCurrent && isAppResumed;
+    return _isCurrentRoute && isAppResumed;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appLifecycleState = state;
+  }
+
+  @override
+  void didPush() {
+    _isCurrentRoute = true;
+  }
+
+  @override
+  void didPopNext() {
+    _isCurrentRoute = true;
+  }
+
+  @override
+  void didPushNext() {
+    _isCurrentRoute = false;
+  }
+
+  @override
+  void didPop() {
+    _isCurrentRoute = false;
   }
 
   void _startBackgroundRefresh() {
@@ -125,6 +168,24 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     if (_loading || _loadingMore || !_hasMore) return;
     if (controller.position.extentAfter > _prefetchThreshold) return;
     _loadPublications();
+  }
+
+  void _scheduleLoadMoreIfNeeded() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _loading || _loadingMore || !_hasMore) return;
+
+      final controller = widget.scrollController;
+      if (controller == null || !controller.hasClients) return;
+
+      final position = controller.position;
+      final shouldLoadMore =
+          position.maxScrollExtent <= _prefetchThreshold ||
+          position.extentAfter <= _prefetchThreshold;
+
+      if (shouldLoadMore) {
+        _loadPublications();
+      }
+    });
   }
 
   void _handleExternalRefresh() {
@@ -176,6 +237,16 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     }
   }
 
+  List<Publication> _mergeRefreshedPublications(
+    List<Publication> refreshedItems,
+  ) {
+    final refreshedIds = refreshedItems.map((item) => item.id).toSet();
+    return <Publication>[
+      ...refreshedItems,
+      ..._publications.where((item) => !refreshedIds.contains(item.id)),
+    ];
+  }
+
   void _updatePublication(Publication updatedPublication) {
     final index = _publications.indexWhere(
       (item) => item.id == updatedPublication.id,
@@ -200,8 +271,10 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
         _loading = !canSilentRefresh;
         _refreshing = canSilentRefresh;
         _loadingMore = false;
-        _hasMore = true;
-        _offset = 0;
+        if (!canSilentRefresh) {
+          _hasMore = true;
+          _offset = 0;
+        }
         _error = null;
       });
     } else {
@@ -228,16 +301,24 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
 
       setState(() {
         if (reset) {
-          _publications = nextItems;
+          if (canSilentRefresh) {
+            _publications = _mergeRefreshedPublications(nextItems);
+            _offset = _publications.length;
+          } else {
+            _publications = nextItems;
+            _offset = nextOffset + receivedCount;
+            _hasMore = receivedCount == requestLimit;
+          }
         } else {
           _appendUniquePublications(nextItems);
+          _offset = nextOffset + receivedCount;
+          _hasMore = receivedCount == requestLimit;
         }
-        _offset = nextOffset + receivedCount;
-        _hasMore = receivedCount == requestLimit;
         _loading = false;
         _refreshing = false;
         _loadingMore = false;
       });
+      _scheduleLoadMoreIfNeeded();
     } catch (e) {
       if (!mounted || requestId != _requestSerial) return;
       setState(() {
@@ -384,24 +465,22 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
           '$_selectedIndex-$_query-${_publications.length}-$_loadingMore',
         ),
         children: [
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _filtered.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 14),
-            itemBuilder: (context, index) {
-              final publication = _filtered[index];
-              return PublicationCard(
-                key: ValueKey<int>(publication.id),
-                publication: publication,
-                purple: purple,
-                red: _red,
-                green: _green,
-                textGray: textGray,
-                mutedGray: mutedGray,
-                onPublicationChanged: _updatePublication,
-              );
-            },
+          Column(
+            children: [
+              for (var index = 0; index < _filtered.length; index++) ...[
+                PublicationCard(
+                  key: ValueKey<int>(_filtered[index].id),
+                  publication: _filtered[index],
+                  purple: purple,
+                  red: _red,
+                  green: _green,
+                  textGray: textGray,
+                  mutedGray: mutedGray,
+                  onPublicationChanged: _updatePublication,
+                ),
+                if (index < _filtered.length - 1) const SizedBox(height: 14),
+              ],
+            ],
           ),
           if (_loadingMore)
             const Padding(

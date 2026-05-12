@@ -148,8 +148,8 @@ class HomePage extends StatelessWidget {
     );
 
     final foundCard = HomeActionCard(
-      title: "J'ai trouvé",
-      subtitle: "Aidez quelqu'un à retrouver son bien en publiant une annonce.",
+      title: "J'ai trouvï¿½",
+      subtitle: "Aidez quelqu'un ï¿½ retrouver son bien en publiant une annonce.",
       height: 150,
       backgroundColor: const Color(0xFFF1FBF5),
       smallIconBackground: const Color(0xFFDFF5E7),
@@ -351,7 +351,7 @@ class SearchBarWithFilter extends StatelessWidget {
               decoration: const InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                hintText: "Rechercher (objet, lieu, mot-clé…)",
+                hintText: "Rechercher (objet, lieu, mot-clï¿½)",
                 hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
               ),
             ),
@@ -450,7 +450,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
   bool _loading = true;
   String? _error;
 
-  int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvé
+  int _selectedIndex = 0; // 0: Tout, 1: Perdu, 2: Trouvï¿½
   String _query = "";
 
   @override
@@ -538,7 +538,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
           children: [
             Expanded(
               child: Text(
-                "Publications récentes",
+                "Publications rï¿½centes",
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -590,7 +590,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection> {
                 const SizedBox(height: 10),
                 OutlinedButton(
                   onPressed: _loadPublications,
-                  child: const Text('Réessayer'),
+                  child: const Text('Rï¿½essayer'),
                 ),
               ],
             ),
@@ -654,7 +654,7 @@ class FilterSegmentedControl extends StatelessWidget {
       offset: const Offset(0, 2),
     );
 
-    const labels = ["Tout", "Perdu", "Trouvé"];
+    const labels = ["Tout", "Perdu", "Trouvï¿½"];
 
     return Container(
       height: pillHeight,
@@ -976,7 +976,7 @@ class _PublicationCardState extends State<PublicationCard>
       _commentController.clear();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Commentaire ajouté")));
+      ).showSnackBar(const SnackBar(content: Text("Commentaire ajoutï¿½")));
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1015,7 +1015,7 @@ class _PublicationCardState extends State<PublicationCard>
         : widget.green;
     final badgeLabel = publication.status == PublicationStatus.perdu
         ? "PERDU"
-        : "TROUVÉ";
+        : "TROUVï¿½";
     final radius = BorderRadius.circular(16);
     final likesCount = _likesCount;
     final commentCount = _commentsLoaded
@@ -1374,7 +1374,7 @@ class _PublicationCardState extends State<PublicationCard>
                               ),
                               TextButton(
                                 onPressed: _loadComments,
-                                child: const Text("Réessayer"),
+                                child: const Text("Rï¿½essayer"),
                               ),
                             ],
                           )
@@ -1473,7 +1473,7 @@ class _PublicationCardState extends State<PublicationCard>
                                   minLines: 1,
                                   maxLines: 3,
                                   decoration: const InputDecoration(
-                                    hintText: "Écrire un commentaire…",
+                                    hintText: "ï¿½crire un commentaireï¿½",
                                     border: InputBorder.none,
                                   ),
                                 ),
@@ -1607,7 +1607,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchWhatsApp(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("Numéro WhatsApp indisponible");
+      _showSnack("Numï¿½ro WhatsApp indisponible");
       return;
     }
     final uri = Uri.parse('https://wa.me/$normalized');
@@ -1624,7 +1624,7 @@ class _PublicationCardState extends State<PublicationCard>
   Future<void> _launchCall(String rawPhone) async {
     final normalized = _normalizedPhone(rawPhone);
     if (normalized == null) {
-      _showSnack("Numéro d'appel indisponible");
+      _showSnack("Numï¿½ro d'appel indisponible");
       return;
     }
     final uri = Uri(scheme: 'tel', path: normalized);
@@ -1786,7 +1786,7 @@ class _PublicationCardState extends State<PublicationCard>
     Clipboard.setData(ClipboardData(text: link));
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text("Lien copié")));
+    ).showSnackBar(const SnackBar(content: Text("Lien copiï¿½")));
   }
 }
 
