@@ -84,6 +84,8 @@ function map_listing_row(
         'status' => $row['status'],
         'title' => $row['title'],
         'description' => $row['description'],
+        'category_id' => isset($row['category_id']) ? (int) $row['category_id'] : null,
+        'category_name' => $row['category_name'] ?? null,
         'location' => $row['location_text'] ?: $row['city'],
         'city' => $row['city'],
         'date' => $row['created_at'], // YYYY-MM-DD HH:MM:SS
@@ -403,6 +405,9 @@ if ($method === 'GET') {
 
     // Optionnel : ?type=lost|found
     $type = $_GET['type'] ?? null;
+    $search = trim((string) ($_GET['q'] ?? ''));
+    $city = trim((string) ($_GET['city'] ?? ''));
+    $categoryId = isset($_GET['category_id']) ? (int) $_GET['category_id'] : 0;
     $limit = isset($_GET['limit']) ? (int) $_GET['limit'] : 5;
     $offset = isset($_GET['offset']) ? (int) $_GET['offset'] : 0;
     $limit = max(1, min($limit, 50));
@@ -415,6 +420,8 @@ if ($method === 'GET') {
                l.status,
                l.title,
                l.description,
+               l.category_id,
+               c.name_fr AS category_name,
                l.city,
                l.location_text,
                l.is_boosted,
@@ -426,6 +433,7 @@ if ($method === 'GET') {
                l.event_date
         FROM listings l
         LEFT JOIN users u ON u.id = l.user_id
+        LEFT JOIN categories c ON c.id = l.category_id
         WHERE l.status = 'published'
     ";
     $params = [];
@@ -433,6 +441,41 @@ if ($method === 'GET') {
     if ($type === 'lost' || $type === 'found') {
         $sql .= " AND l.type = :type";
         $params[':type'] = $type;
+    }
+
+    if ($categoryId > 0) {
+        $sql .= " AND l.category_id = :category_id";
+        $params[':category_id'] = $categoryId;
+    }
+
+    if ($city !== '') {
+        $sql .= " AND (l.city LIKE :city_name OR l.location_text LIKE :city_location)";
+        $params[':city_name'] = '%' . $city . '%';
+        $params[':city_location'] = '%' . $city . '%';
+    }
+
+    if ($search !== '') {
+        $sql .= "
+            AND (
+                l.title LIKE :search_title
+                OR l.description LIKE :search_description
+                OR l.city LIKE :search_city
+                OR l.location_text LIKE :search_location
+                OR COALESCE(c.name_fr, '') LIKE :search_category_fr
+                OR COALESCE(c.name_en, '') LIKE :search_category_en
+                OR COALESCE(c.name_ar, '') LIKE :search_category_ar
+                OR COALESCE(c.slug, '') LIKE :search_category_slug
+            )
+        ";
+        $searchValue = '%' . $search . '%';
+        $params[':search_title'] = $searchValue;
+        $params[':search_description'] = $searchValue;
+        $params[':search_city'] = $searchValue;
+        $params[':search_location'] = $searchValue;
+        $params[':search_category_fr'] = $searchValue;
+        $params[':search_category_en'] = $searchValue;
+        $params[':search_category_ar'] = $searchValue;
+        $params[':search_category_slug'] = $searchValue;
     }
 
     $sql .= " ORDER BY l.created_at DESC, l.id DESC LIMIT :limit OFFSET :offset";

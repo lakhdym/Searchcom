@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_messages.dart';
 import '../../core/errors/app_error_mapper.dart';
 import '../../core/navigation/app_route_observer.dart';
+import '../../services/api_service.dart';
 import '../../services/l10n_helper.dart';
 import 'filter_segmented_control.dart';
 import 'home_listings_api.dart';
@@ -39,21 +40,29 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
   static const _prefetchThreshold = 180.0;
   static const _backgroundRefreshInterval = Duration(seconds: 6);
 
+  final TextEditingController _searchController = TextEditingController();
+
   List<Publication> _publications = [];
+  List<ApiCategory> _categories = const [];
   bool _loading = true;
   bool _refreshing = false;
   bool _loadingMore = false;
   bool _hasMore = true;
+  bool _loadingCategories = false;
   String? _error;
+  String? _categoriesError;
   int _offset = 0;
   int _requestSerial = 0;
   Timer? _backgroundRefreshTimer;
+  Timer? _searchDebounce;
   AppLifecycleState? _appLifecycleState;
   ModalRoute<dynamic>? _route;
   bool _isCurrentRoute = true;
 
   int _selectedIndex = 0;
   String _query = '';
+  String _cityFilter = '';
+  int? _selectedCategoryId;
 
   @override
   void initState() {
@@ -62,6 +71,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     widget.scrollController?.addListener(_handleScroll);
     widget.refreshListenable?.addListener(_handleExternalRefresh);
     _startBackgroundRefresh();
+    _loadCategories();
     _refreshFeed();
   }
 
@@ -100,6 +110,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
   @override
   void dispose() {
     _backgroundRefreshTimer?.cancel();
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     if (_route != null) {
       appRouteObserver.unsubscribe(this);
@@ -114,6 +126,68 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
         _appLifecycleState == null ||
         _appLifecycleState == AppLifecycleState.resumed;
     return _isCurrentRoute && isAppResumed;
+  }
+
+  bool get _hasSearchCriteria =>
+      _query.isNotEmpty || _selectedCategoryId != null || _cityFilter.isNotEmpty;
+
+  int get _activeFilterCount {
+    var count = 0;
+    if (_query.isNotEmpty) count++;
+    if (_selectedCategoryId != null) count++;
+    if (_cityFilter.isNotEmpty) count++;
+    return count;
+  }
+
+  String? get _selectedType {
+    switch (_selectedIndex) {
+      case 1:
+        return 'lost';
+      case 2:
+        return 'found';
+      default:
+        return null;
+    }
+  }
+
+  String? get _selectedCategoryLabel {
+    if (_selectedCategoryId == null) return null;
+    final lang = getCurrentLanguageCode();
+    for (final category in _categories) {
+      if (category.id == _selectedCategoryId) {
+        return category.displayName(lang);
+      }
+    }
+    return null;
+  }
+
+  String _localizedText({
+    required String fr,
+    required String en,
+    required String ar,
+  }) {
+    switch (getCurrentLanguageCode()) {
+      case 'ar':
+        return ar;
+      case 'en':
+        return en;
+      case 'fr':
+      default:
+        return fr;
+    }
+  }
+
+  String _trOrFallback(
+    String key, {
+    required String fr,
+    required String en,
+    required String ar,
+  }) {
+    final translated = t(key);
+    if (translated == key) {
+      return _localizedText(fr: fr, en: en, ar: ar);
+    }
+    return translated;
   }
 
   @override
@@ -149,17 +223,6 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
       }
       _refreshFeed(silent: _publications.isNotEmpty);
     });
-  }
-
-  String? get _selectedType {
-    switch (_selectedIndex) {
-      case 1:
-        return 'lost';
-      case 2:
-        return 'found';
-      default:
-        return null;
-    }
   }
 
   void _handleScroll() {
@@ -198,6 +261,35 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     await _loadPublications(reset: true, silent: silent);
   }
 
+  Future<void> _loadCategories() async {
+    if (_loadingCategories) return;
+    setState(() {
+      _loadingCategories = true;
+      _categoriesError = null;
+    });
+
+    try {
+      final categories = await ApiService.instance.fetchCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories = categories;
+        _categoriesError = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _categoriesError = AppErrorMapper.message(
+          e,
+          fallbackMessage: AppMessages.categoriesLoadError(),
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _loadingCategories = false);
+      }
+    }
+  }
+
   Publication _mapListing(HomeListingItem listing) {
     final images = listing.images.isNotEmpty
         ? listing.images
@@ -217,6 +309,8 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
       eventDate: listing.eventDate ?? '',
       description: listing.description,
       cityArea: listing.location.isNotEmpty ? listing.location : listing.city,
+      categoryId: listing.categoryId,
+      categoryName: listing.categoryName,
       likesCount: listing.likesCount,
       commentsCount: listing.commentsCount,
       likedByMe: listing.likedByMe,
@@ -291,6 +385,9 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     try {
       final listings = await HomeListingsApi.instance.fetchListings(
         type: _selectedType,
+        query: _query,
+        categoryId: _selectedCategoryId,
+        city: _cityFilter,
         limit: requestLimit,
         offset: nextOffset,
       );
@@ -334,7 +431,13 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
   }
 
   void _onSearchChanged(String query) {
-    setState(() => _query = query.trim().toLowerCase());
+    final normalizedQuery = query.trim();
+    setState(() => _query = normalizedQuery);
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      _refreshFeed();
+    });
   }
 
   void _onFilterChanged(int index) {
@@ -344,14 +447,275 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
   }
 
   List<Publication> get _filtered {
-    if (_query.isEmpty) return _publications;
+    return _publications;
+  }
 
-    return _publications.where((publication) {
-      final haystack =
-          '${publication.title} ${publication.description} ${publication.cityArea}'
-              .toLowerCase();
-      return haystack.contains(_query);
-    }).toList();
+  Future<void> _openAdvancedFilters() async {
+    if (_categories.isEmpty && !_loadingCategories) {
+      await _loadCategories();
+    }
+    if (!mounted) return;
+
+    int? draftCategoryId = _selectedCategoryId;
+    final cityController = TextEditingController(text: _cityFilter);
+
+    try {
+      final result = await showModalBottomSheet<_AdvancedSearchFilters>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetContext) {
+          watchLanguage(sheetContext);
+          final scheme = Theme.of(sheetContext).colorScheme;
+          final textTheme = Theme.of(sheetContext).textTheme;
+          final lang = getCurrentLanguageCode();
+          final bottomInset = MediaQuery.of(sheetContext).viewInsets.bottom;
+
+          return StatefulBuilder(
+            builder: (context, setSheetState) {
+              final showCategoriesLoader =
+                  _loadingCategories && _categories.isEmpty;
+
+              return Padding(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      _trOrFallback(
+                        'advanced_search_title',
+                        fr: 'Recherche avancee',
+                        en: 'Advanced search',
+                        ar: 'بحث متقدم',
+                      ),
+                      style: textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _trOrFallback(
+                        'advanced_search_subtitle',
+                        fr: 'Affinez vos resultats par categorie et ville.',
+                        en: 'Refine your results by category and city.',
+                        ar: 'حدد النتائج حسب الفئة والمدينة.',
+                      ),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    if (showCategoriesLoader)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      )
+                    else
+                      DropdownButtonFormField<int?>(
+                        value: draftCategoryId,
+                        decoration: InputDecoration(
+                          labelText: t('category'),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        items: [
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text(
+                              _trOrFallback(
+                                'all_categories',
+                                fr: 'Toutes les categories',
+                                en: 'All categories',
+                                ar: 'جميع الفئات',
+                              ),
+                            ),
+                          ),
+                          ..._categories.map(
+                            (category) => DropdownMenuItem<int?>(
+                              value: category.id,
+                              child: Text(category.displayName(lang)),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setSheetState(() => draftCategoryId = value);
+                        },
+                      ),
+                    if (_categoriesError != null && _categories.isEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _categoriesError!,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.error,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () async {
+                            await _loadCategories();
+                            if (!mounted) return;
+                            Navigator.of(sheetContext).pop();
+                            _openAdvancedFilters();
+                          },
+                          child: Text(t('retry')),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: cityController,
+                      decoration: InputDecoration(
+                        labelText: t('city_label'),
+                        hintText: t('city_hint'),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        prefixIcon: const Icon(Icons.location_on_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.of(sheetContext).pop(
+                                const _AdvancedSearchFilters(
+                                  categoryId: null,
+                                  city: '',
+                                  clearQuery: true,
+                                ),
+                              );
+                            },
+                            child: Text(
+                              _trOrFallback(
+                                'clear_filters',
+                                fr: 'Effacer',
+                                en: 'Clear',
+                                ar: 'مسح',
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              Navigator.of(sheetContext).pop(
+                                _AdvancedSearchFilters(
+                                  categoryId: draftCategoryId,
+                                  city: cityController.text.trim(),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              _trOrFallback(
+                                'apply_filters',
+                                fr: 'Appliquer',
+                                en: 'Apply',
+                                ar: 'تطبيق',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      if (!mounted || result == null) return;
+      final nextQuery = result.clearQuery ? '' : _query;
+      if (result.categoryId == _selectedCategoryId &&
+          result.city == _cityFilter &&
+          nextQuery == _query) {
+        return;
+      }
+
+      setState(() {
+        _selectedCategoryId = result.categoryId;
+        _cityFilter = result.city;
+        _query = nextQuery;
+        if (result.clearQuery) {
+          _searchController.clear();
+        }
+      });
+      _refreshFeed();
+    } finally {
+      cityController.dispose();
+    }
+  }
+
+  Future<void> _clearSearchFilter() async {
+    if (_query.isEmpty) return;
+    _searchController.clear();
+    setState(() => _query = '');
+    await _refreshFeed();
+  }
+
+  Future<void> _clearCategoryFilter() async {
+    if (_selectedCategoryId == null) return;
+    setState(() => _selectedCategoryId = null);
+    await _refreshFeed();
+  }
+
+  Future<void> _clearCityFilter() async {
+    if (_cityFilter.isEmpty) return;
+    setState(() => _cityFilter = '');
+    await _refreshFeed();
+  }
+
+  Widget _buildActiveFiltersRow(ColorScheme scheme) {
+    final categoryLabel = _selectedCategoryLabel;
+    if (_activeFilterCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (_query.isNotEmpty)
+            InputChip(
+              label: Text(_query),
+              onDeleted: () => _clearSearchFilter(),
+              deleteIconColor: scheme.onSurfaceVariant,
+            ),
+          if (categoryLabel != null)
+            InputChip(
+              label: Text(categoryLabel),
+              onDeleted: () => _clearCategoryFilter(),
+              deleteIconColor: scheme.onSurfaceVariant,
+            ),
+          if (_cityFilter.isNotEmpty)
+            InputChip(
+              label: Text(_cityFilter),
+              onDeleted: () => _clearCityFilter(),
+              deleteIconColor: scheme.onSurfaceVariant,
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -359,11 +723,19 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (widget.headerBuilder != null)
-          widget.headerBuilder!(_onSearchChanged),
+          widget.headerBuilder!(
+            _searchController,
+            _onSearchChanged,
+            () {
+              _openAdvancedFilters();
+            },
+            _activeFilterCount,
+          ),
         Row(
           children: [
             Expanded(
@@ -406,6 +778,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
           selectedIndex: _selectedIndex,
           onChanged: _onFilterChanged,
         ),
+        _buildActiveFiltersRow(scheme),
         const SizedBox(height: 14),
         _buildBody(),
       ],
@@ -420,6 +793,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
     final mutedGray = isDark
         ? scheme.onSurfaceVariant.withValues(alpha: 0.72)
         : _mutedGray;
+
     if (_loading) {
       return const Center(
         child: Padding(
@@ -440,7 +814,12 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
-            OutlinedButton(onPressed: _refreshFeed, child: Text(t('retry'))),
+            OutlinedButton(
+              onPressed: () {
+                _refreshFeed();
+              },
+              child: Text(t('retry')),
+            ),
           ],
         ),
       );
@@ -451,7 +830,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: Text(
-            _query.isEmpty ? t('no_listings_yet') : t('no_search_results'),
+            _hasSearchCriteria ? t('no_search_results') : t('no_listings_yet'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
         ),
@@ -462,7 +841,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
       duration: const Duration(milliseconds: 250),
       child: Column(
         key: ValueKey(
-          '$_selectedIndex-$_query-${_publications.length}-$_loadingMore',
+          '$_selectedIndex-$_query-$_selectedCategoryId-$_cityFilter-${_publications.length}-$_loadingMore',
         ),
         children: [
           Column(
@@ -491,7 +870,7 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             )
-          else if (!_hasMore && _publications.isNotEmpty && _query.isEmpty)
+          else if (!_hasMore && _publications.isNotEmpty && !_hasSearchCriteria)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
@@ -509,4 +888,16 @@ class _RecentPublicationsSectionState extends State<RecentPublicationsSection>
       ),
     );
   }
+}
+
+class _AdvancedSearchFilters {
+  const _AdvancedSearchFilters({
+    required this.categoryId,
+    required this.city,
+    this.clearQuery = false,
+  });
+
+  final int? categoryId;
+  final String city;
+  final bool clearQuery;
 }

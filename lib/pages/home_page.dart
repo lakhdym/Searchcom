@@ -189,15 +189,24 @@ class _HomePageState extends State<HomePage> {
             RecentPublicationsSection(
               scrollController: _scrollController,
               refreshListenable: _feedRefreshSignal,
-              headerBuilder: (onSearchChanged) => Column(
-                children: [
-                  SearchBarWithFilter(
-                    onChanged: onSearchChanged,
-                    onFilterTap: () {},
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+              headerBuilder: (
+                searchController,
+                onSearchChanged,
+                onFilterTap,
+                activeFilterCount,
+              ) {
+                return Column(
+                  children: [
+                    SearchBarWithFilter(
+                      controller: searchController,
+                      onChanged: onSearchChanged,
+                      onFilterTap: onFilterTap,
+                      activeFilterCount: activeFilterCount,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              },
             ),
           ],
         ),

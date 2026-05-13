@@ -14,19 +14,31 @@ class HomeListingsApi {
 
   Future<List<HomeListingItem>> fetchListings({
     String? type,
+    String? query,
+    int? categoryId,
+    String? city,
     int limit = 5,
     int offset = 0,
   }) async {
     final token = await AuthLocalStorage.instance.getToken();
-    final query = <String, String>{
+    final queryParameters = <String, String>{
       'limit': limit.toString(),
       'offset': offset.toString(),
       '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
       ...?(type == null ? null : <String, String>{'type': type}),
+      ...?((query == null || query.trim().isEmpty)
+          ? null
+          : <String, String>{'q': query.trim()}),
+      ...?(categoryId == null
+          ? null
+          : <String, String>{'category_id': categoryId.toString()}),
+      ...?((city == null || city.trim().isEmpty)
+          ? null
+          : <String, String>{'city': city.trim()}),
     };
     final uri = Uri.parse(
       '${ApiService.baseUrlProd}/annonces.php',
-    ).replace(queryParameters: query);
+    ).replace(queryParameters: queryParameters);
     final headers = <String, String>{
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
     };
@@ -56,6 +68,8 @@ class HomeListingItem {
   final String description;
   final String location;
   final String city;
+  final int? categoryId;
+  final String? categoryName;
   final String date;
   final String? eventDate;
   final String? imageUrl;
@@ -77,6 +91,8 @@ class HomeListingItem {
     required this.description,
     required this.location,
     required this.city,
+    required this.categoryId,
+    required this.categoryName,
     required this.date,
     required this.eventDate,
     required this.imageUrl,
@@ -114,6 +130,11 @@ class HomeListingItem {
       return raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
     }
 
+    int? parseCategoryId() {
+      final raw = json['category_id'] ?? json['categoryId'];
+      return raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+    }
+
     return HomeListingItem(
       id: (json['id'] as num).toInt(),
       ownerId: parseOwnerId(),
@@ -129,6 +150,12 @@ class HomeListingItem {
         json['location']?.toString() ?? json['city']?.toString(),
       ),
       city: fixUtf8(json['city']?.toString()),
+      categoryId: parseCategoryId(),
+      categoryName: () {
+        final raw = (json['category_name'] ?? '').toString();
+        final fixed = fixUtf8(raw).trim();
+        return fixed.isNotEmpty ? fixed : null;
+      }(),
       date: json['date']?.toString() ?? '',
       eventDate: json['event_date']?.toString(),
       imageUrl: json['imageUrl']?.toString(),

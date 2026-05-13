@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 
 enum PublicationStatus { perdu, trouve }
 
-typedef HeaderBuilder = Widget Function(ValueChanged<String> onSearchChanged);
+typedef HeaderBuilder = Widget Function(
+  TextEditingController searchController,
+  ValueChanged<String> onSearchChanged,
+  VoidCallback onFilterTap,
+  int activeFilterCount,
+);
 
 class Publication {
   final int id;
@@ -14,6 +19,8 @@ class Publication {
   final String eventDate;
   final String description;
   final String cityArea;
+  final int? categoryId;
+  final String? categoryName;
   final int likesCount;
   final int commentsCount;
   final bool likedByMe;
@@ -33,6 +40,8 @@ class Publication {
     required this.eventDate,
     required this.description,
     required this.cityArea,
+    this.categoryId,
+    this.categoryName,
     required this.likesCount,
     required this.commentsCount,
     required this.likedByMe,
@@ -53,6 +62,8 @@ class Publication {
     String? eventDate,
     String? description,
     String? cityArea,
+    int? categoryId,
+    String? categoryName,
     int? likesCount,
     int? commentsCount,
     bool? likedByMe,
@@ -72,6 +83,8 @@ class Publication {
       eventDate: eventDate ?? this.eventDate,
       description: description ?? this.description,
       cityArea: cityArea ?? this.cityArea,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,
       likedByMe: likedByMe ?? this.likedByMe,

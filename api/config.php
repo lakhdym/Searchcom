@@ -11,6 +11,9 @@ const DB_PASS = 'Pp6QOQ8mbUU)Dl&S';
 
 const APP_BASE_URL = 'https://italents.ma/app';
 const PHOTO_BASE_URL = APP_BASE_URL . '/uploads/annonces/';
+const APP_TIMEZONE = 'Africa/Casablanca';
+
+date_default_timezone_set(APP_TIMEZONE);
 
 function app_base_url(): string
 {
@@ -40,6 +43,25 @@ function photo_url(string $filename): string
     return uploads_url('annonces/' . ltrim($filename, '/'));
 }
 
+function app_timezone_offset_string(): string
+{
+    static $offset = null;
+    if ($offset !== null) {
+        return $offset;
+    }
+
+    $timezone = new DateTimeZone(APP_TIMEZONE);
+    $now = new DateTime('now', $timezone);
+    $seconds = $timezone->getOffset($now);
+    $sign = $seconds < 0 ? '-' : '+';
+    $seconds = abs($seconds);
+    $hours = str_pad((string) intdiv($seconds, 3600), 2, '0', STR_PAD_LEFT);
+    $minutes = str_pad((string) intdiv($seconds % 3600, 60), 2, '0', STR_PAD_LEFT);
+    $offset = $sign . $hours . ':' . $minutes;
+
+    return $offset;
+}
+
 function get_pdo(): PDO
 {
     static $pdo = null;
@@ -49,6 +71,10 @@ function get_pdo(): PDO
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
+        try {
+            $pdo->exec("SET time_zone = '" . app_timezone_offset_string() . "'");
+        } catch (Throwable $e) {
+        }
     }
     return $pdo;
 }

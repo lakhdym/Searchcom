@@ -323,7 +323,7 @@ class ApiService {
       );
     }
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    return ApiListingComment.fromJson(data);
+    return ApiListingComment.fromJson(data).copyWith(createdAt: DateTime.now());
   }
 
   // -------------------------------------------------------------
@@ -1020,6 +1020,26 @@ class ApiListingComment {
     required this.status,
     required this.createdAt,
   });
+
+  ApiListingComment copyWith({
+    int? id,
+    int? listingId,
+    int? userId,
+    String? fullName,
+    String? content,
+    String? status,
+    DateTime? createdAt,
+  }) {
+    return ApiListingComment(
+      id: id ?? this.id,
+      listingId: listingId ?? this.listingId,
+      userId: userId ?? this.userId,
+      fullName: fullName ?? this.fullName,
+      content: content ?? this.content,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 
   factory ApiListingComment.fromJson(Map<String, dynamic> json) {
     return ApiListingComment(

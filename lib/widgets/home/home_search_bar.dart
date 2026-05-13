@@ -3,10 +3,18 @@ import 'package:flutter/material.dart';
 import '../../services/l10n_helper.dart';
 
 class SearchBarWithFilter extends StatelessWidget {
-  const SearchBarWithFilter({super.key, this.onChanged, this.onFilterTap});
+  const SearchBarWithFilter({
+    super.key,
+    this.controller,
+    this.onChanged,
+    this.onFilterTap,
+    this.activeFilterCount = 0,
+  });
 
+  final TextEditingController? controller;
   final ValueChanged<String>? onChanged;
   final VoidCallback? onFilterTap;
+  final int activeFilterCount;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +54,7 @@ class SearchBarWithFilter extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
+              controller: controller,
               onChanged: onChanged,
               decoration: InputDecoration(
                 isDense: true,
@@ -82,7 +91,9 @@ class SearchBarWithFilter extends StatelessWidget {
               ),
               icon: const Icon(Icons.filter_list, size: 18),
               label: Text(
-                t('filter_button'),
+                activeFilterCount > 0
+                    ? '${t('filter_button')} ($activeFilterCount)'
+                    : t('filter_button'),
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
