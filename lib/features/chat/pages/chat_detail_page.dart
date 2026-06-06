@@ -28,6 +28,32 @@ class ChatDetailPage extends StatefulWidget {
 }
 
 class _ChatDetailPageState extends State<ChatDetailPage> {
+  static const List<String> _defaultChatEmojis = <String>[
+    '😀',
+    '😁',
+    '😂',
+    '🤣',
+    '😊',
+    '😍',
+    '😘',
+    '😎',
+    '🤔',
+    '😢',
+    '😭',
+    '😡',
+    '👍',
+    '👏',
+    '🙏',
+    '❤️',
+    '🔥',
+    '🎉',
+    '✅',
+    '🤝',
+    '📱',
+    '📍',
+    '⏰',
+    '⭐',
+  ];
   List<ChatMessage> _messages = [];
   final _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
@@ -987,21 +1013,11 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   setState(() => _showEmoji = !_showEmoji);
                 },
               ),
-              // Temporarily commented out emoji picker
-              // if (_showEmoji)
-              //   SizedBox(
-              //     height: 250,
-              //     child: EmojiPicker(
-              //       onEmojiSelected: (category, emoji) =>
-              //           _insertEmoji(emoji.emoji),
-              //       config: const Config(
-              //         emojiViewConfig: EmojiViewConfig(
-              //           columns: 7,
-              //           emojiSizeMax: 32,
-              //         ),
-              //       ),
-              //     ),
-              //   ),
+              if (_showEmoji)
+                _ChatEmojiPanel(
+                  emojis: _defaultChatEmojis,
+                  onEmojiSelected: _insertEmoji,
+                ),
             ],
           ],
         ),
@@ -1477,6 +1493,62 @@ class ChatInputBar extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatEmojiPanel extends StatelessWidget {
+  const _ChatEmojiPanel({
+    required this.emojis,
+    required this.onEmojiSelected,
+  });
+
+  final List<String> emojis;
+  final ValueChanged<String> onEmojiSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 220,
+        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: scheme.shadow.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: GridView.builder(
+          itemCount: emojis.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 6,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          itemBuilder: (context, index) {
+            final emoji = emojis[index];
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => onEmojiSelected(emoji),
+              child: Center(
+                child: Text(
+                  emoji,
+                  style: const TextStyle(fontSize: 28),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
