@@ -41,6 +41,15 @@ try {
         json_response(['success' => false, 'message' => 'Acces non autorise a cette conversation'], 403);
     }
 
+    $accessStmt = $pdo->prepare('
+        SELECT c.listing_id, l.user_id AS owner_id, l.type
+        FROM conversations c
+        JOIN listings l ON l.id = c.listing_id
+        WHERE c.id = :cid
+        LIMIT 1
+    ');
+    $accessStmt->execute([':cid' => $conversationId]);
+    $conversationMeta = $accessStmt->fetch(PDO::FETCH_ASSOC);
     $pdo->exec("CREATE TABLE IF NOT EXISTS conversation_blocks (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         conversation_id BIGINT NOT NULL,

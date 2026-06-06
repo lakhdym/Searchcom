@@ -100,7 +100,9 @@ String chatMessagePreviewText(
 class ChatConversation {
   final String id;
   final ChatUser user;
+  final int? listingId;
   final String? listingTitle;
+  final bool requiresContactPayment;
   int unreadCount;
   ChatMessage lastMessage;
   final bool blockedByMe;
@@ -109,7 +111,9 @@ class ChatConversation {
   ChatConversation({
     required this.id,
     required this.user,
+    this.listingId,
     this.listingTitle,
+    this.requiresContactPayment = false,
     required this.unreadCount,
     required this.lastMessage,
     this.blockedByMe = false,

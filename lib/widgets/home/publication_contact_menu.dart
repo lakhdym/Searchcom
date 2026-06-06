@@ -9,6 +9,7 @@ import '../../features/chat/pages/chat_detail_page.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_local_storage.dart';
 import '../../services/l10n_helper.dart';
+import '../payment_modal.dart';
 import 'publication_menu_row.dart';
 
 class PublicationContactMenu {
@@ -24,6 +25,7 @@ class PublicationContactMenu {
     required bool contactWhatsApp,
     required bool contactCall,
     required bool contactChat,
+    required bool requiresContactPayment,
     required String? ownerPhone,
     required Color purple,
   }) async {
@@ -97,11 +99,16 @@ class PublicationContactMenu {
       return;
     }
 
-    final button = context.findRenderObject() as RenderBox;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final buttonObject = context.findRenderObject();
+    final overlayState = Overlay.maybeOf(context);
+    final overlayObject = overlayState?.context.findRenderObject();
+    if (buttonObject is! RenderBox || overlayObject is! RenderBox) {
+      return;
+    }
     final position = RelativeRect.fromRect(
-      button.localToGlobal(Offset.zero, ancestor: overlay) & button.size,
-      Offset.zero & overlay.size,
+      buttonObject.localToGlobal(Offset.zero, ancestor: overlayObject) &
+          buttonObject.size,
+      Offset.zero & overlayObject.size,
     );
 
     final choice = await showMenu<String>(
@@ -113,6 +120,16 @@ class PublicationContactMenu {
     );
 
     if (!context.mounted || choice == null) return;
+
+    if (requiresContactPayment) {
+      final granted = await _ensurePaidContactAccess(
+        context,
+        listingId: listingId,
+      );
+      if (!context.mounted || !granted) {
+        return;
+      }
+    }
 
     if (choice == 'wa') {
       await _launchWhatsApp(context, phone);
@@ -128,8 +145,82 @@ class PublicationContactMenu {
         listingId: listingId,
         listingTitle: listingTitle,
         ownerName: ownerName,
+        requiresContactPayment: requiresContactPayment,
         avatarColor: purple,
       );
+    }
+  }
+
+  static Future<bool> _ensurePaidContactAccess(
+    BuildContext context, {
+    required int listingId,
+  }) async {
+    final canProceed = await ApiService.instance.syncStoredAuthSession();
+    if (!context.mounted) return false;
+
+    if (!canProceed) {
+      AppFeedback.showInfoSnackBar(context, t('sign_in_to_contact'));
+      return false;
+    }
+
+    try {
+      final access = await ApiService.instance.requestContactAccess(
+        listingId: listingId,
+      );
+      if (!context.mounted) return false;
+
+      if (access.hasAccess || !access.requiresPayment) {
+        return true;
+      }
+
+      final priceLabel = '${access.amount ?? ''} ${access.currency ?? ''}'
+          .trim();
+      final amountLabel = priceLabel.isEmpty
+          ? t('payment_required')
+          : priceLabel;
+
+      if (access.paymentId == null) {
+        _showError(context, AppMessages.paymentFailed());
+        return false;
+      }
+
+      var paymentConfirmed = false;
+      await PaymentModal.show(
+        context,
+        amount: amountLabel,
+        titleText: t('unlock_contact_title'),
+        descriptionText: t(
+          'unlock_contact_payment_notice',
+        ).replaceFirst('{amount}', amountLabel),
+        onPay: (_) async {
+          await ApiService.instance.confirmContactAccessPayment(
+            paymentId: access.paymentId!,
+            listingId: listingId,
+          );
+          return true;
+        },
+        onPaymentSuccess: () {
+          paymentConfirmed = true;
+        },
+      );
+
+      if (!context.mounted) return paymentConfirmed;
+
+      if (paymentConfirmed) {
+        AppFeedback.showSuccessSnackBar(context, t('contact_payment_success'));
+      }
+
+      return paymentConfirmed;
+    } catch (e) {
+      if (!context.mounted) return false;
+      _showError(
+        context,
+        AppErrorMapper.message(
+          e,
+          fallbackMessage: t('payment_failed'),
+        ),
+      );
+      return false;
     }
   }
 
@@ -187,6 +278,7 @@ class PublicationContactMenu {
     required int listingId,
     required String listingTitle,
     String? ownerName,
+    required bool requiresContactPayment,
     required Color avatarColor,
   }) async {
     final user = await AuthLocalStorage.instance.getUser();
@@ -210,7 +302,9 @@ class PublicationContactMenu {
           name: otherName,
           avatarColor: avatarColor,
         ),
+        listingId: listingId,
         listingTitle: listingTitle,
+        requiresContactPayment: requiresContactPayment,
         unreadCount: 0,
         lastMessage: ChatMessage(
           id: 'seed-$convId',

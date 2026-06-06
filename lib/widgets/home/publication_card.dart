@@ -1117,6 +1117,8 @@ class _PublicationCardState extends State<PublicationCard>
       contactWhatsApp: widget.publication.contactWhatsApp,
       contactCall: widget.publication.contactCall,
       contactChat: widget.publication.contactChat,
+      requiresContactPayment:
+          widget.publication.status == PublicationStatus.trouve,
       ownerPhone: widget.publication.ownerPhone,
       purple: widget.purple,
     );

@@ -186,7 +186,9 @@ class _ConversationsPageState extends State<ConversationsPage> {
     try {
       final otherId = json['other_user_id']?.toString() ?? '';
       final otherName = json['other_user_name']?.toString() ?? 'Contact';
+      final listingId = int.tryParse(json['listing_id']?.toString() ?? '');
       final listingTitle = json['listing_title']?.toString();
+      final listingType = json['listing_type']?.toString() ?? '';
       final lastMsg = json['last_message']?.toString();
       final lastMessageType = json['last_message_type']?.toString() ?? 'text';
       final lastMediaUrl = json['last_media_url']?.toString();
@@ -224,7 +226,9 @@ class _ConversationsPageState extends State<ConversationsPage> {
           name: otherName,
           avatarColor: _colorFromString(otherId),
         ),
+        listingId: listingId,
         listingTitle: listingTitle,
+        requiresContactPayment: listingType == 'found',
         unreadCount: unread,
         lastMessage: ChatMessage(
           id: 'last_${json['id']}',

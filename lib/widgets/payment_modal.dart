@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_messages.dart';
+import '../core/errors/app_error_mapper.dart';
 import '../core/feedback/app_feedback.dart';
 import '../services/l10n_helper.dart';
 import '../theme/app_theme.dart';
@@ -12,12 +13,18 @@ class PaymentModal extends StatefulWidget {
     required this.onPaymentSuccess,
     this.onCancel,
     this.onPay,
+    this.titleText,
+    this.descriptionText,
+    this.payButtonLabel,
   });
 
   final String amount;
   final VoidCallback onPaymentSuccess;
   final VoidCallback? onCancel;
   final Future<bool> Function(String method)? onPay;
+  final String? titleText;
+  final String? descriptionText;
+  final String? payButtonLabel;
 
   static Future<void> show(
     BuildContext context, {
@@ -25,6 +32,9 @@ class PaymentModal extends StatefulWidget {
     required VoidCallback onPaymentSuccess,
     VoidCallback? onCancel,
     Future<bool> Function(String method)? onPay,
+    String? titleText,
+    String? descriptionText,
+    String? payButtonLabel,
   }) {
     return showDialog(
       context: context,
@@ -34,6 +44,9 @@ class PaymentModal extends StatefulWidget {
         onPaymentSuccess: onPaymentSuccess,
         onCancel: onCancel,
         onPay: onPay,
+        titleText: titleText,
+        descriptionText: descriptionText,
+        payButtonLabel: payButtonLabel,
       ),
     );
   }
@@ -76,10 +89,12 @@ class _PaymentModalState extends State<PaymentModal>
     setState(() => _isProcessing = true);
 
     var success = true;
+    Object? paymentError;
     if (widget.onPay != null) {
       try {
         success = await widget.onPay!.call(_selectedMethod);
-      } catch (_) {
+      } catch (error) {
+        paymentError = error;
         success = false;
       }
     } else {
@@ -93,7 +108,15 @@ class _PaymentModalState extends State<PaymentModal>
     if (success) {
       widget.onPaymentSuccess();
     } else {
-      AppFeedback.showErrorSnackBar(context, AppMessages.paymentFailed());
+      AppFeedback.showErrorSnackBar(
+        context,
+        paymentError == null
+            ? AppMessages.paymentFailed()
+            : AppErrorMapper.message(
+                paymentError,
+                fallbackMessage: AppMessages.paymentFailed(),
+              ),
+      );
     }
   }
 
@@ -106,6 +129,12 @@ class _PaymentModalState extends State<PaymentModal>
   Widget build(BuildContext context) {
     watchLanguage(context);
     final scheme = Theme.of(context).colorScheme;
+    final titleText = widget.titleText ?? t('complete_publication');
+    final descriptionText =
+        widget.descriptionText ??
+        '${t('lost_item_payment_notice')} ${widget.amount} ${t('payment_required_suffix')}';
+    final payButtonLabel =
+        widget.payButtonLabel ?? '${t('pay_amount')} ${widget.amount}';
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -136,7 +165,7 @@ class _PaymentModalState extends State<PaymentModal>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        t('complete_publication'),
+                        titleText,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: scheme.onSurface,
@@ -171,15 +200,7 @@ class _PaymentModalState extends State<PaymentModal>
                           color: AppTheme.primaryVioletDark,
                         ),
                         children: [
-                          TextSpan(text: '${t('lost_item_payment_notice')} '),
-                          TextSpan(
-                            text: widget.amount,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          TextSpan(text: ' ${t('payment_required_suffix')}'),
+                          TextSpan(text: descriptionText),
                         ],
                       ),
                     ),
@@ -290,7 +311,7 @@ class _PaymentModalState extends State<PaymentModal>
                                     ),
                                   )
                                 : Text(
-                                    '${t('pay_amount')} ${widget.amount}',
+                                    payButtonLabel,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),

@@ -16,6 +16,7 @@ import '../../../services/api_service.dart';
 import '../../../services/auth_local_storage.dart';
 import '../../../services/l10n_helper.dart';
 import '../../../widgets/image_viewer_page.dart';
+import '../../../widgets/payment_modal.dart';
 import '../models/chat_models.dart';
 
 class ChatDetailPage extends StatefulWidget {
@@ -43,6 +44,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   bool _loading = true;
   String? _error;
   Timer? _refreshTimer;
+  bool _contactAccessGranted = false;
 
   int get _conversationId => int.tryParse(widget.conversation.id) ?? 0;
 
@@ -358,6 +360,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       AppFeedback.showInfoSnackBar(context, AppMessages.sessionExpired());
       return;
     }
+    final canSend = await _ensureFoundListingMessagingAccess();
+    if (!mounted || !canSend) {
+      return;
+    }
 
     final replyTarget = _replyTo;
     final localMsg = ChatMessage(
@@ -422,6 +428,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     final me = _me;
     if (me == null) {
       AppFeedback.showInfoSnackBar(context, AppMessages.sessionExpired());
+      return;
+    }
+    final canSend = await _ensureFoundListingMessagingAccess();
+    if (!mounted || !canSend) {
       return;
     }
 
@@ -524,6 +534,81 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       fileLabel: t('file_attachment'),
     ).trim();
     return excerpt.isEmpty ? null : excerpt;
+  }
+
+  Future<bool> _ensureFoundListingMessagingAccess() async {
+    if (!widget.conversation.requiresContactPayment) {
+      return true;
+    }
+    if (_contactAccessGranted) {
+      return true;
+    }
+
+    final listingId = widget.conversation.listingId;
+    if (listingId == null || listingId <= 0) {
+      _showSnack(t('payment_failed'));
+      return false;
+    }
+
+    try {
+      final access = await ApiService.instance.requestContactAccess(
+        listingId: listingId,
+      );
+      if (!mounted) return false;
+
+      if (access.hasAccess || !access.requiresPayment) {
+        _contactAccessGranted = true;
+        return true;
+      }
+
+      final priceLabel = '${access.amount ?? ''} ${access.currency ?? ''}'
+          .trim();
+      final amountLabel = priceLabel.isEmpty
+          ? t('payment_required')
+          : priceLabel;
+
+      if (access.paymentId == null) {
+        _showSnack(AppMessages.paymentFailed());
+        return false;
+      }
+
+      var paymentConfirmed = false;
+      await PaymentModal.show(
+        context,
+        amount: amountLabel,
+        titleText: t('unlock_contact_title'),
+        descriptionText: t(
+          'unlock_contact_payment_notice',
+        ).replaceFirst('{amount}', amountLabel),
+        onPay: (_) async {
+          await ApiService.instance.confirmContactAccessPayment(
+            paymentId: access.paymentId!,
+            listingId: listingId,
+          );
+          return true;
+        },
+        onPaymentSuccess: () {
+          paymentConfirmed = true;
+        },
+      );
+
+      if (!mounted) {
+        return paymentConfirmed;
+      }
+
+      if (paymentConfirmed) {
+        _contactAccessGranted = true;
+        AppFeedback.showSuccessSnackBar(context, t('contact_payment_success'));
+      }
+
+      return paymentConfirmed;
+    } catch (e) {
+      if (!mounted) return false;
+      _showSnack(
+        AppErrorMapper.message(e, fallbackMessage: AppMessages.paymentFailed()),
+      );
+      return false;
+    }
   }
 
   void _handleSendFailure(

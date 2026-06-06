@@ -12,7 +12,7 @@ class TopNavBar extends StatelessWidget implements PreferredSizeWidget {
   const TopNavBar({
     super.key,
     this.title,
-    this.avatarLetter = 'T',
+    this.avatarLetter = 'C',
     this.onNotifications,
     this.notificationCount = 0,
     this.showBack = false,

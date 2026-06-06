@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="searchcom"
+        android:label="Cherche4You"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/contact_access.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['success' => false, 'message' => 'Methode non autorisee'], 405);
@@ -64,6 +65,32 @@ try {
     $stmt->execute([':cid' => $conversationId, ':uid' => $userId]);
     if (!$stmt->fetchColumn()) {
         json_response(['success' => false, 'message' => 'Acces non autorise a cette conversation'], 403);
+    }
+
+    $accessStmt = $pdo->prepare('
+        SELECT c.listing_id, l.user_id AS owner_id, l.type
+        FROM conversations c
+        JOIN listings l ON l.id = c.listing_id
+        WHERE c.id = :cid
+        LIMIT 1
+    ');
+    $accessStmt->execute([':cid' => $conversationId]);
+    $conversationMeta = $accessStmt->fetch(PDO::FETCH_ASSOC);
+    if ($conversationMeta &&
+        ($conversationMeta['type'] ?? '') === 'found' &&
+        (int) ($conversationMeta['owner_id'] ?? 0) !== $userId
+    ) {
+        if (!user_has_contact_access(
+            $pdo,
+            $userId,
+            (int) ($conversationMeta['listing_id'] ?? 0)
+        )) {
+            json_response([
+                'success' => false,
+                'requires_payment' => true,
+                'message' => 'Paiement requis pour contacter le publieur',
+            ], 403);
+        }
     }
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS conversation_blocks (

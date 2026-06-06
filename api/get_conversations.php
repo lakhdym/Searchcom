@@ -39,6 +39,7 @@ try {
             c.id,
             c.listing_id,
             l.title AS listing_title,
+            l.type AS listing_type,
             (SELECT u2.id FROM conversation_participants cp2 JOIN users u2 ON u2.id = cp2.user_id
              WHERE cp2.conversation_id = c.id AND cp2.user_id <> :uid LIMIT 1) AS other_user_id,
             (SELECT u2.full_name FROM conversation_participants cp2 JOIN users u2 ON u2.id = cp2.user_id

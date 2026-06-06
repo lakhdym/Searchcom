@@ -378,10 +378,15 @@ class ApiService {
       headers: _buildHeaders(withAuth: true, json: true),
       body: jsonEncode({'listing_id': listingId, 'user_id': userId}),
     );
-    if (resp.statusCode != 200) {
-      throw Exception('Conversation (${resp.statusCode}): ${resp.body}');
-    }
     final data = _decodeMap(_readResponseBody(resp));
+    if (resp.statusCode != 200) {
+      throw Exception(
+        _extractApiErrorMessage(
+          data,
+          fallback: 'Impossible de creer la conversation',
+        ),
+      );
+    }
     if (data['success'] == true) {
       final conv = data['conversation'] ?? {};
       final cid = conv['id'] ?? conv['conversation_id'];
@@ -710,6 +715,74 @@ class ApiService {
     if (resp.statusCode != 200) {
       throw Exception(
         'Erreur confirmation paiement (${resp.statusCode}): ${resp.body}',
+      );
+    }
+  }
+
+  Future<ContactAccessResult> requestContactAccess({
+    required int listingId,
+  }) async {
+    await _loadTokenIfNeeded();
+    if (!isAuthenticated) throw ApiAuthRequired('User not authenticated');
+
+    final uri = Uri.parse('$_baseUrl/create_contact_payment.php');
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode({'listing_id': listingId}),
+    );
+    final data = _decodeMap(_readResponseBody(resp));
+    if (resp.statusCode != 200) {
+      throw Exception(
+        _extractApiErrorMessage(
+          data,
+          fallback: 'Impossible de preparer le paiement de contact',
+        ),
+      );
+    }
+
+    return ContactAccessResult(
+      hasAccess: data['has_access'] == true,
+      requiresPayment: data['requires_payment'] == true,
+      paymentId: data['payment_id'] is num
+          ? (data['payment_id'] as num).toInt()
+          : int.tryParse(data['payment_id']?.toString() ?? ''),
+      amount: data['amount']?.toString(),
+      currency: data['currency']?.toString(),
+    );
+  }
+
+  Future<void> confirmContactAccessPayment({
+    required int paymentId,
+    required int listingId,
+    String provider = 'cmi',
+    String? providerTxnId,
+  }) async {
+    await _loadTokenIfNeeded();
+    if (!isAuthenticated) throw ApiAuthRequired('User not authenticated');
+
+    final uri = Uri.parse('$_baseUrl/confirm_contact_payment.php');
+    final body = <String, dynamic>{
+      'payment_id': paymentId,
+      'listing_id': listingId,
+      'provider': provider,
+    };
+    if (providerTxnId != null) {
+      body['provider_txn_id'] = providerTxnId;
+    }
+
+    final resp = await _client.post(
+      uri,
+      headers: _buildHeaders(withAuth: true, json: true),
+      body: jsonEncode(body),
+    );
+    final data = _decodeMap(_readResponseBody(resp));
+    if (resp.statusCode != 200) {
+      throw Exception(
+        _extractApiErrorMessage(
+          data,
+          fallback: 'Impossible de confirmer le paiement de contact',
+        ),
       );
     }
   }
@@ -1184,6 +1257,22 @@ class CreateListingResult {
   final String? currency;
   CreateListingResult({
     required this.listingId,
+    required this.requiresPayment,
+    this.paymentId,
+    this.amount,
+    this.currency,
+  });
+}
+
+class ContactAccessResult {
+  final bool hasAccess;
+  final bool requiresPayment;
+  final int? paymentId;
+  final String? amount;
+  final String? currency;
+
+  ContactAccessResult({
+    required this.hasAccess,
     required this.requiresPayment,
     this.paymentId,
     this.amount,
